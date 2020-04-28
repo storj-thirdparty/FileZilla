@@ -1,5 +1,6 @@
 # storj-filezilla
 ### *Developed using RC v1.0.1 storj/uplink-c*
+### *FileZilla v3.43.0*
 
 ### Download, Build and Install FileZilla with Storj (RC-v1.0.1) from source:
 * **Windows 10**:
