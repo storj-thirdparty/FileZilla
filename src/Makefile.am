@@ -1,39 +1,18 @@
-if MINGW
-  MAYBE_FZSHELLEXT = fzshellext/32 fzshellext/64
-endif
+bin_PROGRAMS = fzstorj
 
-if HAVE_LIBPUGIXML
-else
-  MAYBE_PUGIXML = pugixml
-endif
+fzstorj_SOURCES = \
+		fzstorj.cpp
 
-if HAVE_DBUS
-  MAYBE_DBUS = dbus
-endif
+fzstorj_LDADD = $(LIBFILEZILLA_LIBS) libuplinkc.a
 
-if ENABLE_STORJ
-  MAYBE_STORJ = storj
-endif
+fzstorj_CPPFLAGS = $(LIBFILEZILLA_CFLAGS)
 
-SUBDIRS = include engine $(MAYBE_PUGIXML) $(MAYBE_DBUS) interface putty $(MAYBE_STORJ) $(MAYBE_FZSHELLEXT) .
-DIST_SUBDIRS = include engine pugixml dbus interface putty storj fzshellext/64 .
-
-dist_noinst_DATA = FileZilla.sln Dependencies.props.example
-
-dist-hook:
-	mkdir -p $(distdir)/fzshellext/32
-	mv -f $(distdir)/fzshellext/64/* $(distdir)/fzshellext
-	rm -rf $(distdir)/config
-	rm -rf $(distdir)/m4
+noinst_HEADERS = events.hpp uplink_definitions.h require.h libuplinkc.h
 
 if MACAPPBUNDLE
-
-noinst_DATA = dylibs.copied
-
-dylibs.copied: $(top_builddir)/FileZilla.app/Contents/MacOS/*
-	"$(top_srcdir)/data/dylibcopy.sh" "$(top_builddir)/FileZilla.app"
-	@touch dylibs.copied
-
-CLEANFILES = dylibs.copied
-
+noinst_DATA = $(top_builddir)/FileZilla.app/Contents/MacOS/fzstorj$(EXEEXT)
 endif
+
+$(top_builddir)/FileZilla.app/Contents/MacOS/fzstorj$(EXEEXT): fzstorj
+	mkdir -p $(top_builddir)/FileZilla.app/Contents/MacOS
+	cp -f fzstorj $(top_builddir)/FileZilla.app/Contents/MacOS/fzstorj
