@@ -296,7 +296,7 @@ int main()
 	
 	Config config = {
         user_agent : "FileZilla",
-    };
+    	};
 	
 	auto fv_openStorjProject = [&]() -> ProjectResult {
 		AccessResult access_result;
@@ -534,4 +534,5 @@ int main()
 
 	}
 
-	return ret;}
+	return ret;
+}
