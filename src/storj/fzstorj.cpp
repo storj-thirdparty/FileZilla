@@ -293,11 +293,15 @@ int main()
 	std::string ls_apiKey;
 	std::string ls_encryptionPassPhrase;
 	std::string ls_serializedAccessGrantKey;
-		
+	
+	Config config = {
+        user_agent : "FileZilla",
+    };
+	
 	auto fv_openStorjProject = [&]() -> ProjectResult {
 		AccessResult access_result;
 		if(!(ls_apiKey.empty())) {
-			access_result = request_access_with_passphrase(const_cast<char*>(ls_satelliteURL.c_str()), const_cast<char*>(ls_apiKey.c_str()), const_cast<char*>(ls_encryptionPassPhrase.c_str()));
+			access_result = config_request_access_with_passphrase(config, const_cast<char*>(ls_satelliteURL.c_str()), const_cast<char*>(ls_apiKey.c_str()), const_cast<char*>(ls_encryptionPassPhrase.c_str()));
 			if (access_result.error) {
 				fzprintf(storjEvent::Error, "failed to parse access: %s", access_result.error->message);
 				free_access_result(access_result);
@@ -311,7 +315,7 @@ int main()
 			}
 		}
 		
-		ProjectResult project_result = open_project(access_result.access);
+		ProjectResult project_result = config_open_project(config, access_result.access);
 		if (project_result.error) {
 			fzprintf(storjEvent::Error, "failed to open project: %s", project_result.error->message);
 			free_project_result(project_result);
