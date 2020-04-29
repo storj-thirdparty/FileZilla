@@ -295,7 +295,7 @@ int main()
 	std::string ls_serializedAccessGrantKey;
 	
 	Config config = {
-        user_agent : "FileZilla",
+        	user_agent : "FileZilla",
     	};
 	
 	auto fv_openStorjProject = [&]() -> ProjectResult {
