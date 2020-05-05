@@ -26,7 +26,7 @@
 	$ make && make install
     ```
 	- Please ensure there are no empty spaces in any folder name!
-* Download FileZilla source from the bitbucket:
+* Download FileZilla source from GitHub:
     ```
     $ cd ~
 	$ git clone https://github.com/storj/storj-filezilla.git filezilla
