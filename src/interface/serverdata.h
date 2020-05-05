@@ -5,6 +5,7 @@
 
 #include <libfilezilla/encryption.hpp>
 
+#include <optional>
 #include <string>
 
 class ProtectedCredentials final : public Credentials
@@ -47,10 +48,11 @@ public:
 struct SiteHandleData final : public ServerHandleData
 {
 public:
+	std::wstring name_;
 	std::wstring sitePath_;
 
 	bool operator==(SiteHandleData& rhs) const {
-		return sitePath_ == rhs.sitePath_;
+		return name_ == rhs.name_ && sitePath_ == rhs.sitePath_;
 	}
 
 	bool operator!=(SiteHandleData& rhs) const {
@@ -59,7 +61,6 @@ public:
 };
 
 SiteHandleData toSiteHandle(ServerHandle const& handle);
-
 
 class Site final
 {
@@ -100,7 +101,11 @@ public:
 
 	void SetUser(std::wstring const& user);
 
+	void SetName(std::wstring const& name);
+	std::wstring const& GetName() const;
+
 	CServer server;
+	std::optional<CServer> originalServer;
 	ProtectedCredentials credentials;
 
 	std::wstring comments_;
@@ -123,6 +128,9 @@ public:
 		return server.SameResource(other.server);
 	}
 
+	CServer const& GetOriginalServer() const {
+		return originalServer ? *originalServer : server;
+	}
 private:
 	std::shared_ptr<SiteHandleData> data_;
 };

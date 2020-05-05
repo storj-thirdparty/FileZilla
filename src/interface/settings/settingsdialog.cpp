@@ -26,6 +26,8 @@
 #include "optionspage_filelists.h"
 #include "../filezillaapp.h"
 #include "../Mainfrm.h"
+#include "../treectrlex.h"
+#include "../xrc_helper.h"
 
 BEGIN_EVENT_TABLE(CSettingsDialog, wxDialogEx)
 EVT_TREE_SEL_CHANGING(XRCID("ID_TREE"), CSettingsDialog::OnPageChanging)
@@ -49,10 +51,31 @@ bool CSettingsDialog::Create(CMainFrame* pMainFrame)
 	m_pMainFrame = pMainFrame;
 
 	SetExtraStyle(wxWS_EX_BLOCK_EVENTS);
-	SetParent(pMainFrame);
-	if (!Load(GetParent(), _T("ID_SETTINGS"))) {
+	if (!wxDialogEx::Create(pMainFrame, -1, _("Settings"))) {
 		return false;
 	}
+
+	auto & lay = layout();
+	auto * main = lay.createMain(this, 2);
+	main->AddGrowableRow(0);
+
+	auto* left = lay.createFlex(1);
+	left->AddGrowableRow(1);
+	main->Add(left, 1, wxGROW);
+
+	left->Add(new wxStaticText(this, -1, _("Select &page:")));
+
+	tree_ = new wxTreeCtrlEx(this, XRCID("ID_TREE"), wxDefaultPosition, wxDefaultSize, DEFAULT_TREE_STYLE | wxTR_HIDE_ROOT);
+	tree_->SetFocus();
+	left->Add(tree_, 1, wxGROW);
+
+	auto ok = new wxButton(this, wxID_OK, _("OK"));
+	ok->SetDefault();
+	left->Add(ok, lay.grow);
+	left->Add(new wxButton(this, wxID_CANCEL, _("&Cancel")), lay.grow);
+
+	pagePanel_ = new wxPanel(this);
+	main->Add(pagePanel_, lay.grow);
 
 	if (!LoadPages()) {
 		return false;
@@ -63,18 +86,17 @@ bool CSettingsDialog::Create(CMainFrame* pMainFrame)
 
 void CSettingsDialog::AddPage(wxString const& name, COptionsPage* page, int nest)
 {
-	wxTreeCtrl* treeCtrl = XRCCTRL(*this, "ID_TREE", wxTreeCtrl);
-	wxTreeItemId parent = treeCtrl->GetRootItem();
+	wxTreeItemId parent = tree_->GetRootItem();
 	while (nest--) {
-		parent = treeCtrl->GetLastChild(parent);
+		parent = tree_->GetLastChild(parent);
 		wxCHECK_RET(parent != wxTreeItemId(), "Nesting level too deep");
 	}
 
 	t_page p;
 	p.page = page;
-	p.id = treeCtrl->AppendItem(parent, name);
-	if (parent != treeCtrl->GetRootItem()) {
-		treeCtrl->Expand(parent);
+	p.id = tree_->AppendItem(parent, name);
+	if (parent != tree_->GetRootItem()) {
+		tree_->Expand(parent);
 	}
 
 	m_pages.push_back(p);
@@ -82,15 +104,15 @@ void CSettingsDialog::AddPage(wxString const& name, COptionsPage* page, int nest
 
 bool CSettingsDialog::LoadPages()
 {
+	InitXrc(L"settings.xrc");
+
 	// Get the tree control.
 
-	wxTreeCtrl* treeCtrl = XRCCTRL(*this, "ID_TREE", wxTreeCtrl);
-	wxASSERT(treeCtrl);
-	if (!treeCtrl) {
+	if (!tree_) {
 		return false;
 	}
 
-	treeCtrl->AddRoot(wxString());
+	tree_->AddRoot(wxString());
 
 	// Create the instances of the page classes and fill the tree.
 	AddPage(_("Connection"), new COptionsPageConnection, 0);
@@ -113,30 +135,28 @@ bool CSettingsDialog::LoadPages()
 	AddPage(_("File editing"), new COptionsPageEdit, 0);
 	AddPage(_("Filetype associations"), new COptionsPageEditAssociations, 1);
 #if FZ_MANUALUPDATECHECK && FZ_AUTOUPDATECHECK
-	if (!COptions::Get()->GetOptionVal(OPTION_DEFAULT_DISABLEUPDATECHECK)) {
+	if (!m_pOptions->GetOptionVal(OPTION_DEFAULT_DISABLEUPDATECHECK)) {
 		AddPage(_("Updates"), new COptionsPageUpdateCheck, 0);
 	}
 #endif //FZ_MANUALUPDATECHECK && FZ_AUTOUPDATECHECK
 	AddPage(_("Logging"), new COptionsPageLogging, 0);
 	AddPage(_("Debug"), new COptionsPageDebug, 0);
 
-	treeCtrl->SetQuickBestSize(false);
-	treeCtrl->InvalidateBestSize();
-	treeCtrl->SetInitialSize();
+	tree_->SetQuickBestSize(false);
+	tree_->InvalidateBestSize();
+	tree_->SetInitialSize();
 
 	// Compensate for scrollbar
-	wxSize size = treeCtrl->GetBestSize();
-	int scrollWidth = wxSystemSettings::GetMetric(wxSYS_VSCROLL_X, treeCtrl);
+	wxSize size = tree_->GetBestSize();
+	int scrollWidth = wxSystemSettings::GetMetric(wxSYS_VSCROLL_X, tree_);
 	size.x += scrollWidth + 2;
 	size.y = 400;
-	treeCtrl->SetInitialSize(size);
+	tree_->SetInitialSize(size);
 	Layout();
 
 	// Before we can initialize the pages, get the target panel in the settings
 	// dialog.
-	wxPanel* parentPanel = XRCCTRL(*this, "ID_PAGEPANEL", wxPanel);
-	wxASSERT(parentPanel);
-	if (!parentPanel) {
+	if (!pagePanel_) {
 		return false;
 	}
 
@@ -144,7 +164,7 @@ bool CSettingsDialog::LoadPages()
 	size = wxSize();
 
 	for (auto const& page : m_pages) {
-		if (!page.page->CreatePage(m_pOptions, this, parentPanel, size)) {
+		if (!page.page->CreatePage(m_pOptions, this, pagePanel_, size)) {
 			return false;
 		}
 	}
@@ -155,8 +175,8 @@ bool CSettingsDialog::LoadPages()
 	}
 
 	wxSize canvas;
-	canvas.x = GetSize().x - parentPanel->GetSize().x;
-	canvas.y = GetSize().y - parentPanel->GetSize().y;
+	canvas.x = GetSize().x - pagePanel_->GetSize().x;
+	canvas.y = GetSize().y - pagePanel_->GetSize().y;
 
 	// Wrap pages nicely
 	std::vector<wxWindow*> pages;
@@ -173,21 +193,27 @@ bool CSettingsDialog::LoadPages()
 	// Keep track of maximum page size
 	size = wxSize(0, 0);
 	for (auto const& page : m_pages) {
-		size.IncTo(page.page->GetSizer()->GetMinSize());
+		auto sizer = page.page->GetSizer();
+		if (sizer) {
+			size.IncTo(sizer->GetMinSize());
+		}
 	}
 
 	wxSize panelSize = size;
 #ifdef __WXGTK__
 	panelSize.x += 1;
 #endif
-	parentPanel->SetInitialSize(panelSize);
+	pagePanel_->SetInitialSize(panelSize);
 
 	// Adjust pages sizes according to maximum size
 	for (auto const& page : m_pages) {
-		page.page->GetSizer()->SetMinSize(size);
-		page.page->GetSizer()->Fit(page.page);
-		page.page->GetSizer()->SetSizeHints(page.page);
-		if( GetLayoutDirection() == wxLayout_RightToLeft ) {
+		auto sizer = page.page->GetSizer();
+		if (sizer) {
+			sizer->SetMinSize(size);
+			sizer->Fit(page.page);
+			sizer->SetSizeHints(page.page);
+		}
+		if (GetLayoutDirection() == wxLayout_RightToLeft) {
 			page.page->Move(wxPoint(1, 0));
 		}
 	}
@@ -200,7 +226,7 @@ bool CSettingsDialog::LoadPages()
 	}
 
 	// Select first page
-	treeCtrl->SelectItem(m_pages[0].id);
+	tree_->SelectItem(m_pages[0].id);
 	if (!m_activePanel)	{
 		m_activePanel = m_pages[0].page;
 		m_activePanel->Display();
@@ -242,8 +268,7 @@ void CSettingsDialog::OnOK(wxCommandEvent&)
 	for (auto const& page : m_pages) {
 		if (!page.page->Validate()) {
 			if (m_activePanel != page.page) {
-				wxTreeCtrl* treeCtrl = XRCCTRL(*this, "ID_TREE", wxTreeCtrl);
-				treeCtrl->SelectItem(page.id);
+				tree_->SelectItem(page.id);
 			}
 			return;
 		}

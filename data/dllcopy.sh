@@ -2,7 +2,7 @@
 
 set -e
 
-if [ $# != 5 ]; then
+if [ $# -lt 5 ]; then
   echo Wrong number of arguments
   exit 1
 fi
@@ -12,11 +12,21 @@ exename="$2"
 objdump="$3"
 cxx="$4"
 searchpath="$5"
+ldflags="$6"
 
 searchpath=`echo $searchpath | sed "s/\\(^\\|:\\)\\/c\\/windows[/a-z0-9]*//gi"`
+
+if [ "$ldflags" != "" ]; then
+  for flag in $ldflags; do
+    if echo $flag | grep '^-L/' > /dev/null 2>&1; then
+      searchpath="$searchpath:${flag#-L*}"
+    fi
+  done
+fi
+
 searchpath="$searchpath:`$cxx -print-search-dirs | grep libraries | sed 's/libraries: =//'`"
 
-#echo $searchpath
+#echo "Searchpath: $searchpath"
 
 touch dll_install.nsh
 touch dll_uninstall.nsh

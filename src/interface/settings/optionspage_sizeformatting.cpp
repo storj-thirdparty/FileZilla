@@ -4,12 +4,54 @@
 #include "settingsdialog.h"
 #include "optionspage.h"
 #include "optionspage_sizeformatting.h"
+#include "wxext/spinctrlex.h"
+
+#include <wx/statbox.h>
 
 BEGIN_EVENT_TABLE(COptionsPageSizeFormatting, COptionsPage)
 EVT_RADIOBUTTON(wxID_ANY, COptionsPageSizeFormatting::OnRadio)
 EVT_CHECKBOX(wxID_ANY, COptionsPageSizeFormatting::OnCheck)
 EVT_SPINCTRL(wxID_ANY, COptionsPageSizeFormatting::OnSpin)
 END_EVENT_TABLE()
+
+bool COptionsPageSizeFormatting::CreateControls(wxWindow* parent)
+{
+	auto const& lay = m_pOwner->layout();
+
+	Create(parent);
+	auto main = lay.createFlex(1);
+	main->AddGrowableCol(0);
+	SetSizer(main);
+
+	{
+		auto [box, inner] = lay.createStatBox(main, _("Size formatting"), 1);
+		inner->Add(new wxRadioButton(box, XRCID("ID_SIZEFORMAT_BYTES"), _("&Display size in bytes"), wxDefaultPosition, wxDefaultSize, wxRB_GROUP));
+		inner->Add(new wxRadioButton(box, XRCID("ID_SIZEFORMAT_IEC"), _("&IEC binary prefixes (e.g. 1 KiB = 1024 bytes)")));
+		inner->Add(new wxRadioButton(box, XRCID("ID_SIZEFORMAT_SI_BINARY"), _("&Binary prefixes using SI symbols. (e.g. 1 KB = 1024 bytes)")));
+		inner->Add(new wxRadioButton(box, XRCID("ID_SIZEFORMAT_SI_DECIMAL"), _("D&ecimal prefixes using SI symbols (e.g. 1 KB = 1000 bytes)")));
+		inner->Add(new wxCheckBox(box, XRCID("ID_SIZEFORMAT_SEPARATE_THOUTHANDS"), _("&Use thousands separator")));
+
+		auto row = lay.createFlex(2);
+		inner->Add(row);
+		row->Add(new wxStaticText(box, -1, _("Number of decimal places:")), lay.valign);
+		auto spin = new wxSpinCtrlEx(box, XRCID("ID_SIZEFORMAT_DECIMALPLACES"), wxString(), wxDefaultPosition, wxSize(lay.dlgUnits(30), -1));
+		spin->SetRange(0, 3);
+		spin->SetMaxLength(1);
+		row->Add(spin, lay.valign);
+	}
+
+	{
+		auto [box, inner] = lay.createStatBox(main, _("Examples"), 1);
+		inner->Add(new wxStaticText(box, XRCID("ID_EXAMPLE1"), wxString()), lay.ralign);
+		inner->Add(new wxStaticText(box, XRCID("ID_EXAMPLE2"), wxString()), lay.ralign);
+		inner->Add(new wxStaticText(box, XRCID("ID_EXAMPLE3"), wxString()), lay.ralign);
+		inner->Add(new wxStaticText(box, XRCID("ID_EXAMPLE4"), wxString()), lay.ralign);
+		inner->Add(new wxStaticText(box, XRCID("ID_EXAMPLE5"), wxString()), lay.ralign);
+		inner->Add(new wxStaticText(box, XRCID("ID_EXAMPLE6"), wxString()), lay.ralign);
+	}
+
+	return true;
+}
 
 bool COptionsPageSizeFormatting::LoadPage()
 {
@@ -55,12 +97,15 @@ bool COptionsPageSizeFormatting::SavePage()
 
 CSizeFormat::_format COptionsPageSizeFormatting::GetFormat() const
 {
-	if (GetRCheck(XRCID("ID_SIZEFORMAT_IEC")))
+	if (GetRCheck(XRCID("ID_SIZEFORMAT_IEC"))) {
 		return CSizeFormat::iec;
-	else if (GetRCheck(XRCID("ID_SIZEFORMAT_SI_BINARY")))
+	}
+	else if (GetRCheck(XRCID("ID_SIZEFORMAT_SI_BINARY"))) {
 		return CSizeFormat::si1024;
-	else if (GetRCheck(XRCID("ID_SIZEFORMAT_SI_DECIMAL")))
+	}
+	else if (GetRCheck(XRCID("ID_SIZEFORMAT_SI_DECIMAL"))) {
 		return CSizeFormat::si1000;
+	}
 
 	return CSizeFormat::bytes;
 }

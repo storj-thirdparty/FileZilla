@@ -3,6 +3,7 @@
 #include "customheightlistctrl.h"
 #include "window_state_manager.h"
 #include "Options.h"
+#include "textctrlex.h"
 
 #include <libfilezilla/translate.hpp>
 
@@ -17,9 +18,6 @@ EVT_LISTBOX(XRCID("ID_FILTERS"), CFilterEditDialog::OnFilterSelect)
 END_EVENT_TABLE()
 
 CFilterEditDialog::CFilterEditDialog()
-	: m_pFilterListCtrl(0)
-	, m_currentSelection(-1)
-	, m_pWindowStateManager(0)
 {
 }
 
@@ -72,9 +70,83 @@ bool CFilterEditDialog::Create(wxWindow* parent, const std::vector<CFilter>& fil
 		break;
 	}
 
-	if (!Load(parent, _T("ID_EDITFILTER"))) {
-		return false;
+	wxDialogEx::Create(parent, -1, _("Edit filters"), wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER);
+
+	auto& lay = layout();
+
+	auto main = lay.createMain(this, 1);
+	main->AddGrowableCol(0);
+	main->AddGrowableRow(0);
+
+	auto sides = lay.createFlex(2);
+	main->Add(sides, lay.grow);
+	sides->AddGrowableRow(0);
+	sides->AddGrowableCol(1);
+
+	{
+		auto left = lay.createFlex(1);
+		sides->Add(left, lay.grow);
+		left->AddGrowableRow(1);
+
+		left->Add(new wxStaticText(this, -1, _("&Filters:")));
+		filterList_ = new wxListBox(this, XRCID("ID_FILTERS"));
+		filterList_->SetFocus();
+		left->Add(filterList_, lay.grow);
+
+		auto grid = lay.createGrid(2, 2);
+		left->Add(grid, 0, wxALIGN_CENTER_HORIZONTAL);
+
+		grid->Add(new wxButton(this, XRCID("ID_NEW"), _("&New")));
+		grid->Add(new wxButton(this, XRCID("ID_DELETE"), _("&Delete")));
+		grid->Add(new wxButton(this, XRCID("ID_RENAME"), _("&Rename")));
+		grid->Add(new wxButton(this, XRCID("ID_COPY"), _("&Duplicate")));
 	}
+	{
+		auto right = lay.createFlex(1);
+		sides->Add(right, lay.grow);
+		right->AddGrowableCol(0);
+		right->AddGrowableRow(2);
+
+		auto row = lay.createFlex(2);
+		right->Add(row, lay.grow);
+		row->AddGrowableCol(1);
+		row->Add(new wxStaticText(this, -1, _("F&ilter name:")), lay.valign);
+		row->Add(new wxTextCtrlEx(this, XRCID("ID_NAME"), wxString()), lay.valigng);
+
+		row = lay.createFlex(2);
+		right->Add(row, lay.grow);
+		row->AddGrowableCol(1);
+		row->Add(new wxStaticText(this, -1, _("&Filter conditions:")), lay.valign);
+		auto choice = new wxChoice(this, XRCID("ID_MATCHTYPE"));
+		row->Add(choice, lay.valigng);
+
+		choice->AppendString(_("Filter out items matching all of the following"));
+		choice->AppendString(_("Filter out items matching any of the following"));
+		choice->AppendString(_("Filter out items matching none of the following"));
+		choice->AppendString(_("Filter out items matching not all of the following"));
+
+		auto conditions = new wxCustomHeightListCtrl(this, XRCID("ID_CONDITIONS"), wxDefaultPosition, wxDefaultSize, wxVSCROLL | wxSUNKEN_BORDER | wxTAB_TRAVERSAL);
+		conditions->SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW));
+		right->Add(conditions, lay.grow)->SetMinSize(wxSize(lay.dlgUnits(200), lay.dlgUnits(100)));
+
+		right->Add(new wxCheckBox(this, XRCID("ID_CASE"), _("Conditions are c&ase sensitive")));
+		row = lay.createFlex(0, 1);
+		right->Add(row);
+		row->Add(new wxStaticText(this, -1, _("Filter applies to:")));
+		row->Add(new wxCheckBox(this, XRCID("ID_FILES"), _("Fil&es")));
+		row->Add(new wxCheckBox(this, XRCID("ID_DIRS"), _("Dire&ctories")));
+	}
+	auto buttons = lay.createButtonSizer(this, main, false);
+	auto ok = new wxButton(this, wxID_OK, _("OK"));
+	ok->SetDefault();
+	buttons->AddButton(ok);
+	auto cancel = new wxButton(this, wxID_CANCEL, _("Cancel"));
+	buttons->AddButton(cancel);
+	buttons->Realize();
+
+	Layout();
+	GetSizer()->Fit(this);
+	SetMinSize(GetSize());
 
 	int conditions = filter_name | filter_size | filter_path | filter_meta | filter_date;
 	if (has_foreign_type) {
@@ -84,16 +156,10 @@ bool CFilterEditDialog::Create(wxWindow* parent, const std::vector<CFilter>& fil
 		return false;
 	}
 
-	m_pFilterListCtrl = XRCCTRL(*this, "ID_FILTERS", wxListBox);
-	if (!m_pFilterListCtrl) {
-		return false;
-	}
-	m_currentSelection = -1;
-
 	m_filters = filters;
 	m_filterSets = filterSets;
-	for (std::vector<CFilter>::const_iterator iter = filters.begin(); iter != filters.end(); ++iter) {
-		m_pFilterListCtrl->Append(iter->name);
+	for (auto const& filter: filters) {
+		filterList_->Append(filter.name);
 	}
 
 	m_pWindowStateManager = new CWindowStateManager(this);
@@ -116,11 +182,11 @@ void CFilterEditDialog::SaveFilter(CFilter& filter)
 	filter.filterDirs = XRCCTRL(*this, "ID_DIRS", wxCheckBox)->GetValue();
 
 	filter.name = XRCCTRL(*this, "ID_NAME", wxTextCtrl)->GetValue().ToStdWstring();
-	if (filter.name != m_pFilterListCtrl->GetString(m_currentSelection)) {
+	if (filter.name != filterList_->GetString(m_currentSelection)) {
 		int oldSelection = m_currentSelection;
-		m_pFilterListCtrl->Delete(oldSelection);
-		m_pFilterListCtrl->Insert(filter.name, oldSelection);
-		m_pFilterListCtrl->SetSelection(oldSelection);
+		filterList_->Delete(oldSelection);
+		filterList_->Insert(filter.name, oldSelection);
+		filterList_->SetSelection(oldSelection);
 	}
 }
 
@@ -136,7 +202,7 @@ void CFilterEditDialog::OnNew(wxCommandEvent&)
 	int index = 1;
 	std::wstring name = fztranslate("New filter");
 	std::wstring newName = name;
-	while (m_pFilterListCtrl->FindString(newName) != wxNOT_FOUND) {
+	while (filterList_->FindString(newName) != wxNOT_FOUND) {
 		newName = fz::sprintf(L"%s (%d)", name, ++index);
 	}
 
@@ -151,7 +217,7 @@ void CFilterEditDialog::OnNew(wxCommandEvent&)
 		return;
 	}
 
-	if (m_pFilterListCtrl->FindString(newName) != wxNOT_FOUND) {
+	if (filterList_->FindString(newName) != wxNOT_FOUND) {
 		wxMessageBoxEx(_("The entered filter name already exists, please choose a different name."), _("Filter name already exists"), wxICON_ERROR, this);
 		return;
 	}
@@ -167,21 +233,21 @@ void CFilterEditDialog::OnNew(wxCommandEvent&)
 		set.remote.push_back(false);
 	}
 
-	int item = m_pFilterListCtrl->Append(newName);
-	m_pFilterListCtrl->Select(item);
+	int item = filterList_->Append(newName);
+	filterList_->Select(item);
 	wxCommandEvent evt;
 	OnFilterSelect(evt);
 }
 
 void CFilterEditDialog::OnDelete(wxCommandEvent&)
 {
-	int item = m_pFilterListCtrl->GetSelection();
+	int item = filterList_->GetSelection();
 	if (item == -1) {
 		return;
 	}
 
 	m_currentSelection = -1;
-	m_pFilterListCtrl->Delete(item);
+	filterList_->Delete(item);
 	m_filters.erase(m_filters.begin() + item);
 
 	// Remote filter from all filter sets
@@ -190,12 +256,18 @@ void CFilterEditDialog::OnDelete(wxCommandEvent&)
 		set.remote.erase(set.remote.begin() + item);
 	}
 
+	XRCCTRL(*this, "ID_NAME", wxTextCtrl)->ChangeValue(wxString());
 	ClearFilter();
 	SetCtrlState(false);
 }
 
 void CFilterEditDialog::OnRename(wxCommandEvent&)
 {
+	if (m_currentSelection == -1) {
+		wxBell();
+		return;
+	}
+
 	const wxString& oldName = XRCCTRL(*this, "ID_NAME", wxTextCtrl)->GetValue();
 	wxTextEntryDialog *pDlg = new wxTextEntryDialog(this, _("Please enter a new name for the filter."), _("Enter filter name"), oldName);
 	pDlg->SetMaxLength(255);
@@ -216,14 +288,14 @@ void CFilterEditDialog::OnRename(wxCommandEvent&)
 		return;
 	}
 
-	if (m_pFilterListCtrl->FindString(newName) != wxNOT_FOUND) {
+	if (filterList_->FindString(newName) != wxNOT_FOUND) {
 		wxMessageBoxEx(_("The entered filter name already exists, please choose a different name."), _("Filter name already exists"), wxICON_ERROR, this);
 		return;
 	}
 
-	m_pFilterListCtrl->Delete(m_currentSelection);
-	m_pFilterListCtrl->Insert(newName, m_currentSelection);
-	m_pFilterListCtrl->Select(m_currentSelection);
+	filterList_->Delete(m_currentSelection);
+	filterList_->Insert(newName, m_currentSelection);
+	filterList_->Select(m_currentSelection);
 }
 
 void CFilterEditDialog::OnCopy(wxCommandEvent&)
@@ -242,7 +314,7 @@ void CFilterEditDialog::OnCopy(wxCommandEvent&)
 	int index = 1;
 	std::wstring const& name = filter.name;
 	std::wstring newName = name;
-	while (m_pFilterListCtrl->FindString(newName) != wxNOT_FOUND) {
+	while (filterList_->FindString(newName) != wxNOT_FOUND) {
 		newName = fz::sprintf(L"%s (%d)", name, ++index);
 	}
 
@@ -257,7 +329,7 @@ void CFilterEditDialog::OnCopy(wxCommandEvent&)
 		return;
 	}
 
-	if (m_pFilterListCtrl->FindString(newName) != wxNOT_FOUND) {
+	if (filterList_->FindString(newName) != wxNOT_FOUND) {
 		wxMessageBoxEx(_("The entered filter name already exists, please choose a different name."), _("Filter name already exists"), wxICON_ERROR, this);
 		return;
 	}
@@ -272,15 +344,15 @@ void CFilterEditDialog::OnCopy(wxCommandEvent&)
 		set.remote.push_back(false);
 	}
 
-	int item = m_pFilterListCtrl->Append(newName);
-	m_pFilterListCtrl->Select(item);
+	int item = filterList_->Append(newName);
+	filterList_->Select(item);
 	wxCommandEvent evt;
 	OnFilterSelect(evt);
 }
 
 void CFilterEditDialog::OnFilterSelect(wxCommandEvent&)
 {
-	int item = m_pFilterListCtrl->GetSelection();
+	int item = filterList_->GetSelection();
 	if (item == -1) {
 		m_currentSelection = -1;
 		SetCtrlState(false);
@@ -305,7 +377,7 @@ void CFilterEditDialog::OnFilterSelect(wxCommandEvent&)
 	}
 
 	m_currentSelection = item;
-	m_pFilterListCtrl->SetSelection(item); // In case SaveFilter has renamed an item
+	filterList_->SetSelection(item); // In case SaveFilter has renamed an item
 	CFilter filter = m_filters[item];
 	EditFilter(filter);
 
@@ -342,22 +414,22 @@ bool CFilterEditDialog::Validate()
 
 	wxString error;
 	if (!ValidateFilter(error)) {
-		m_pFilterListCtrl->SetSelection(m_currentSelection);
+		filterList_->SetSelection(m_currentSelection);
 		wxMessageBoxEx(error, _("Filter validation failed"), wxICON_ERROR, this);
 		return false;
 	}
 
 	wxString name = XRCCTRL(*this, "ID_NAME", wxTextCtrl)->GetValue();
 	if (name.empty()) {
-		m_pFilterListCtrl->SetSelection(m_currentSelection);
+		filterList_->SetSelection(m_currentSelection);
 		XRCCTRL(*this, "ID_NAME", wxTextCtrl)->SetFocus();
 		wxMessageBoxEx(_("Need to enter filter name"), _("Filter validation failed"), wxICON_ERROR, this);
 		return false;
 	}
 
-	int pos = m_pFilterListCtrl->FindString(name);
+	int pos = filterList_->FindString(name);
 	if (pos != wxNOT_FOUND && pos != m_currentSelection) {
-		m_pFilterListCtrl->SetSelection(m_currentSelection);
+		filterList_->SetSelection(m_currentSelection);
 		XRCCTRL(*this, "ID_NAME", wxTextCtrl)->SetFocus();
 		wxMessageBoxEx(_("Filter name already exists"), _("Filter validation failed"), wxICON_ERROR, this);
 		return false;

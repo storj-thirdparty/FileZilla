@@ -8,8 +8,11 @@
 #include "servercapabilities.h"
 #include "transfersocket.h"
 
-#include "libfilezilla/tls_layer.hpp"
+#include <libfilezilla/rate_limited_layer.hpp>
+#include <libfilezilla/tls_layer.hpp>
 #include <libfilezilla/util.hpp>
+
+#include <assert.h>
 
 CTransferSocket::CTransferSocket(CFileZillaEnginePrivate & engine, CFtpControlSocket & controlSocket, TransferMode transferMode)
 : fz::event_handler(controlSocket.event_loop_)
@@ -184,7 +187,7 @@ void CTransferSocket::OnConnect()
 
 	if (tls_layer_) {
 		// Re-enable Nagle algorithm
-		socket_->set_flags(fz::socket::flag_nodelay);  //, false);
+		socket_->set_flags(fz::socket::flag_nodelay, false);
 	}
 
 #ifdef FZ_WINDOWS
@@ -471,7 +474,7 @@ bool CTransferSocket::SetupPassiveTransfer(std::wstring const& host, int port)
 
 bool CTransferSocket::InitLayers(bool active)
 {
-	ratelimit_layer_ = std::make_unique<CRatelimitLayer>(nullptr, *socket_, engine_.GetRateLimiter());
+	ratelimit_layer_ = std::make_unique<fz::rate_limited_layer>(nullptr, *socket_, &engine_.GetRateLimiter());
 	active_layer_ = ratelimit_layer_.get();
 
 	if (controlSocket_.proxy_layer_ && !active) {
@@ -490,7 +493,7 @@ bool CTransferSocket::InitLayers(bool active)
 
 	if (controlSocket_.m_protectDataChannel) {
 		// Disable Nagle's algorithm during TLS handshake
-		socket_->set_flags(fz::socket::flag_nodelay);  //, true);
+		socket_->set_flags(fz::socket::flag_nodelay, true);
 
 		tls_layer_ = std::make_unique<fz::tls_layer>(controlSocket_.event_loop_, nullptr, *active_layer_, nullptr, controlSocket_.logger_);
 		active_layer_ = tls_layer_.get();

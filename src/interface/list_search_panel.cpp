@@ -4,10 +4,12 @@
 #include "state.h"
 #include "list_search_panel.h"
 
+#include "textctrlex.h"
 #include "themeprovider.h"
 
 #include <wx/bmpbuttn.h>
 #include <wx/dcclient.h>
+#include <wx/menu.h>
 
 wxWindowID const ID_SEARCH_TEXT = wxWindow::NewControlId();
 wxWindowID const ID_OPTIONS_MENU_BUTTON = wxWindow::NewControlId();
@@ -43,7 +45,7 @@ CListSearchPanel::CListSearchPanel(wxWindow* parent, wxWindow* pListView, CState
 	sizer->Add(label, 0, wxALIGN_CENTER_VERTICAL | wxLEFT | wxRIGHT, 5);
 
 	// edit
-	m_textCtrl = new wxTextCtrl(this, ID_SEARCH_TEXT, wxString(), wxDefaultPosition, wxDefaultSize, wxTE_PROCESS_ENTER);
+	m_textCtrl = new wxTextCtrlEx(this, ID_SEARCH_TEXT, wxString(), wxDefaultPosition, wxDefaultSize, wxTE_PROCESS_ENTER);
 	sizer->Add(m_textCtrl, 1, wxEXPAND | wxALL, 5);
 	int const editHeight = m_textCtrl->GetSize().GetHeight();
 

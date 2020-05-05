@@ -2,7 +2,6 @@
 
 #include "aboutdialog.h"
 #include "buildinfo.h"
-#include "xrc_helper.h"
 #include "Options.h"
 #include "themeprovider.h"
 
@@ -10,119 +9,133 @@
 
 #include <wx/hyperlink.h>
 #include <wx/clipbrd.h>
-
-BEGIN_EVENT_TABLE(CAboutDialog, wxDialogEx)
-EVT_BUTTON(XRCID("wxID_OK"), CAboutDialog::OnOK)
-EVT_BUTTON(XRCID("ID_COPY"), CAboutDialog::OnCopy)
-END_EVENT_TABLE()
+#include <wx/statline.h>
+#include <wx/statbmp.h>
+#include <wx/statbox.h>
 
 bool CAboutDialog::Create(wxWindow* parent)
 {
-	if (!Load(parent, _T("ID_ABOUT"))) {
-		return false;
-	}
+	wxDialogEx::Create(parent, -1, _("About FileZilla"));
 
-	wxBitmap bmp = CThemeProvider::Get()->CreateBitmap("ART_FILEZILLA", wxString(), CThemeProvider::GetIconSize(iconSizeLarge));
-	xrc_call(*this, "ID_FILEZILLA_LOGO", &wxStaticBitmap::SetBitmap, bmp);
+	auto & lay = layout();
+	auto main = lay.createMain(this, 1);
 
-	xrc_call(*this, "ID_URL", &wxHyperlinkCtrl::SetLabel, _T("https://filezilla-project.org/"));
-	xrc_call(*this, "ID_COPYRIGHT", &wxStaticText::SetLabel, _T("Copyright (C) 2004-2018  Tim Kosse"));
+	auto top = lay.createFlex(2);
+	main->Add(top);
 
-	wxString version = CBuildInfo::GetVersion();
-	if (CBuildInfo::GetBuildType() == _T("nightly")) {
-		version += _T("-nightly");
-	}
-	if (!SetChildLabel(XRCID("ID_VERSION"), version)) {
-		return false;
-	}
+	top->Add(new wxStaticBitmap(this, -1, CThemeProvider::Get()->CreateBitmap("ART_FILEZILLA", wxString(), CThemeProvider::GetIconSize(iconSizeLarge))), 0, wxALL, lay.border);
 
-	wxString const host = CBuildInfo::GetHostname();
-	if (host.empty()) {
-		xrc_call(*this, "ID_HOST", &wxStaticText::Hide);
-		xrc_call(*this, "ID_HOST_DESC", &wxStaticText::Hide);
-	}
-	else {
-		xrc_call(*this, "ID_HOST", &wxStaticText::SetLabel, host);
-	}
+	auto topRight = lay.createFlex(1);
+	top->Add(topRight);
 
-	wxString const build = CBuildInfo::GetBuildSystem();
-	if (build.empty()) {
-		xrc_call(*this, "ID_BUILD", &wxStaticText::Hide);
-		xrc_call(*this, "ID_BUILD_DESC", &wxStaticText::Hide);
+	std::wstring version = L"FileZilla " + CBuildInfo::GetVersion();
+	if (CBuildInfo::GetBuildType() == L"nightly") {
+		version += L"-nightly";
 	}
-	else {
-		xrc_call(*this, "ID_BUILD", &wxStaticText::SetLabel, build);
-	}
+	topRight->Add(new wxStaticText(this, -1, version));
+	topRight->Add(new wxStaticText(this, -1, L"Copyright (C) 2004-2020  Tim Kosse"));
 
-	if (!SetChildLabel(XRCID("ID_BUILDDATE"), CBuildInfo::GetBuildDateString())) {
-		return false;
-	}
+	auto homepage = lay.createFlex(2);
+	homepage->Add(new wxStaticText(this, -1, _("Homepage:")), lay.valign);
+	homepage->Add(new wxHyperlinkCtrl(this, -1, L"https://filezilla-project.org/", L"https://filezilla-project.org/"), lay.valign);
+	topRight->Add(homepage);
 
-	if (!SetChildLabel(XRCID("ID_COMPILEDWITH"), CBuildInfo::GetCompiler(), 200)) {
-		return false;
-	}
+	{
+		auto [box, inner] = lay.createStatBox(main, _("Build information"), 2);
 
-	wxString compilerFlags = CBuildInfo::GetCompilerFlags();
-	if (compilerFlags.empty()) {
-		xrc_call(*this, "ID_CFLAGS", &wxStaticText::Hide);
-		xrc_call(*this, "ID_CFLAGS_DESC", &wxStaticText::Hide);
-	}
-	else {
-		WrapText(this, compilerFlags, 300);
-		xrc_call(*this, "ID_CFLAGS", &wxStaticText::SetLabel, compilerFlags);
-	}
-
-	xrc_call(*this, "ID_VER_WX", &wxStaticText::SetLabel, GetDependencyVersion(gui_lib_dependency::wxwidgets));
-	xrc_call(*this, "ID_VER_GNUTLS", &wxStaticText::SetLabel, GetDependencyVersion(lib_dependency::gnutls));
-	xrc_call(*this, "ID_VER_SQLITE", &wxStaticText::SetLabel, GetDependencyVersion(gui_lib_dependency::sqlite));
-
-	wxString const os = wxGetOsDescription();
-	if (os.empty()) {
-		xrc_call(*this, "ID_SYSTEM_NAME", &wxStaticText::Hide);
-		xrc_call(*this, "ID_SYSTEM_NAME_DESC", &wxStaticText::Hide);
-	}
-	else {
-		xrc_call(*this, "ID_SYSTEM_NAME", &wxStaticText::SetLabel, os);
-	}
-
-	int major, minor;
-	if (GetRealOsVersion(major, minor)) {
-		wxString osVersion = wxString::Format(_T("%d.%d"), major, minor);
-		int fakeMajor, fakeMinor;
-		if (wxGetOsVersion(&fakeMajor, &fakeMinor) != wxOS_UNKNOWN && (fakeMajor != major || fakeMinor != minor)) {
-			osVersion += _T(" ");
-			osVersion += wxString::Format(_("(app-compat is set to %d.%d)"), fakeMajor, fakeMinor);
+		std::wstring host = CBuildInfo::GetHostname();
+		if (!host.empty()) {
+			inner->Add(new wxStaticText(box, -1, _("Compiled for:")));
+			inner->Add(new wxStaticText(box, -1, host));
 		}
-		xrc_call(*this, "ID_SYSTEM_VER", &wxStaticText::SetLabel, osVersion);
-	}
-	else {
-		xrc_call(*this, "ID_SYSTEM_VER", &wxStaticText::Hide);
-		xrc_call(*this, "ID_SYSTEM_VER_DESC", &wxStaticText::Hide);
+
+		std::wstring build = CBuildInfo::GetBuildSystem();
+		if (!build.empty()) {
+			inner->Add(new wxStaticText(box, -1, _("Compiled on:")));
+			inner->Add(new wxStaticText(box, -1, build));
+		}
+		inner->Add(new wxStaticText(box, -1, _("Build date:")));
+		inner->Add(new wxStaticText(box, -1, CBuildInfo::GetBuildDateString()));
+
+		inner->Add(new wxStaticText(box, -1, _("Compiled with:")));
+		wxString cc = CBuildInfo::GetCompiler();
+		WrapText(this, cc, 300);
+		inner->Add(new wxStaticText(box, -1, cc));
+
+		wxString compilerFlags = CBuildInfo::GetCompilerFlags();
+		if (!compilerFlags.empty()) {
+			inner->Add(new wxStaticText(box, -1, _("Compiler flags:")));
+			WrapText(this, compilerFlags, 300);
+			inner->Add(new wxStaticText(box, -1, compilerFlags));
+		}
 	}
 
+	{
+		auto [box, inner] = lay.createStatBox(main, _("Linked against"), 2);
+		inner->Add(new wxStaticText(box, -1, _("wxWidgets:")));
+		inner->Add(new wxStaticText(box, -1, GetDependencyVersion(gui_lib_dependency::wxwidgets)));
+		inner->Add(new wxStaticText(box, -1, _("GnuTLS:")));
+		inner->Add(new wxStaticText(box, -1, GetDependencyVersion(lib_dependency::gnutls)));
+		inner->Add(new wxStaticText(box, -1, _("SQLite:")));
+		inner->Add(new wxStaticText(box, -1, GetDependencyVersion(gui_lib_dependency::sqlite)));
+	}
+
+	{
+		auto [box, inner] = lay.createStatBox(main, _("System details"), 2);
+		auto os = wxGetOsDescription();
+		if (!os.empty()) {
+			inner->Add(new wxStaticText(box, -1, _("Operating System:")));
+			inner->Add(new wxStaticText(box, -1, os));
+		}
+
+		int major, minor;
+		if (GetRealOsVersion(major, minor)) {
+			inner->Add(new wxStaticText(box, -1, _("OS version:")));
+
+			wxString osVersion = wxString::Format(_T("%d.%d"), major, minor);
+			int fakeMajor, fakeMinor;
+			if (wxGetOsVersion(&fakeMajor, &fakeMinor) != wxOS_UNKNOWN && (fakeMajor != major || fakeMinor != minor)) {
+				osVersion += ' ';
+				osVersion += wxString::Format(_("(app-compat is set to %d.%d)"), fakeMajor, fakeMinor);
+			}
+			inner->Add(new wxStaticText(box, -1, osVersion));
+		}
 #ifdef __WXMSW__
-	if (::wxIsPlatform64Bit()) {
-		xrc_call(*this, "ID_SYSTEM_PLATFORM", &wxStaticText::SetLabel, _("64-bit system"));
-	}
-	else {
-		xrc_call(*this, "ID_SYSTEM_PLATFORM", &wxStaticText::SetLabel, _("32-bit system"));
-	}
-#else
-	xrc_call(*this, "ID_SYSTEM_PLATFORM", &wxStaticText::Hide);
-	xrc_call(*this, "ID_SYSTEM_PLATFORM_DESC", &wxStaticText::Hide);
+		inner->Add(new wxStaticText(box, -1, _("Platform:")));
+		if (::wxIsPlatform64Bit()) {
+			inner->Add(new wxStaticText(box, -1, _("64-bit system")));
+		}
+		else {
+			inner->Add(new wxStaticText(box, -1, _("32-bit system")));
+		}
 #endif
 
-	wxString cpuCaps = CBuildInfo::GetCPUCaps(' ');
-	if (!cpuCaps.empty()) {
-		WrapText(this, cpuCaps, 300);
-		xrc_call(*this, "ID_SYSTEM_CPU", &wxStaticText::SetLabel, cpuCaps);
-	}
-	else {
-		xrc_call(*this, "ID_SYSTEM_CPU_DESC", &wxStaticText::Hide);
-		xrc_call(*this, "ID_SYSTEM_CPU", &wxStaticText::Hide);
+		wxString cpuCaps = CBuildInfo::GetCPUCaps(' ');
+		if (!cpuCaps.empty()) {
+			inner->Add(new wxStaticText(box, -1, _("CPU features:")));
+			WrapText(this, cpuCaps, 300);
+			inner->Add(new wxStaticText(box, -1, cpuCaps));
+		}
+
+		inner->Add(new wxStaticText(box, -1, _("Settings directory:")));
+		inner->Add(new wxStaticText(box, -1, COptions::Get()->GetOption(OPTION_DEFAULT_SETTINGSDIR)));
 	}
 
-	xrc_call(*this, "ID_SYSTEM_SETTINGS_DIR", &wxStaticText::SetLabel, COptions::Get()->GetOption(OPTION_DEFAULT_SETTINGSDIR));
+	main->Add(new wxStaticLine(this), lay.grow);
+	auto buttons = lay.createFlex(3);
+	main->Add(buttons, lay.grow);
+
+	auto copy = new wxButton(this, -1, _("&Copy to clipboard"));
+	copy->Bind(wxEVT_BUTTON, [this](wxEvent const&){ OnCopy(); });
+	buttons->Add(copy, lay.valign);
+	buttons->AddStretchSpacer();
+	buttons->AddGrowableCol(1);
+
+	auto ok = new wxButton(this, -1, _("OK"));
+	ok->Bind(wxEVT_BUTTON, [this](wxEvent const&){ EndModal(wxID_OK); });
+	ok->SetDefault();
+	ok->SetFocus();
+	buttons->Add(ok, lay.valign);
 
 	GetSizer()->Fit(this);
 	GetSizer()->SetSizeHints(this);
@@ -130,12 +143,7 @@ bool CAboutDialog::Create(wxWindow* parent)
 	return true;
 }
 
-void CAboutDialog::OnOK(wxCommandEvent&)
-{
-	EndModal(wxID_OK);
-}
-
-void CAboutDialog::OnCopy(wxCommandEvent&)
+void CAboutDialog::OnCopy()
 {
 	wxString text = _T("FileZilla Client\n");
 	text += _T("----------------\n\n");

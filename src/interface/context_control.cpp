@@ -25,7 +25,10 @@
 #include "osx_sandbox_userdirs.h"
 #endif
 
+#include <wx/menu.h>
 #include <wx/wupdlock.h>
+
+#include <array>
 
 DECLARE_EVENT_TYPE(fzEVT_TAB_CLOSING_DEFERRED, -1)
 DEFINE_EVENT_TYPE(fzEVT_TAB_CLOSING_DEFERRED)
@@ -71,7 +74,7 @@ bool CContextControl::CreateTab()
 	return CreateTab(localPath, site, remotePath);
 }
 
-bool  CContextControl::CreateTab(CLocalPath const& localPath, Site const& site, CServerPath const& remotePath)
+bool CContextControl::CreateTab(CLocalPath const& localPath, Site const& site, CServerPath const& remotePath)
 {
 	wxGetApp().AddStartupProfileRecord("CContextControl::CreateTab");
 
@@ -110,14 +113,15 @@ bool  CContextControl::CreateTab(CLocalPath const& localPath, Site const& site, 
 		}
 		if (!pState) {
 			pState = CContextManager::Get()->CreateState(m_mainFrame);
-			if (!pState->CreateEngine()) {
-				wxMessageBoxEx(_("Failed to initialize FTP engine"));
+			if (!pState) {
+				return false;
 			}
 		}
-
+	
 		pState->SetLastSite(site, remotePath);
 
 		CreateContextControls(*pState);
+
 
 		pState->GetLocalRecursiveOperation()->SetQueue(m_mainFrame.GetQueue());
 		pState->GetRemoteRecursiveOperation()->SetQueue(m_mainFrame.GetQueue());
@@ -733,4 +737,39 @@ void CContextControl::RestoreTabs()
 	}
 
 	SelectTab(selected);
+}
+
+namespace {
+bool SwitchFocus(wxWindow *focus, wxWindow *first, wxWindow *second)
+{
+	if (focus == first) {
+		if (second && second->IsShownOnScreen() && second->IsEnabled()) {
+			second->SetFocus();
+		}
+		return true;
+	}
+	return false;
+}
+}
+
+void CContextControl::_context_controls::SwitchFocusedSide()
+{
+	std::array<std::pair<wxWindow*, wxWindow*>, 3> ctrls =
+	{{
+		{pLocalListView, pRemoteListView},
+		{pLocalTreeView, pRemoteTreeView},
+		{pLocalViewHeader, pRemoteViewHeader}
+	}};
+	auto *focus = wxWindow::FindFocus();
+	while (focus) {
+		for (auto & p : ctrls) {
+			if (SwitchFocus(focus, p.first, p.second)) {
+					return;
+			}
+			if (SwitchFocus(focus, p.second, p.first)) {
+					return;
+			}
+		}
+		focus = focus->GetParent();
+	}
 }

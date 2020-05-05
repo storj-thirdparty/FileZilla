@@ -1,39 +1,49 @@
 #include <filezilla.h>
 #include "treectrlex.h"
 
-IMPLEMENT_DYNAMIC_CLASS(wxTreeCtrlEx, wxNavigationEnabled<wxTreeCtrl>)
-
 #ifdef __WXMAC__
 BEGIN_EVENT_TABLE(wxTreeCtrlEx, wxNavigationEnabled<wxTreeCtrl>)
 EVT_CHAR(wxTreeCtrlEx::OnChar)
 END_EVENT_TABLE()
 #endif
 
+// Needed for OnCompareItems to work on Windows. Bad library design, why not use normal RTTI?
+IMPLEMENT_CLASS(wxTreeCtrlEx, wxNavigationEnabled<wxTreeCtrl>)
+
 wxTreeCtrlEx::wxTreeCtrlEx()
-	: m_nameSortMode(
-#ifdef __WXMSW__
-		CFileListCtrlSortBase::namesort_caseinsensitive
-#else
-		CFileListCtrlSortBase::namesort_casesensitive
-#endif
-	)
 {
+#ifdef __WXMSW__
+	sortFunction_ = CFileListCtrlSortBase::GetCmpFunction(CFileListCtrlSortBase::namesort_caseinsensitive);
+#else
+	sortFunction_ = CFileListCtrlSortBase::GetCmpFunction(CFileListCtrlSortBase::namesort_casesensitive);
+#endif
 }
 
 wxTreeCtrlEx::wxTreeCtrlEx(wxWindow *parent, wxWindowID id /*=wxID_ANY*/,
 			   const wxPoint& pos /*=wxDefaultPosition*/,
 			   const wxSize& size /*=wxDefaultSize*/,
 			   long style /*=wxTR_HAS_BUTTONS|wxTR_LINES_AT_ROOT*/)
-	: m_nameSortMode(
-#ifdef __WXMSW__
-		CFileListCtrlSortBase::namesort_caseinsensitive
-#else
-		CFileListCtrlSortBase::namesort_casesensitive
-#endif
-	)
 {
+#ifdef __WXMSW__
+	sortFunction_ = CFileListCtrlSortBase::GetCmpFunction(CFileListCtrlSortBase::namesort_caseinsensitive);
+#else
+	sortFunction_ = CFileListCtrlSortBase::GetCmpFunction(CFileListCtrlSortBase::namesort_casesensitive);
+#endif
+
 	Create(parent, id, pos, size, style);
 	SetBackgroundStyle(wxBG_STYLE_SYSTEM);
+
+	Bind(wxEVT_CHAR, [this](wxKeyEvent& evt) {
+		auto key = evt.GetUnicodeKey();
+		if (key && key > 32) {
+			inPrefixSearch_ = true;
+		}
+		evt.Skip();
+	});
+	Bind(wxEVT_KEY_UP, [this](wxKeyEvent& evt) {
+		inPrefixSearch_ = false;
+		evt.Skip();
+	});
 }
 
 wxTreeItemId wxTreeCtrlEx::GetSelection() const
@@ -58,31 +68,21 @@ std::vector<wxTreeItemId> wxTreeCtrlEx::GetSelections() const
 	// Sadly on MSW, the native TreeView_GetNextSelected can't be used either, it uses a weird and also nodeterministic order.
 	//
 	// Traverse the tree ourselves, in a nice, deterministic depth-first approach.
-
-	wxTreeItemIdValue unused;
-
 	wxTreeItemId item = GetRootItem();
+	if (item && HasFlag(wxTR_HIDE_ROOT)) {
+		item = GetNextItemSimple(item, true);
+	}
 	while (item) {
 		if (IsSelected(item)) {
 			ret.push_back(item);
 		}
-		wxTreeItemId next = GetFirstChild(item, unused);
-		if (!next) {
-			next = GetNextSibling(item);
-			while (!next && item) {
-				item = GetItemParent(item);
-				if (item) {
-					next = GetNextSibling(item);
-				}
-			}
-		}
-		item = next;
+		item = GetNextItemSimple(item, true);
 	}
 
 	return ret;
 }
 
-void wxTreeCtrlEx::SafeSelectItem(wxTreeItemId const& item)
+void wxTreeCtrlEx::SafeSelectItem(wxTreeItemId const& item, bool clearSelection)
 {
 	if (!item) {
 		++m_setSelection;
@@ -92,9 +92,16 @@ void wxTreeCtrlEx::SafeSelectItem(wxTreeItemId const& item)
 	else {
 		std::vector<wxTreeItemId> selections;
 		if (HasFlag(wxTR_MULTIPLE)) {
+			++m_setSelection;
 			selections = GetSelections();
-			UnselectAll();
-			SetFocusedItem(item);
+			if (clearSelection) {
+				UnselectAll();
+			}
+			
+			if (clearSelection || selections.empty()) {
+				SetFocusedItem(item);
+			}
+			--m_setSelection;
 		}
 		else {
 			auto old = GetSelection();
@@ -107,14 +114,19 @@ void wxTreeCtrlEx::SafeSelectItem(wxTreeItemId const& item)
 		SelectItem(item);
 		--m_setSelection;
 
-		bool found{};
-		for (auto const& old : selections) {
-			if (item == old) {
-				found = true;
-			}
-		}
-		if (!found) {
+		if (selections.empty()) {
 			EnsureVisible(item);
+		}
+		else if (clearSelection) {
+			bool found{};
+			for (auto const& old : selections) {
+				if (item == old) {
+					found = true;
+				}
+			}
+			if (!found) {
+				EnsureVisible(item);
+			}
 		}
 	}
 }
@@ -168,9 +180,9 @@ wxTreeItemId wxTreeCtrlEx::GetBottomItem() const
 	return cur;
 }
 
-wxTreeItemId wxTreeCtrlEx::GetNextItemSimple(wxTreeItemId const& item) const
+wxTreeItemId wxTreeCtrlEx::GetNextItemSimple(wxTreeItemId const& item, bool includeCollapsed) const
 {
-	if (item.IsOk() && ItemHasChildren(item) && IsExpanded(item)) {
+	if (item.IsOk() && ItemHasChildren(item) && (includeCollapsed || IsExpanded(item))) {
 		wxTreeItemIdValue cookie;
 		return GetFirstChild(item, cookie);
 	}
@@ -180,6 +192,9 @@ wxTreeItemId wxTreeCtrlEx::GetNextItemSimple(wxTreeItemId const& item) const
 		while (!next.IsOk() && cur.IsOk()) {
 			cur = GetItemParent(cur);
 			if (cur.IsOk()) {
+				if (HasFlag(wxTR_HIDE_ROOT) && cur == GetRootItem()) {
+					break;
+				}
 				next = GetNextSibling(cur);
 			}
 		}
@@ -208,17 +223,26 @@ int wxTreeCtrlEx::OnCompareItems(wxTreeItemId const& item1, wxTreeItemId const& 
 {
 	wxString const& label1 = GetItemText(item1);
 	wxString const& label2 = GetItemText(item2);
+	auto const label1v = std::wstring_view(label1.data(), label1.size());
+	auto const label2v = std::wstring_view(label2.data(), label2.size());
 
-	switch (m_nameSortMode)
-	{
-	case CFileListCtrlSortBase::namesort_casesensitive:
-		return CFileListCtrlSortBase::CmpCase(label1, label2);
+	return sortFunction_(label1v, label2v);
+}
 
-	default:
-	case CFileListCtrlSortBase::namesort_caseinsensitive:
-		return CFileListCtrlSortBase::CmpNoCase(label1, label2);
-
-	case CFileListCtrlSortBase::namesort_natural:
-		return CFileListCtrlSortBase::CmpNatural(label1, label2);
+void wxTreeCtrlEx::Resort()
+{
+	std::vector<wxTreeItemId> work;
+	if (!GetRootItem()) {
+		return;
+	}
+	work.emplace_back(GetRootItem());
+	while (!work.empty()) {
+		wxTreeItemId item = work.back();
+		work.pop_back();
+		SortChildren(item);
+		wxTreeItemIdValue cookie;
+		for (wxTreeItemId child = GetFirstChild(item, cookie); child; child = GetNextSibling(child)) {
+			work.push_back(child);
+		}
 	}
 }

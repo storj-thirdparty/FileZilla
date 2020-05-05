@@ -87,15 +87,15 @@ void COptionsPage::SetTextFromOption(int ctrlId, int optionId, bool& failure)
 	pTextCtrl->ChangeValue(text);
 }
 
-wxString COptionsPage::GetText(int id) const
+std::wstring COptionsPage::GetText(int id) const
 {
 	auto pTextCtrl = dynamic_cast<wxTextCtrl*>(FindWindow(id));
 	wxASSERT(pTextCtrl);
 
-	return pTextCtrl ? pTextCtrl->GetValue() : wxString();
+	return pTextCtrl ? pTextCtrl->GetValue().ToStdWstring() : std::wstring();
 }
 
-bool COptionsPage::SetText(int id, const wxString& text, bool& failure)
+bool COptionsPage::SetText(int id, std::wstring const& text, bool& failure)
 {
 	auto pTextCtrl = dynamic_cast<wxTextCtrl*>(FindWindow(id));
 	if (!pTextCtrl) {
@@ -136,14 +136,6 @@ void COptionsPage::SetStaticText(int id, const wxString& text, bool& failure)
 	}
 
 	pStaticText->SetLabel(text);
-}
-
-wxString COptionsPage::GetStaticText(int id) const
-{
-	auto pStaticText = dynamic_cast<wxStaticText*>(FindWindow(id));
-	wxASSERT(pStaticText);
-
-	return pStaticText ? pStaticText->GetLabel() : wxString();
 }
 
 void COptionsPage::ReloadSettings()

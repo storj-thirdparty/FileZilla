@@ -1,8 +1,10 @@
 #include <filezilla.h>
 
-#include "directorycache.h"
+#include "../directorycache.h"
 #include "list.h"
 #include "rmd.h"
+
+#include <assert.h>
 
 enum mkdStates
 {

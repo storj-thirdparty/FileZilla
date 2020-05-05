@@ -154,7 +154,7 @@ bool CLogging::InitLogFile(fz::scoped_lock& l)
 	return true;
 }
 
-void CLogging::LogToFile(logmsg::type nMessageType, std::wstring const& msg)
+void CLogging::LogToFile(logmsg::type nMessageType, std::wstring const& msg, fz::datetime const& now)
 {
 	fz::scoped_lock l(mutex_);
 
@@ -173,7 +173,6 @@ void CLogging::LogToFile(logmsg::type nMessageType, std::wstring const& msg)
 	}
 #endif
 
-	fz::datetime now = fz::datetime::now();
 	std::string const out = fz::sprintf("%s %u %u %s %s"
 #ifdef FZ_WINDOWS
 		"\r\n",

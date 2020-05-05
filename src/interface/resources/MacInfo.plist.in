@@ -7,7 +7,7 @@
 	<key>CFBundleExecutable</key>
 	<string>filezilla</string>
 	<key>CFBundleGetInfoString</key>
-	<string>FileZilla Client @PACKAGE_VERSION@, Copyright (C) 2004-2019  Tim Kosse, Website: https://filezilla-project.org</string>
+	<string>FileZilla Client @PACKAGE_VERSION@, Copyright (C) 2004-2020  Tim Kosse, Website: https://filezilla-project.org</string>
 	<key>CFBundleIconFile</key>
 	<string>FileZilla.icns</string>
 	<key>CFBundleIdentifier</key>
@@ -35,7 +35,7 @@
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSHumanReadableCopyright</key>
-	<string>Copyright (C) 2004-2019  Tim Kosse</string>
+	<string>Copyright (C) 2004-2020  Tim Kosse</string>
 	<key>CFBundleSupportedPlatforms</key>
 	<array>
 		<string>MacOSX</string>
@@ -46,5 +46,15 @@
 	<string>public.app-category.utilities</string>
 	<key>NSRequiresAquaSystemAppearance</key>
 	<string>YES</string>
+	<key>NSNetworkVolumesUsageDescription</key>
+	<string>Listing available files and folders on local network volumes, allowing you to select these items for uploading to remote server and to download files from remote servers into these folders.</string>
+	<key>NSDesktopFolderUsageDescription</key>
+	<string>Listing available files and folders, allowing you to select these items for uploading to remote server and to download files from remote servers onto your Desktop.</string>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>Listing available files and folders, allowing you to select these items for uploading to remote server and to download files from remote servers into your Documents folder.</string>
+	<key>NSDownloadsFolderUsageDescription</key>
+	<string>Listing available files and folders, allowing you to select these items for uploading to remote server and to download files from remote servers into your Downloads folder.</string>
+	<key>NSRemovableVolumsUsageDescription</key>
+	<string>Listing available files and folders, allowing you to select these items for uploading to remote server and to download files from remote servers to your removable volumes.</string>
 </dict>
 </plist>

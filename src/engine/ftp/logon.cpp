@@ -6,10 +6,11 @@
 
 #include <libfilezilla/tls_layer.hpp>
 
-CFtpLogonOpData::CFtpLogonOpData(CFtpControlSocket& controlSocket, Credentials const& credentials)
+#include <assert.h>
+
+CFtpLogonOpData::CFtpLogonOpData(CFtpControlSocket& controlSocket)
 	: COpData(Command::connect, L"CFtpLogonOpData")
 	, CFtpOpData(controlSocket)
-	, credentials_(credentials)
 {
 	for (int i = 0; i < LOGON_DONE; ++i) {
 		neededCommands[i] = 1;
@@ -92,7 +93,7 @@ int CFtpLogonOpData::Send()
 					return FZ_REPLY_DISCONNECTED | FZ_REPLY_CRITICALERROR;
 				}
 
-				log(logmsg::status, _("Connecting to %s through %s proxy"), currentServer_.Format(ServerFormat::with_optional_port, credentials_), L"FTP"); // @translator: Connecting to ftp.example.com through SOCKS5 proxy
+				log(logmsg::status, _("Connecting to %s through %s proxy"), currentServer_.Format(ServerFormat::with_optional_port, controlSocket_.credentials_), L"FTP"); // @translator: Connecting to ftp.example.com through SOCKS5 proxy
 			}
 			else {
 				host_ = currentServer_.GetHost();
@@ -103,7 +104,7 @@ int CFtpLogonOpData::Send()
 			int ret = controlSocket_.DoConnect(host_, port_);
 			if (ret == FZ_REPLY_WOULDBLOCK) {
 				// Enable TCP_NODELAY, speeds things up a bit.
-				controlSocket_.socket_->set_flags(fz::socket::flag_nodelay | fz::socket::flag_keepalive);  //, true);
+				controlSocket_.socket_->set_flags(fz::socket::flag_nodelay | fz::socket::flag_keepalive, true);
 
 				// Enable SO_KEEPALIVE, lots of clueless users have broken routers and
 				// firewalls which terminate the control connection on long transfers.
@@ -142,13 +143,13 @@ int CFtpLogonOpData::Send()
 			switch (cmd.type)
 			{
 			case loginCommandType::user:
-				if (credentials_.logonType_ == LogonType::interactive) {
+				if (controlSocket_.credentials_.logonType_ == LogonType::interactive) {
 					waitChallenge = true;
 					challenge.clear();
 				}
 
 				if (cmd.command.empty()) {
-					std::wstring const user = (credentials_.logonType_ == LogonType::anonymous) ? L"anonymous" : currentServer_.GetUser();
+					std::wstring const user = (controlSocket_.credentials_.logonType_ == LogonType::anonymous) ? L"anonymous" : currentServer_.GetUser();
 					return controlSocket_.SendCommand(L"USER " + user);
 				}
 				else {
@@ -159,7 +160,7 @@ int CFtpLogonOpData::Send()
 					CInteractiveLoginNotification *pNotification = new CInteractiveLoginNotification(CInteractiveLoginNotification::interactive, challenge, false);
 					pNotification->server = currentServer_;
 					pNotification->handle_ = controlSocket_.handle_;
-					pNotification->credentials = credentials_;
+					pNotification->credentials = controlSocket_.credentials_;
 					challenge.clear();
 
 					controlSocket_.SendAsyncRequest(pNotification);
@@ -167,7 +168,7 @@ int CFtpLogonOpData::Send()
 					return FZ_REPLY_WOULDBLOCK;
 				}
 				else {
-					std::wstring pass = (credentials_.logonType_ == LogonType::anonymous) ? L"anonymous@example.com" : credentials_.GetPass();
+					std::wstring pass = (controlSocket_.credentials_.logonType_ == LogonType::anonymous) ? L"anonymous@example.com" : controlSocket_.credentials_.GetPass();
 					if (cmd.command.empty()) {
 						return controlSocket_.SendCommand(L"PASS " + pass, true);
 					}
@@ -182,7 +183,7 @@ int CFtpLogonOpData::Send()
 				break;
 			case loginCommandType::account:
 				if (cmd.command.empty()) {
-					return controlSocket_.SendCommand(L"ACCT " + credentials_.account_);
+					return controlSocket_.SendCommand(L"ACCT " + controlSocket_.credentials_.account_);
 				}
 				else {
 					return controlSocket_.SendCommand(cmd.command);
@@ -258,7 +259,7 @@ int CFtpLogonOpData::ParseResponse()
 					neededCommands[LOGON_PBSZ] = 0;
 					neededCommands[LOGON_PROT] = 0;
 					opState = LOGON_SECURITY;
-					return FZ_REPLY_WOULDBLOCK;
+					return FZ_REPLY_CONTINUE;
 				}
 				else {
 					return FZ_REPLY_DISCONNECTED | (code == 5 ? FZ_REPLY_CRITICALERROR : FZ_REPLY_ERROR);
@@ -292,7 +293,7 @@ int CFtpLogonOpData::ParseResponse()
 				if (!user.empty() && (user.front() == ' ' || user.back() == ' ')) {
 					log(logmsg::status, _("Check your login credentials. The entered username starts or ends with a space character."));
 				}
-				auto const pw = credentials_.GetPass();
+				auto const pw = controlSocket_.credentials_.GetPass();
 				if (!pw.empty() && (pw.front() == ' ' || pw.back() == ' ')) {
 					log(logmsg::status, _("Check your login credentials. The entered password starts or ends with a space character."));
 				}
@@ -305,10 +306,10 @@ int CFtpLogonOpData::ParseResponse()
 				if (!fz::str_is_ascii(currentServer_.GetUser())) {
 					asciiOnly = false;
 				}
-				if (!fz::str_is_ascii(credentials_.GetPass())) {
+				if (!fz::str_is_ascii(controlSocket_.credentials_.GetPass())) {
 					asciiOnly = false;
 				}
-				if (!fz::str_is_ascii(credentials_.account_)) {
+				if (!fz::str_is_ascii(controlSocket_.credentials_.account_)) {
 					asciiOnly = false;
 				}
 				if (!asciiOnly) {
@@ -348,7 +349,7 @@ int CFtpLogonOpData::ParseResponse()
 		}
 		else if (code == 3 && loginSequence.empty()) {
 			log(logmsg::error, _("Login sequence fully executed yet not logged in, aborting."));
-			if (cmd.type == loginCommandType::pass && credentials_.account_.empty()) {
+			if (cmd.type == loginCommandType::pass && controlSocket_.credentials_.account_.empty()) {
 				log(logmsg::error, _("Server might require an account. Try specifying an account using the Site Manager"));
 			}
 			return FZ_REPLY_CRITICALERROR | FZ_REPLY_DISCONNECTED;
@@ -587,7 +588,7 @@ bool CFtpLogonOpData::PrepareLoginSequence()
 		loginSequence.push_back(cmd);
 
 		// Optional account
-		if (!credentials_.account_.empty()) {
+		if (!controlSocket_.credentials_.account_.empty()) {
 			cmd.hide_arguments = false;
 			cmd.type = loginCommandType::account;
 			loginSequence.push_back(cmd);
@@ -605,8 +606,8 @@ bool CFtpLogonOpData::PrepareLoginSequence()
 			loginSequence.push_back(cmd);
 		}
 		// User@host
-		std::wstring const user = (credentials_.logonType_ == LogonType::anonymous) ? L"anonymous" : currentServer_.GetUser();
-		t_loginCommand cmd = {false, false, loginCommandType::user, fz::sprintf(L"USER %s@%s", user, currentServer_.Format(ServerFormat::with_optional_port, credentials_))};
+		std::wstring const user = (controlSocket_.credentials_.logonType_ == LogonType::anonymous) ? L"anonymous" : currentServer_.GetUser();
+		t_loginCommand cmd = {false, false, loginCommandType::user, fz::sprintf(L"USER %s@%s", user, currentServer_.Format(ServerFormat::with_optional_port, controlSocket_.credentials_))};
 		loginSequence.push_back(cmd);
 
 		// Password
@@ -617,7 +618,7 @@ bool CFtpLogonOpData::PrepareLoginSequence()
 		loginSequence.push_back(cmd);
 
 		// Optional account
-		if (!credentials_.account_.empty()) {
+		if (!controlSocket_.credentials_.account_.empty()) {
 			cmd.hide_arguments = false;
 			cmd.type = loginCommandType::account;
 			loginSequence.push_back(cmd);
@@ -638,10 +639,10 @@ bool CFtpLogonOpData::PrepareLoginSequence()
 		// Site or Open
 		t_loginCommand cmd = {false, false, loginCommandType::user, L""};
 		if (ftp_proxy_type_ == 2) {
-			cmd.command = L"SITE " + currentServer_.Format(ServerFormat::with_optional_port, credentials_);
+			cmd.command = L"SITE " + currentServer_.Format(ServerFormat::with_optional_port, controlSocket_.credentials_);
 		}
 		else {
-			cmd.command = L"OPEN " + currentServer_.Format(ServerFormat::with_optional_port, credentials_);
+			cmd.command = L"OPEN " + currentServer_.Format(ServerFormat::with_optional_port, controlSocket_.credentials_);
 		}
 		loginSequence.push_back(cmd);
 
@@ -657,7 +658,7 @@ bool CFtpLogonOpData::PrepareLoginSequence()
 		loginSequence.push_back(cmd);
 
 		// Optional account
-		if (!credentials_.account_.empty()) {
+		if (!controlSocket_.credentials_.account_.empty()) {
 			cmd.hide_arguments = false;
 			cmd.type = loginCommandType::account;
 			loginSequence.push_back(cmd);
@@ -666,9 +667,9 @@ bool CFtpLogonOpData::PrepareLoginSequence()
 	else if (ftp_proxy_type_ == 4) {
 		std::wstring proxyUser = engine_.GetOptions().GetOption(OPTION_FTP_PROXY_USER);
 		std::wstring proxyPass = engine_.GetOptions().GetOption(OPTION_FTP_PROXY_PASS);
-		std::wstring host = currentServer_.Format(ServerFormat::with_optional_port, credentials_);
-		std::wstring user = (credentials_.logonType_ == LogonType::anonymous) ? L"anonymous" : currentServer_.GetUser();
-		std::wstring account = credentials_.account_;
+		std::wstring host = currentServer_.Format(ServerFormat::with_optional_port, controlSocket_.credentials_);
+		std::wstring user = (controlSocket_.credentials_.logonType_ == LogonType::anonymous) ? L"anonymous" : currentServer_.GetUser();
+		std::wstring account = controlSocket_.credentials_.account_;
 		fz::replace_substrings(proxyUser, L"%", L"%%");
 		fz::replace_substrings(proxyPass, L"%", L"%%");
 		fz::replace_substrings(host, L"%", L"%%");

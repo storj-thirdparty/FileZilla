@@ -1,6 +1,6 @@
 #include <filezilla.h>
 
-#include "directorycache.h"
+#include "../directorycache.h"
 #include "resolve.h"
 
 enum resolveStates
@@ -119,7 +119,7 @@ int CStorjResolveOpData::Send()
 		break;
 	}
 
-	log(logmsg::debug_warning, L"Unknown opState in CStorjResolveOpData::ResolveSend()");
+	log(logmsg::debug_warning, L"Unknown opState in CStorjResolveOpData::Send()");
 	return FZ_REPLY_INTERNALERROR;
 }
 
@@ -249,7 +249,7 @@ int CStorjResolveManyOpData::Send()
 		break;
 	}
 
-	log(logmsg::debug_warning, L"Unknown opState in CStorjResolveManyOpData::ResolveSend()");
+	log(logmsg::debug_warning, L"Unknown opState in CStorjResolveManyOpData::Send()");
 	return FZ_REPLY_INTERNALERROR;
 }
 

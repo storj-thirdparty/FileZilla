@@ -1,6 +1,6 @@
 #include <filezilla.h>
 
-#include "ControlSocket.h"
+#include "controlsocket.h"
 #include "oplock_manager.h"
 
 #include <assert.h>
@@ -20,7 +20,7 @@ OpLock::~OpLock()
 	}
 }
 
-OpLock::OpLock(OpLock && op)
+OpLock::OpLock(OpLock && op) noexcept
 {
 	if (mgr_) {
 		mgr_->Unlock(*this);
@@ -32,7 +32,7 @@ OpLock::OpLock(OpLock && op)
 	op.mgr_ = nullptr;
 }
 
-OpLock& OpLock::operator=(OpLock && op)
+OpLock& OpLock::operator=(OpLock && op) noexcept
 {
 	if (this != &op) {
 		if (mgr_) {

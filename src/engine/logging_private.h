@@ -1,5 +1,5 @@
-#ifndef FILEZILLA_ENGINE_LOGGIN_PRIVATE_HEADER
-#define FILEZILLA_ENGINE_LOGGIN_PRIVATE_HEADER
+#ifndef FILEZILLA_ENGINE_LOGGING_PRIVATE_HEADER
+#define FILEZILLA_ENGINE_LOGGING_PRIVATE_HEADER
 
 #include "engineprivate.h"
 #include <libfilezilla/format.hpp>
@@ -18,8 +18,9 @@ public:
 	CLogging& operator=(CLogging const&) = delete;
 
 	virtual void do_log(logmsg::type t, std::wstring&& msg) override final {
-		LogToFile(t, msg);
-		engine_.AddLogNotification(new CLogmsgNotification(t, msg));
+		auto now = fz::datetime::now();
+		LogToFile(t, msg, now);
+		engine_.AddLogNotification(new CLogmsgNotification(t, msg, now));
 	}
 	
 	void UpdateLogLevel(COptionsBase & options);
@@ -28,7 +29,7 @@ private:
 	CFileZillaEnginePrivate & engine_;
 
 	bool InitLogFile(fz::scoped_lock& l);
-	void LogToFile(logmsg::type nMessageType, std::wstring const& msg);
+	void LogToFile(logmsg::type nMessageType, std::wstring const& msg, fz::datetime const& now);
 
 	static bool m_logfile_initialized;
 #ifdef FZ_WINDOWS

@@ -6,10 +6,14 @@
 #ifdef FZ_WINDOWS
 #include <knownfolders.h>
 #include <shlobj.h>
+#include <shlwapi.h>
 #else
+#include <wx/mimetype.h>
 #include <wx/textfile.h>
 #include <wordexp.h>
 #endif
+
+#include "Options.h"
 
 std::wstring GetAsURL(std::wstring const& dir)
 {
@@ -98,169 +102,12 @@ bool OpenInFileManager(std::wstring const& dir)
 	return ret;
 }
 
-wxString GetSystemOpenCommand(wxString file, bool &program_exists)
+namespace {
+bool PathExpand(std::wstring& cmd)
 {
-	// Disallowed on MSW. On other platforms wxWidgets doens't escape properly.
-	// For now don't support these files until we can replace wx with something sane.
-	if (file.find('"') != std::wstring::npos) {
-		return wxString();
-	}
-#ifndef __WXMSW__
-	// wxWidgets doens't escape backslashes properly.
-	// For now don't support these files until we can replace wx with something sane.
-	if (file.find('\\') != std::wstring::npos) {
-		return wxString();
-	}
-#endif
-
-	wxFileName fn(file);
-
-	const wxString& ext = fn.GetExt();
-	if (ext.empty()) {
-		return wxString();
-	}
-
-#ifdef __WXGTK__
-	for (;;)
-#endif
-	{
-		wxFileType* pType = wxTheMimeTypesManager->GetFileTypeFromExtension(ext);
-		if (!pType) {
-			return wxString();
-		}
-
-		wxString cmd;
-		if (!pType->GetOpenCommand(&cmd, wxFileType::MessageParameters(file))) {
-			delete pType;
-			return wxString();
-		}
-		delete pType;
-
-		if (cmd.empty()) {
-			return wxString();
-		}
-
-		program_exists = false;
-
-		wxString editor;
-		bool is_dde = false;
-#ifdef __WXMSW__
-		if (cmd.Left(7) == _T("WX_DDE#")) {
-			// See wxWidget's wxExecute in src/msw/utilsexc.cpp
-			// WX_DDE#<command>#DDE_SERVER#DDE_TOPIC#DDE_COMMAND
-			editor = cmd.Mid(7);
-			int pos = editor.Find('#');
-			if (pos < 1) {
-				return cmd;
-			}
-			editor = editor.Left(pos);
-			is_dde = true;
-		}
-		else
-#endif
-		{
-			editor = cmd;
-		}
-
-		wxString args;
-		if (!UnquoteCommand(editor, args, is_dde) || editor.empty()) {
-			return cmd;
-		}
-
-		if (!PathExpand(editor)) {
-			return cmd;
-		}
-
-		if (ProgramExists(editor)) {
-			program_exists = true;
-		}
-
-#ifdef __WXGTK__
-		int pos = args.Find(file);
-		if (pos != -1 && file.Find(' ') != -1 && file[0] != '\'' && file[0] != '"') {
-			// Might need to quote filename, wxWidgets doesn't do it
-			if ((!pos || (args[pos - 1] != '\'' && args[pos - 1] != '"')) &&
-				(pos + file.Length() >= args.Length() || (args[pos + file.Length()] != '\'' && args[pos + file.Length()] != '"')))
-			{
-				// Filename in command arguments isn't quoted. Repeat with quoted filename
-				file = _T("\"") + file + _T("\"");
-				continue;
-			}
-		}
-#endif
-		return cmd;
-	}
-
-	return wxString();
-}
-
-bool UnquoteCommand(wxString& command, wxString& arguments, bool is_dde)
-{
-	arguments.clear();
-
-	if (command.empty()) {
-		return true;
-	}
-
-	wxChar inQuotes = 0;
-	wxString file;
-	for (unsigned int i = 0; i < command.Len(); i++) {
-		const wxChar& c = command[i];
-		if (c == '"' || c == '\'') {
-			if (!inQuotes) {
-				inQuotes = c;
-			}
-			else if (c != inQuotes) {
-				file += c;
-			}
-			else if (command[i + 1] == c) {
-				file += c;
-				i++;
-			}
-			else {
-				inQuotes = false;
-			}
-		}
-		else if (command[i] == ' ' && !inQuotes) {
-			arguments = command.Mid(i + 1);
-			arguments.Trim(false);
-			break;
-		}
-		else if (is_dde && !inQuotes && (command[i] == ',' || command[i] == '#')) {
-			arguments = command.Mid(i + 1);
-			arguments.Trim(false);
-			break;
-		}
-		else {
-			file += command[i];
-		}
-	}
-	if (inQuotes) {
+	if (cmd.empty()) {
 		return false;
 	}
-
-	command = file;
-
-	return true;
-}
-
-bool ProgramExists(const wxString& editor)
-{
-	if (wxFileName::FileExists(editor)) {
-		return true;
-	}
-
-#ifdef __WXMAC__
-	if (editor.Right(4) == _T(".app") && wxFileName::DirExists(editor)) {
-		return true;
-	}
-#endif
-
-	return false;
-}
-
-bool PathExpand(wxString& cmd)
-{
 #ifndef __WXMSW__
 	if (!cmd.empty() && cmd[0] == '/') {
 		return true;
@@ -270,23 +117,23 @@ bool PathExpand(wxString& cmd)
 		// UNC or root of current working dir, whatever that is
 		return true;
 	}
-	if (cmd.Len() > 2 && cmd[1] == ':') {
+	if (cmd.size() > 2 && cmd[1] == ':') {
 		// Absolute path
 		return true;
 	}
 #endif
 
 	// Need to search for program in $PATH
-	wxString path;
-	if (!wxGetEnv(_T("PATH"), &path)) {
+	std::wstring path = GetEnv("PATH");
+	if (path.empty()) {
 		return false;
 	}
 
 	wxString full_cmd;
 	bool found = wxFindFileInPath(&full_cmd, path, cmd);
 #ifdef __WXMSW__
-	if (!found && cmd.Right(4).Lower() != _T(".exe")) {
-		cmd += _T(".exe");
+	if (!found && !fz::equal_insensitive_ascii(cmd.substr(cmd.size() - 1), L".exe")) {
+		cmd += L".exe";
 		found = wxFindFileInPath(&full_cmd, path, cmd);
 	}
 #endif
@@ -297,6 +144,337 @@ bool PathExpand(wxString& cmd)
 
 	cmd = full_cmd;
 	return true;
+}
+}
+
+std::vector<std::wstring> GetSystemAssociation(std::wstring const& file)
+{
+	std::vector<std::wstring> ret;
+
+	auto const ext = GetExtension(file);
+	if (ext.empty() || ext == L".") {
+		return ret;
+	}
+
+#if FZ_WINDOWS
+	auto query = [&](wchar_t const* verb) {
+		DWORD len{};
+		int res = AssocQueryString(0, ASSOCSTR_COMMAND, (L"." + ext).c_str(), verb, nullptr, &len);
+		if (res == S_FALSE && len > 1) {
+			std::wstring raw;
+
+			// len as returned by AssocQueryString includes terminating null
+			raw.resize(static_cast<size_t>(len - 1));
+
+			res = AssocQueryString(0, ASSOCSTR_COMMAND, (L"." + ext).c_str(), verb, raw.data(), &len);
+			if (res == S_OK && len > 1) {
+				raw.resize(len - 1);
+				return UnquoteCommand(raw);
+			}
+		}
+
+		return std::vector<std::wstring>();
+	};
+
+	ret = query(L"edit");
+	if (ret.empty()) {
+		ret = query(nullptr);
+	}
+	
+	std::vector<std::wstring> raw;
+	std::swap(ret, raw);
+	if (!raw.empty()) {
+		ret.emplace_back(std::move(raw.front()));
+	}
+
+	// Process placeholders.
+
+	// Phase 1: Look for %1
+	bool got_first{};
+	for (size_t i = 1; i < raw.size(); ++i) {
+		auto const& arg = raw[i];
+
+		std::wstring out;
+		out.reserve(arg.size());
+		bool percent{};
+		for (auto const& c : arg) {
+			if (percent) {
+				if (!got_first) {
+					if (c == '1') {
+						out += L"%f";
+						got_first = true;
+					}
+					else if (c == '*') {
+						out += '%';
+						out += c;
+					}
+					// Ignore others.
+				}
+
+				percent = false;
+			}
+			else if (c == '%') {
+				percent = true;
+			}
+			else {
+				out += c;
+			}
+		}
+
+		if (!out.empty() || arg.empty()) {
+			ret.emplace_back(std::move(out));
+		}
+	}
+
+	std::swap(ret, raw);
+	ret.clear();
+	if (!raw.empty()) {
+		ret.emplace_back(std::move(raw.front()));
+	}
+
+	// Phase 2: Filter %*
+	for (size_t i = 1; i < raw.size(); ++i) {
+		auto& arg = raw[i];
+
+		std::wstring out;
+		out.reserve(arg.size());
+		bool percent{};
+		for (auto const& c : arg) {
+			if (percent) {
+				if (c == '*') {
+					if (!got_first) {
+						out += L"%f";
+					}
+				}
+				else if (c == 'f') {
+					out += L"%f";
+				}
+				// Ignore others.
+
+				percent = false;
+			}
+			else if (c == '%') {
+				percent = true;
+			}
+			else {
+				out += c;
+			}
+		}
+
+		if (!out.empty() || arg.empty()) {
+			ret.emplace_back(std::move(out));
+		}
+	}
+#else
+	// wxWidgets doens't escape properly.
+	// For now don't support these files until we can replace wx with something sane.
+	if (ext.find_first_of(L"\"\\") != std::wstring::npos) {
+		return ret;
+	}
+
+	std::unique_ptr<wxFileType> pType(wxTheMimeTypesManager->GetFileTypeFromExtension(ext));
+	if (!pType) {
+		return ret;
+	}
+
+	std::wstring const placeholder = L"placeholderJkpZ0eet6lWsI8glm3uSJYZyvn7WZn5S";
+	ret = UnquoteCommand(pType->GetOpenCommand(placeholder).ToStdWstring());
+
+	bool replaced{};
+	for (size_t i = 0; i < ret.size(); ++i) {
+		auto& arg = ret[i];
+
+		fz::replace_substrings(arg, L"%", L"%%");
+		if (fz::replace_substrings(arg, placeholder, L"%f")) {
+			if (!i) {
+				// Placeholder found in the command itself? Something went wrong.
+				ret.clear();
+				return ret;
+			}
+			replaced = true;
+		}
+	}
+
+	if (!replaced) {
+		ret.clear();
+	}
+
+	if (!ret.empty()) {
+		if (!PathExpand(ret[0])) {
+			ret.clear();
+		}
+	}
+
+#endif
+
+	if (!ret.empty() && !ProgramExists(ret[0])) {
+		ret.clear();
+	}
+
+	return ret;
+}
+
+std::vector<fz::native_string> AssociationToCommand(std::vector<std::wstring> const& association, std::wstring_view const& file)
+{
+	std::vector<fz::native_string> ret;
+	ret.reserve(association.size());
+
+	if (!association.empty()) {
+		ret.push_back(fz::to_native(association.front()));
+	}
+
+	bool replaced{};
+
+	for (size_t i = 1; i < association.size(); ++i) {
+		bool percent{};
+		std::wstring const& arg = association[i];
+
+		std::wstring out;
+		out.reserve(arg.size());
+		for (auto const& c : arg) {
+			if (percent) {
+				percent = false;
+				if (c == 'f') {
+					replaced = true;
+					out += file;
+				}
+				else {
+					out += c;
+				}
+			}
+			else if (c == '%') {
+				percent = true;
+			}
+			else {
+				out += c;
+			}
+		}
+		ret.emplace_back(fz::to_native(out));
+	}
+
+	if (!replaced) {
+		ret.emplace_back(fz::to_native(file));
+	}
+
+	return ret;
+}
+
+std::wstring QuoteCommand(std::vector<std::wstring> const& cmd_with_args)
+{
+	std::wstring ret;
+
+	for (auto const& arg : cmd_with_args) {
+		if (!ret.empty()) {
+			ret += ' ';
+		}
+		size_t pos = arg.find_first_of(L" \t\"'");
+		if (pos != std::wstring::npos || arg.empty()) {
+			ret += '"';
+			ret += fz::replaced_substrings(arg, L"\"", L"\"\"");
+			ret += '"';
+		}
+		else {
+			ret += arg;
+		}
+	}
+
+	return ret;
+}
+
+std::optional<std::wstring> UnquoteFirst(std::wstring_view & command)
+{
+	std::optional<std::wstring> ret;
+
+	bool quoted{};
+	size_t i = 0;
+	for (; i < command.size(); ++i) {
+		wchar_t const& c = command[i];
+
+		if ((c == ' ' || c == '\t' || c == '\r' || c == '\n') && !quoted) {
+			if (ret) {
+				break;
+			}
+		}
+		else {
+			if (!ret) {
+				ret = std::wstring();
+			}
+			if (c == '"') {
+				if (!quoted) {
+					quoted = true;
+				}
+				else if (i + 1 != command.size() && command[i + 1] == '"') {
+					*ret += '"';
+					++i;
+				}
+				else {
+					quoted = false;
+				}
+			}
+			else {
+				ret->push_back(c);
+			}
+		}
+	}
+	if (quoted) {
+		ret.reset();
+	}
+
+	if (ret) {
+		for (; i < command.size(); ++i) {
+			wchar_t const& c = command[i];
+			if (!(c == ' ' || c == '\t' || c == '\r' || c == '\n')) {
+				break;
+			}
+		}
+		command = command.substr(i);
+	}
+
+	return ret;
+}
+
+std::vector<std::wstring> UnquoteCommand(std::wstring_view command)
+{
+	std::vector<std::wstring> ret;
+
+	while (!command.empty()) {
+		auto part = UnquoteFirst(command);
+		if (!part) {
+			break;
+		}
+
+		ret.emplace_back(std::move(*part));
+	}
+
+	if (!command.empty()) {
+		ret.clear();
+	}
+
+	if (!ret.empty() && ret.front().empty()) {
+		// Commands may have empty arguments, but themselves cannot be empty
+		ret.clear();
+	}
+
+	return ret;
+}
+
+bool ProgramExists(std::wstring const& editor)
+{
+	if (wxFileName::FileExists(editor)) {
+		return true;
+	}
+
+#ifdef __WXMAC__
+	std::wstring_view e = editor;
+	if (!e.empty() && e.back() == '/') {
+		e = e.substr(0, e.size() - 1);
+	}
+	if (fz::ends_with(e, std::wstring_view(L".app")) && wxFileName::DirExists(editor)) {
+		return true;
+	}
+#endif
+
+	return false;
 }
 
 bool RenameFile(wxWindow* parent, wxString dir, wxString from, wxString to)
@@ -435,16 +613,63 @@ CLocalPath GetDownloadDir()
 	return CLocalPath(wxStandardPaths::Get().GetDocumentsDir().ToStdWstring());
 }
 
-std::wstring GetExtension(std::wstring const& file)
+std::wstring GetExtension(std::wstring_view file)
 {
+	// Strip path if any
 #ifdef FZ_WINDOWS
-	size_t pos = file.find_last_of(L"./\\");
+	size_t pos = file.find_last_of(L"/\\");
 #else
-	size_t pos = file.find_last_of(L"./");
+	size_t pos = file.find_last_of(L"/");
 #endif
-	if (pos != std::wstring::npos && pos != 0 && file[pos] == '.') {
-		return file.substr(pos + 1);
+	if (pos != std::wstring::npos) {
+		file = file.substr(pos + 1);
+	}
+
+	// Find extension
+	pos = file.find_last_of('.');
+	if (!pos) {
+		return std::wstring(L".");
+	}
+	else if (pos != std::wstring::npos) {
+		return std::wstring(file.substr(pos + 1));
 	}
 
 	return std::wstring();
+}
+
+bool IsInvalidChar(wchar_t c, bool includeQuotesAndBreaks)
+{
+	switch (c)
+	{
+	case '/':
+#ifdef __WXMSW__
+	case '\\':
+	case ':':
+	case '*':
+	case '?':
+	case '"':
+	case '<':
+	case '>':
+	case '|':
+#endif
+		return true;
+
+
+	case '\'':
+#ifndef __WXMSW__
+	case '"':
+	case '\\':
+#endif
+		return includeQuotesAndBreaks;
+
+	default:
+		if (c < 0x20) {
+#ifdef __WXMSW__
+			return true;
+#else
+			return includeQuotesAndBreaks;
+#endif
+		}
+		return false;
+	}
 }

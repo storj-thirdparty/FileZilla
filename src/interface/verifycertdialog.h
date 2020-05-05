@@ -1,8 +1,10 @@
 #ifndef FILEZILLA_INTERFACE_VERIFYCERTDIALOG_HEADER
 #define FILEZILLA_INTERFACE_VERIFYCERTDIALOG_HEADER
 
+#include "dialogex.h"
 #include "xmlfunctions.h"
 
+#include <list>
 #include <set>
 
 class CertStore final
@@ -40,32 +42,34 @@ private:
 	CXmlFile m_xmlFile;
 };
 
-class wxDialogEx;
-class CVerifyCertDialog final : protected wxEvtHandler
+class CVerifyCertDialog final : protected wxDialogEx
 {
 public:
-	CVerifyCertDialog(CertStore & certStore);
+	static void ShowVerificationDialog(CertStore & certStore, CCertificateNotification& notification);
 
-	void ShowVerificationDialog(CCertificateNotification& notification, bool displayOnly = false);
+	static void DisplayCertificate(CCertificateNotification const& notification);
 
 private:
+	bool CreateVerificationDialog(CCertificateNotification const& notification, bool displayOnly);
+
+	CVerifyCertDialog() = default;
 
 	bool DisplayAlgorithm(int controlId, std::string const& name, bool insecure);
 
-	bool DisplayCert(wxDialogEx* pDlg, fz::x509_certificate const& cert);
+	bool DisplayCert(fz::x509_certificate const& cert);
 
 	void ParseDN(wxWindow* parent, std::wstring const& dn, wxSizer* pSizer);
 	void ParseDN_by_prefix(wxWindow* parent, std::vector<std::pair<std::wstring, std::wstring>>& tokens, std::wstring const& prefix, wxString const& name, wxSizer* pSizer);
 
 	std::vector<fz::x509_certificate> m_certificates;
-	wxDialogEx* m_pDlg{};
 	wxSizer* m_pSubjectSizer{};
 	wxSizer* m_pIssuerSizer{};
 	int line_height_{};
 
 	void OnCertificateChoice(wxCommandEvent& event);
 
-	CertStore & certStore_;
+	bool warning_{};
+	bool sanTrustAllowed_{};
 };
 
 void ConfirmInsecureConection(wxWindow* parent, CertStore & certStore, CInsecureConnectionNotification & notification);

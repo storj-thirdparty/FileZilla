@@ -6,11 +6,11 @@
 class CDirectoryCache;
 class COptionsBase;
 class CPathCache;
-class CRateLimiter;
 class OpLockManager;
 
 namespace fz {
 class event_loop;
+class rate_limiter;
 class thread_pool;
 class tls_system_trust_store;
 }
@@ -35,7 +35,7 @@ public:
 	COptionsBase& GetOptions() { return options_; }
 	fz::thread_pool& GetThreadPool();
 	fz::event_loop& GetEventLoop();
-	CRateLimiter& GetRateLimiter();
+	fz::rate_limiter& GetRateLimiter();
 	CDirectoryCache& GetDirectoryCache();
 	CPathCache& GetPathCache();
 	CustomEncodingConverterBase const& GetCustomEncodingConverter() { return customEncodingConverter_; }

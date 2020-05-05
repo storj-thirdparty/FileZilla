@@ -1,15 +1,17 @@
 #ifndef FILEZILLA_ENGINE_SERVERPATH_HEADER
 #define FILEZILLA_ENGINE_SERVERPATH_HEADER
 
+#include "server.h"
+
 #include <libfilezilla/optional.hpp>
 #include <libfilezilla/shared.hpp>
 
-#include <deque>
+#include <vector>
 
 class CServerPathData final
 {
 public:
-	std::deque<std::wstring> m_segments;
+	std::vector<std::wstring> m_segments;
 	fz::sparse_optional<std::wstring> m_prefix;
 
 	bool operator==(const CServerPathData& cmp) const;
@@ -27,6 +29,7 @@ public:
 	CServerPath& operator=(CServerPath const& op) = default;
 	CServerPath& operator=(CServerPath && op) noexcept = default;
 
+	explicit operator bool() const { return !empty(); }
 	bool empty() const { return !m_data; }
 	void clear();
 
@@ -53,8 +56,8 @@ public:
 	bool SetType(ServerType type);
 	ServerType GetType() const;
 
-	bool IsSubdirOf(CServerPath const& path, bool cmpNoCase) const;
-	bool IsParentOf(CServerPath const& path, bool cmpNoCase) const;
+	bool IsSubdirOf(CServerPath const& path, bool cmpNoCase, bool allowEqual = false) const;
+	bool IsParentOf(CServerPath const& path, bool cmpNoCase, bool allowEqual = false) const;
 
 	bool operator==(CServerPath const& op) const;
 	bool operator!=(CServerPath const& op) const;
@@ -72,6 +75,8 @@ public:
 	bool AddSegment(std::wstring const& segment);
 
 	size_t SegmentCount() const;
+
+	static CServerPath GetChanged(CServerPath const& oldPath, CServerPath const& newPath, std::wstring const& newSubdir);
 private:
 	bool IsSeparator(wchar_t c) const;
 
@@ -80,7 +85,7 @@ private:
 
 	ServerType m_type;
 
-	typedef std::deque<std::wstring> tSegmentList;
+	typedef std::vector<std::wstring> tSegmentList;
 	typedef tSegmentList::iterator tSegmentIter;
 	typedef tSegmentList::const_iterator tConstSegmentIter;
 

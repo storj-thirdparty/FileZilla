@@ -134,14 +134,16 @@ void CXmlFile::UpdateMetadata()
 	SetTextAttributeUtf8(m_element, "platform", platform);
 }
 
-bool CXmlFile::Save(bool printError)
+bool CXmlFile::Save(bool printError, bool updateMetadata)
 {
 	m_error.clear();
 
 	wxCHECK(!m_fileName.empty(), false);
 	wxCHECK(m_document, false);
 
-	UpdateMetadata();
+	if (updateMetadata) {
+		UpdateMetadata();
+	}
 
 	bool res = SaveXmlFile();
 	m_modificationTime = fz::local_filesys::get_modification_time(fz::to_native(m_fileName));
@@ -329,7 +331,10 @@ bool GetServer(pugi::xml_node node, Site & site)
 	site.SetLogonType(static_cast<LogonType>(logonType));
 	
 	if (site.credentials.logonType_ != LogonType::anonymous) {
-		std::wstring user = GetTextElement(node, "User");
+		std::wstring user;
+		if (ProtocolHasUser(site.server.GetProtocol())) {
+			user = GetTextElement(node, "User");
+		}
 		if (user.empty() && site.credentials.logonType_ != LogonType::interactive && site.credentials.logonType_ != LogonType::ask) {
 			return false;
 		}
@@ -341,8 +346,8 @@ bool GetServer(pugi::xml_node node, Site & site)
 				std::wstring encoding = GetTextAttribute(passElement, "encoding");
 
 				if (encoding == _T("base64")) {
-					auto const decoded = fz::base64_decode(passElement.child_value());
-					pass = fz::to_wstring_from_utf8(std::string(decoded.begin(), decoded.end()));
+					std::string decoded = fz::base64_decode_s(passElement.child_value());
+					pass = fz::to_wstring_from_utf8(decoded);
 				}
 				else if (encoding == _T("crypt")) {
 					pass = fz::to_wstring_from_utf8(passElement.child_value());
@@ -380,11 +385,11 @@ bool GetServer(pugi::xml_node node, Site & site)
 		return false;
 	}
 
-	wxString pasvMode = GetTextElement(node, "PasvMode");
-	if (pasvMode == _T("MODE_PASSIVE")) {
+	std::string_view pasvMode = node.child_value("PasvMode");
+	if (pasvMode == "MODE_PASSIVE") {
 		site.server.SetPasvMode(MODE_PASSIVE);
 	}
-	else if (pasvMode == _T("MODE_ACTIVE")) {
+	else if (pasvMode == "MODE_ACTIVE") {
 		site.server.SetPasvMode(MODE_ACTIVE);
 	}
 	else {
@@ -394,14 +399,11 @@ bool GetServer(pugi::xml_node node, Site & site)
 	int maximumMultipleConnections = GetTextElementInt(node, "MaximumMultipleConnections");
 	site.server.MaximumMultipleConnections(maximumMultipleConnections);
 
-	wxString encodingType = GetTextElement(node, "EncodingType");
-	if (encodingType == _T("Auto")) {
-		site.server.SetEncodingType(ENCODING_AUTO);
-	}
-	else if (encodingType == _T("UTF-8")) {
+	std::string_view encodingType = node.child_value("EncodingType");
+	if (encodingType == "UTF-8") {
 		site.server.SetEncodingType(ENCODING_UTF8);
 	}
-	else if (encodingType == _T("Custom")) {
+	else if (encodingType == "Custom") {
 		std::wstring customEncoding = GetTextElement(node, "CustomEncoding");
 		if (customEncoding.empty()) {
 			return false;
@@ -431,10 +433,10 @@ bool GetServer(pugi::xml_node node, Site & site)
 	}
 
 	site.server.SetBypassProxy(GetTextElementInt(node, "BypassProxy", false) == 1);
-	site.server.SetName(GetTextElement_Trimmed(node, "Name").substr(0, 255));
+	site.SetName(GetTextElement_Trimmed(node, "Name"));
 
-	if (site.server.GetName().empty()) {
-		site.server.SetName(GetTextElement_Trimmed(node).substr(0, 255));
+	if (site.GetName().empty()) {
+		site.SetName(GetTextElement_Trimmed(node));
 	}
 
 	for (auto parameter = node.child("Parameter"); parameter; parameter = parameter.next_sibling("Parameter")) {
@@ -459,7 +461,9 @@ void SetServer(pugi::xml_node node, Site const& site)
 	AddTextElement(node, "Host", site.server.GetHost());
 	AddTextElement(node, "Port", site.server.GetPort());
 	AddTextElement(node, "Protocol", protocol);
-	AddTextElement(node, "Type", site.server.GetType());
+	if (site.server.HasFeature(ProtocolFeature::ServerType)) {
+		AddTextElement(node, "Type", site.server.GetType());
+	}
 
 	ProtectedCredentials credentials = site.credentials;
 
@@ -475,7 +479,7 @@ void SetServer(pugi::xml_node node, Site const& site)
 				pugi::xml_node passElement = AddTextElementUtf8(node, "Pass", pass);
 				if (passElement) {
 					SetTextAttribute(passElement, "encoding", _T("crypt"));
-					SetTextAttributeUtf8(passElement, "pubkey", credentials.encrypted_.to_base64());
+					SetTextAttributeUtf8(passElement, "pubkey", credentials.encrypted_.to_base64(false));
 				}
 			}
 			else {
@@ -495,33 +499,42 @@ void SetServer(pugi::xml_node node, Site const& site)
 	}
 	AddTextElement(node, "Logontype", static_cast<int>(credentials.logonType_));
 
-	AddTextElement(node, "TimezoneOffset", site.server.GetTimezoneOffset());
-	switch (site.server.GetPasvMode())
-	{
-	case MODE_PASSIVE:
-		AddTextElementUtf8(node, "PasvMode", "MODE_PASSIVE");
-		break;
-	case MODE_ACTIVE:
-		AddTextElementUtf8(node, "PasvMode", "MODE_ACTIVE");
-		break;
-	default:
-		AddTextElementUtf8(node, "PasvMode", "MODE_DEFAULT");
-		break;
+	if (site.server.GetTimezoneOffset()) {
+		AddTextElement(node, "TimezoneOffset", site.server.GetTimezoneOffset());
 	}
-	AddTextElement(node, "MaximumMultipleConnections", site.server.MaximumMultipleConnections());
 
-	switch (site.server.GetEncodingType())
-	{
-	case ENCODING_AUTO:
-		AddTextElementUtf8(node, "EncodingType", "Auto");
-		break;
-	case ENCODING_UTF8:
-		AddTextElementUtf8(node, "EncodingType", "UTF-8");
-		break;
-	case ENCODING_CUSTOM:
-		AddTextElementUtf8(node, "EncodingType", "Custom");
-		AddTextElement(node, "CustomEncoding", site.server.GetCustomEncoding());
-		break;
+	if (CServer::ProtocolHasFeature(site.server.GetProtocol(), ProtocolFeature::TransferMode)) {
+		switch (site.server.GetPasvMode())
+		{
+		case MODE_PASSIVE:
+			AddTextElementUtf8(node, "PasvMode", "MODE_PASSIVE");
+			break;
+		case MODE_ACTIVE:
+			AddTextElementUtf8(node, "PasvMode", "MODE_ACTIVE");
+			break;
+		default:
+			AddTextElementUtf8(node, "PasvMode", "MODE_DEFAULT");
+			break;
+		}
+	}
+	if (site.server.MaximumMultipleConnections()) {
+		AddTextElement(node, "MaximumMultipleConnections", site.server.MaximumMultipleConnections());
+	}
+
+	if (CServer::ProtocolHasFeature(site.server.GetProtocol(), ProtocolFeature::Charset)) {
+		switch (site.server.GetEncodingType())
+		{
+		case ENCODING_AUTO:
+			AddTextElementUtf8(node, "EncodingType", "Auto");
+			break;
+		case ENCODING_UTF8:
+			AddTextElementUtf8(node, "EncodingType", "UTF-8");
+			break;
+		case ENCODING_CUSTOM:
+			AddTextElementUtf8(node, "EncodingType", "Custom");
+			AddTextElement(node, "CustomEncoding", site.server.GetCustomEncoding());
+			break;
+		}
 	}
 
 	if (CServer::ProtocolHasFeature(site.server.GetProtocol(), ProtocolFeature::PostLoginCommands)) {
@@ -535,7 +548,7 @@ void SetServer(pugi::xml_node node, Site const& site)
 	}
 
 	AddTextElementUtf8(node, "BypassProxy", site.server.GetBypassProxy() ? "1" : "0");
-	std::wstring const& name = site.server.GetName();
+	std::wstring const& name = site.GetName();
 	if (!name.empty()) {
 		AddTextElement(node, "Name", name);
 	}
@@ -587,10 +600,10 @@ void CXmlFile::GetRawDataHere(char* p, size_t size) // p has to big enough to ho
 	m_document.save(writer);
 }
 
-bool CXmlFile::ParseData(char* data)
+bool CXmlFile::ParseData(uint8_t const* data, size_t len)
 {
 	Close();
-	m_document.load_string(data);
+	m_document.load_buffer(data, len);
 	m_element = m_document.child(m_rootName.c_str());
 	if (!m_element) {
 		Close();

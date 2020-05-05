@@ -2,12 +2,10 @@
 
 #include "request.h"
 
-#include <string.h>
-
-#include "backend.h"
-
 #include <libfilezilla/encode.hpp>
 
+#include <assert.h>
+#include <string.h>
 
 CHttpRequestOpData::CHttpRequestOpData(CHttpControlSocket & controlSocket, std::shared_ptr<HttpRequestResponseInterface> const& request)
 	: COpData(PrivCommand::http_request, L"CHttpRequestOpData")
@@ -70,6 +68,16 @@ int CHttpRequestOpData::Send()
 
 		auto & rr = *requests_[send_pos_];
 		auto & req = rr.request();
+
+		// Check backoff
+		fz::duration backoff = controlSocket_.throttler_.get_throttle(req.uri_.host_);
+		if (backoff) {
+			if (backoff >= fz::duration::from_seconds(30)) {
+				log(logmsg::status, _("Server instructed us to wait %d seconds before sending next request"), backoff.get_seconds());
+			}
+			controlSocket_.Sleep(backoff);
+			return FZ_REPLY_CONTINUE;
+		}
 
 		int res = req.reset();
 		if (res != FZ_REPLY_CONTINUE) {
@@ -201,7 +209,7 @@ int CHttpRequestOpData::Send()
 
 					// Disable Nagle's algorithm if we have a beefy body
 					if (req.body_->size() > 536) { // TCPv4 minimum required MSS
-						controlSocket_.socket_->set_flags(fz::socket::flag_nodelay);  //, false);
+						controlSocket_.socket_->set_flags(fz::socket::flag_nodelay, false);
 					}
 				}
 
@@ -254,7 +262,7 @@ int CHttpRequestOpData::Send()
 
 				log(logmsg::debug_info, "Finished sending request body");
 
-				controlSocket_.socket_->set_flags(fz::socket::flag_nodelay);  //, true);
+				controlSocket_.socket_->set_flags(fz::socket::flag_nodelay, true);
 
 				req.flags_ |= HttpRequest::flag_sent_body;
 
@@ -573,6 +581,33 @@ int CHttpRequestOpData::ProcessCompleteHeader()
 		return FZ_REPLY_ERROR;
 	}
 	
+	auto retry = response.get_header("Retry-After");
+	if (response.code_ >= 400 && !retry.empty()) {
+		// TODO: Retry-After for redirects
+		auto const now = fz::datetime::now();
+
+		fz::duration d;
+		int seconds = fz::to_integral<int>(retry, -1);
+		if (seconds > 0) {
+			d = fz::duration::from_seconds(seconds);
+		}
+		else {
+			fz::datetime t;
+			if (t.set_rfc822(retry)) {
+				if (t > now) {
+					d = t - now;
+				}
+			}
+		}
+
+		if (!d && response.code_ == 429) {
+			d = fz::duration::from_seconds(1);
+		}
+		if (d) {
+			log(logmsg::debug_verbose, "Got Retry-After with %d", d.get_seconds());
+			controlSocket_.throttler_.throttle(request.uri_.host_, now + d);
+		}
+	}
 
 	int64_t length{-1};
 	auto const cl = response.get_header("Content-Length");

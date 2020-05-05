@@ -63,11 +63,11 @@ private:
 	wxSize m_button_size;
 	wxSize m_size_label_size;
 
+	void OnButton(int id);
 	void OnMore();
 	void OnRemove(size_t item);
 
 	DECLARE_EVENT_TABLE()
-	void OnButton(wxCommandEvent& event);
 	void OnFilterTypeChange(wxCommandEvent& event);
 	void OnConditionSelectionChange(wxCommandEvent& event);
 };

@@ -1,9 +1,7 @@
 #ifndef FILEZILLA_ENGINE_STORJCONTROLSOCKET_HEADER
 #define FILEZILLA_ENGINE_STORJCONTROLSOCKET_HEADER
 
-#include "ControlSocket.h"
-
-#include "backend.h"
+#include "controlsocket.h"
 
 namespace fz {
 class process;
@@ -16,7 +14,7 @@ auto const resolve = Command::private1;
 class CStorjInputThread;
 
 struct storj_message;
-class CStorjControlSocket final : public CControlSocket, public CRateLimiterObject
+class CStorjControlSocket final : public CControlSocket
 {
 public:
 	CStorjControlSocket(CFileZillaEnginePrivate & engine);
@@ -29,8 +27,8 @@ public:
 							 std::wstring const& remoteFile, bool download,
 							 CFileTransferCommand::t_transferSettings const& transferSettings) override;
 	void Resolve(CServerPath const& path, std::wstring const& file, std::wstring & bucket, std::wstring * fileId = 0, bool ignore_missing_file = false);
-	void Resolve(CServerPath const& path, std::deque<std::wstring> const& files, std::wstring & bucket, std::deque<std::wstring> & fileIds);
-	virtual void Delete(CServerPath const& path, std::deque<std::wstring>&& files) override;
+	void Resolve(CServerPath const& path, std::vector<std::wstring> const& files, std::wstring & bucket, std::vector<std::wstring> & fileIds);
+	virtual void Delete(CServerPath const& path, std::vector<std::wstring>&& files) override;
 	virtual void Mkdir(const CServerPath& path) override;
 	virtual void RemoveDir(CServerPath const& path = CServerPath(), std::wstring const& subDir = std::wstring()) override;
 	/*virtual void Rename(const CRenameCommand& command) override;*/
@@ -41,6 +39,8 @@ public:
 	virtual bool SetAsyncRequestReply(CAsyncRequestNotification *pNotification) override;
 
 protected:
+	virtual void Push(std::unique_ptr<COpData> && pNewOpData) override;
+
 	// Replaces filename"with"quotes with
 	// "filename""with""quotes"
 	std::wstring QuoteFilename(std::wstring const& filename);
@@ -53,9 +53,6 @@ protected:
 
 	int SendCommand(std::wstring const& cmd, std::wstring const& show = std::wstring());
 	int AddToStream(std::wstring const& cmd);
-
-	virtual void OnRateAvailable(CRateLimiter::rate_direction direction) override;
-	void OnQuotaRequest(CRateLimiter::rate_direction direction);
 
 	std::unique_ptr<fz::process> process_;
 	std::unique_ptr<CStorjInputThread> input_thread_;

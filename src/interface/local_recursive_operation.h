@@ -55,12 +55,12 @@ public:
 	virtual ~CLocalRecursiveOperation();
 
 	void AddRecursionRoot(local_recursion_root && root);
-	void StartRecursiveOperation(OperationMode mode, ActiveFilters const& filters, bool immediate = true);
+	void StartRecursiveOperation(OperationMode mode, ActiveFilters const& filters, bool immediate = true, bool ignore_links = true);
 
-	virtual void StopRecursiveOperation();
+	virtual void StopRecursiveOperation() override;
 
 protected:
-	bool DoStartRecursiveOperation(OperationMode mode, ActiveFilters const& filters, bool immediate);
+	bool DoStartRecursiveOperation(OperationMode mode, ActiveFilters const& filters, bool immediate, bool ignore_links);
 
 	virtual void OnStateChange(t_statechange_notifications notification, std::wstring const&, const void* data2) override;
 
@@ -74,6 +74,7 @@ protected:
 	fz::mutex mutex_;
 
 	std::deque<listing> m_listedDirectories;
+	bool m_ignoreLinks{};
 
 	Site site_;
 

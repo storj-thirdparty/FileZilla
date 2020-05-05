@@ -21,7 +21,6 @@ public:
 	{
 		Site site;
 		std::wstring old_path;
-		std::wstring new_path;
 	};
 
 	/// Constructors
@@ -41,7 +40,7 @@ protected:
 	bool Load();
 	bool Save(pugi::xml_node element = pugi::xml_node(), wxTreeItemId treeId = wxTreeItemId());
 	bool SaveChild(pugi::xml_node element, wxTreeItemId child);
-	void UpdateServer(Site & site, wxString const& name);
+	bool UpdateServer(Site & site, wxString const& name);
 	void SetCtrlState();
 	bool LoadDefaultSites();
 
@@ -80,6 +79,7 @@ protected:
 	void OnExportSelected(wxCommandEvent&);
 	void OnNewBookmark(wxCommandEvent&);
 	void OnBookmarkBrowse(wxCommandEvent&);
+	void OnSearch(wxCommandEvent&);
 
 	CInterProcessMutex* m_pSiteManagerMutex{};
 
@@ -87,8 +87,6 @@ protected:
 	wxTreeItemId m_ownSites;
 
 	std::vector<wxTreeItemId> draggedItems_;
-
-	wxTreeItemId m_contextMenuItem;
 
 	wxTreeItemId MoveItems(wxTreeItemId source, wxTreeItemId target, bool copy, bool use_existing_name);
 

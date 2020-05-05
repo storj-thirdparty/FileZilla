@@ -17,6 +17,8 @@ int CFtpRenameOpData::Send()
 	switch (opState)
 	{
 	case rename_init:
+		log(logmsg::status, _("Renaming '%s' to '%s'"), command_.GetFromPath().FormatFilename(command_.GetFromFile()), command_.GetToPath().FormatFilename(command_.GetToFile()));
+
 		controlSocket_.ChangeDir(command_.GetFromPath());
 		opState = rename_waitcwd;
 		return FZ_REPLY_CONTINUE;

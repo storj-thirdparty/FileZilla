@@ -17,17 +17,13 @@ enum connectStates
 class CStorjConnectOpData final : public COpData, public CStorjOpData
 {
 public:
-	CStorjConnectOpData(CStorjControlSocket & controlSocket, Credentials const& credentials)
+	CStorjConnectOpData(CStorjControlSocket & controlSocket)
 		: COpData(Command::connect, L"CStorjConnectOpData")
 		, CStorjOpData(controlSocket)
-		, credentials_(credentials)
 	{}
 
 	virtual int Send() override;
 	virtual int ParseResponse() override;
-
-private:
-	Credentials const credentials_;
 };
 
 #endif

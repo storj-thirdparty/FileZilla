@@ -1,7 +1,7 @@
 #include <filezilla.h>
 
 #include "chmod.h"
-#include "directorycache.h"
+#include "../directorycache.h"
 
 enum chmodStates
 {
@@ -13,6 +13,8 @@ enum chmodStates
 int CFtpChmodOpData::Send()
 {
 	if (opState == chmod_init) {
+		log(logmsg::status, _("Setting permissions of '%s' to '%s'"), command_.GetPath().FormatFilename(command_.GetFile()), command_.GetPermission());
+
 		controlSocket_.ChangeDir(command_.GetPath());
 		opState = chmod_waitcwd;
 		return FZ_REPLY_CONTINUE;

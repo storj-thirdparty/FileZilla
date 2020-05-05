@@ -7,6 +7,8 @@
 #include "timeformatting.h"
 #include "themeprovider.h"
 
+#include <wx/filedlg.h>
+
 CQueueItem::CQueueItem(CQueueItem* parent)
 	: m_parent(parent)
 {

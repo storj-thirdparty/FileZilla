@@ -6,8 +6,27 @@
 #include "../filezillaapp.h"
 #include <algorithm>
 
-BEGIN_EVENT_TABLE(COptionsPageLanguage, COptionsPage)
-END_EVENT_TABLE()
+#include <wx/listbox.h>
+#include <wx/statbox.h>
+
+bool COptionsPageLanguage::CreateControls(wxWindow* parent)
+{
+	auto const& lay = m_pOwner->layout();
+
+	Create(parent);
+	auto main = lay.createFlex(1);
+	main->AddGrowableCol(0);
+	main->AddGrowableRow(0);
+	SetSizer(main);
+
+	auto [box, inner] = lay.createStatBox(main, _("&Select language:"), 1);
+	inner->AddGrowableRow(0);
+	lb_ = new wxListBox(box, -1, wxDefaultPosition, wxDefaultSize, wxArrayString(), wxLB_SINGLE | wxLB_NEEDED_SB);
+	inner->Add(lb_, lay.grow);
+	inner->Add(new wxStaticText(box, -1, _("If you change the language, you need to restart FileZilla.")));
+
+	return true;
+}
 
 bool COptionsPageLanguage::LoadPage()
 {
@@ -16,21 +35,21 @@ bool COptionsPageLanguage::LoadPage()
 
 bool COptionsPageLanguage::SavePage()
 {
-	if (!m_was_selected)
+	if (!m_was_selected) {
 		return true;
-
-	wxListBox* pListBox = XRCCTRL(*this, "ID_LANGUAGES", wxListBox);
-
-	if (pListBox->GetSelection() == wxNOT_FOUND)
-		return true;
-
-	const int selection = pListBox->GetSelection();
-	wxString code;
-	if (selection > 0) {
-		code = m_locale[selection - 1].code;
 	}
 
-	m_pOptions->SetOption(OPTION_LANGUAGE, code.ToStdWstring());
+	if (lb_->GetSelection() == wxNOT_FOUND) {
+		return true;
+	}
+
+	const int selection = lb_->GetSelection();
+	std::wstring code;
+	if (selection > 0) {
+		code = locales_[selection - 1].code;
+	}
+
+	m_pOptions->SetOption(OPTION_LANGUAGE, code);
 
 	return true;
 }
@@ -42,36 +61,34 @@ bool COptionsPageLanguage::Validate()
 
 bool COptionsPageLanguage::OnDisplayedFirstTime()
 {
-	wxListBox* pListBox = XRCCTRL(*this, "ID_LANGUAGES", wxListBox);
-	if (!pListBox)
-		return false;
+	std::wstring currentLanguage = m_pOptions->GetOption(OPTION_LANGUAGE);
 
-	wxString currentLanguage = m_pOptions->GetOption(OPTION_LANGUAGE);
-
-	pListBox->Clear();
+	lb_->Clear();
 
 	const wxString defaultName = _("Default system language");
-	int n = pListBox->Append(defaultName);
-	if (currentLanguage.empty())
-		pListBox->SetSelection(n);
+	int n = lb_->Append(defaultName);
+	if (currentLanguage.empty()) {
+		lb_->SetSelection(n);
+	}
 
 	GetLocales();
 
-	for (auto const& locale : m_locale) {
-		n = pListBox->Append(locale.name + _T(" (") + locale.code + _T(")"));
-		if (locale.code == currentLanguage)
-			pListBox->SetSelection(n);
+	for (auto const& locale : locales_) {
+		n = lb_->Append(locale.name + _T(" (") + locale.code + _T(")"));
+		if (locale.code == currentLanguage) {
+			lb_->SetSelection(n);
+		}
 	}
-	pListBox->GetContainingSizer()->Layout();
+	lb_->GetContainingSizer()->Layout();
 
 	return true;
 }
 
 void COptionsPageLanguage::GetLocales()
 {
-	m_locale.push_back(_locale_info());
-	m_locale.back().code = _T("en_US");
-	m_locale.back().name = _T("English");
+	locales_.push_back(_locale_info());
+	locales_.back().code = _T("en_US");
+	locales_.back().name = _T("English");
 
 	CLocalPath localesDir = wxGetApp().GetLocalesDir();
 	if (localesDir.empty() || !localesDir.Exists()) {
@@ -82,21 +99,25 @@ void COptionsPageLanguage::GetLocales()
 	wxString locale;
 	for (bool found = dir.GetFirst(&locale); found; found = dir.GetNext(&locale)) {
 		if (!wxFileName::FileExists(localesDir.GetPath() + locale + _T("/filezilla.mo"))) {
-			if (!wxFileName::FileExists(localesDir.GetPath() + locale + _T("/LC_MESSAGES/filezilla.mo")))
+			if (!wxFileName::FileExists(localesDir.GetPath() + locale + _T("/LC_MESSAGES/filezilla.mo"))) {
 				continue;
+			}
 		}
 
 		wxString name;
 		const wxLanguageInfo* pInfo = wxLocale::FindLanguageInfo(locale);
-		if (!pInfo)
+		if (!pInfo) {
 			continue;
-		if (!pInfo->Description.empty())
+		}
+		if (!pInfo->Description.empty()) {
 			name = pInfo->Description;
-		else
+		}
+		else {
 			name = locale;
+		}
 
-		m_locale.push_back({ name, locale });
+		locales_.push_back({ name, locale.ToStdWstring() });
 	}
 
-	std::sort(m_locale.begin(), m_locale.end(), [](_locale_info const& l, _locale_info const& r) { return l.name < r.name; });
+	std::sort(locales_.begin(), locales_.end(), [](_locale_info const& l, _locale_info const& r) { return l.name < r.name; });
 }

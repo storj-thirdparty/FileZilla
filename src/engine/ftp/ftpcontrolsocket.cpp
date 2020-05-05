@@ -3,7 +3,7 @@
 #include "cwd.h"
 #include "chmod.h"
 #include "delete.h"
-#include "directorycache.h"
+#include "../directorycache.h"
 #include "directorylistingparser.h"
 #include "engineprivate.h"
 #include "externalipresolver.h"
@@ -30,6 +30,8 @@
 
 #include <algorithm>
 
+#include <assert.h>
+
 CFtpControlSocket::CFtpControlSocket(CFileZillaEnginePrivate & engine)
 	: CRealControlSocket(engine)
 {
@@ -46,10 +48,13 @@ void CFtpControlSocket::OnReceive()
 {
 	log(logmsg::debug_verbose, L"CFtpControlSocket::OnReceive()");
 
+	size_t const max = 65536;
+
 	for (;;) {
 		int error;
-		int read = active_layer_->read(m_receiveBuffer + m_bufferLen, RECVBUFFERSIZE - m_bufferLen, error);
 
+		size_t const toRead = max - receiveBuffer_.size();
+		int read = active_layer_->read(receiveBuffer_.get(toRead), toRead, error);
 		if (read < 0) {
 			if (error != EAGAIN) {
 				log(logmsg::error, _("Could not read from socket: %s"), fz::socket_error_description(error));
@@ -68,38 +73,41 @@ void CFtpControlSocket::OnReceive()
 			return;
 		}
 
+		size_t i = receiveBuffer_.size();
+		receiveBuffer_.add(read);
+
 		SetActive(CFileZillaEngine::recv);
 
-		char* start = m_receiveBuffer;
-		m_bufferLen += read;
-
-		for (int i = start - m_receiveBuffer; i < m_bufferLen; ++i) {
-			char const& p = m_receiveBuffer[i];
+		while (i < receiveBuffer_.size()) {
+			auto const& p = receiveBuffer_[i];
 			if (p == '\r' ||
 				p == '\n' ||
 				p == 0)
 			{
-				int len = i - (start - m_receiveBuffer);
-				if (!len) {
-					++start;
-					continue;
+				if (!i) {
+					receiveBuffer_.consume(1);
 				}
+				else {
+					std::wstring line = ConvToLocal(reinterpret_cast<char const*>(receiveBuffer_.get()), i);
+					receiveBuffer_.consume(i + 1);
+					i = 0;
 
-				std::wstring line = ConvToLocal(start, i - (start - m_receiveBuffer));
-				start = m_receiveBuffer + i + 1;
+					ParseLine(line);
 
-				ParseLine(line);
-
-				// Abort if connection got closed
-				if (!currentServer_) {
-					return;
+					// Abort if connection got closed
+					if (!active_layer_) {
+						return;
+					}
 				}
 			}
+			else {
+				++i;
+			}
 		}
-		memmove(m_receiveBuffer, start, m_bufferLen - (start - m_receiveBuffer));
-		m_bufferLen -= (start -m_receiveBuffer);
-		if (m_bufferLen > MAXLINELEN) {
-			m_bufferLen = MAXLINELEN;
+		if (receiveBuffer_.size() == max) {
+			log(fz::logmsg::error, _("Received too long response line from server, closing connection."));
+			DoClose();
+			return;
 		}
 	}
 }
@@ -168,6 +176,8 @@ void CFtpControlSocket::ParseLine(std::wstring line)
 void CFtpControlSocket::OnConnect()
 {
 	m_lastTypeBinary = -1;
+	m_sentRestartOffset = false;
+	m_protectDataChannel = false;
 
 	SetAlive();
 
@@ -197,7 +207,6 @@ void CFtpControlSocket::OnConnect()
 		log(logmsg::status, _("Connection established, waiting for welcome message..."));
 	}
 	m_pendingReplies = 1;
-	m_repliesToSkip = 0;
 }
 
 void CFtpControlSocket::ParseResponse()
@@ -209,7 +218,7 @@ void CFtpControlSocket::ParseResponse()
 
 	if (m_Response[0] != '1') {
 		if (m_pendingReplies > 0) {
-			m_pendingReplies--;
+			--m_pendingReplies;
 		}
 		else {
 			log(logmsg::debug_warning, L"Unexpected reply, no reply was pending.");
@@ -307,21 +316,6 @@ int CFtpControlSocket::SendCommand(std::wstring const& str, bool maskArgs, bool 
 
 void CFtpControlSocket::List(CServerPath const& path, std::wstring const& subDir, int flags)
 {
-	CServerPath newPath = currentPath_;
-	if (!path.empty()) {
-		newPath = path;
-	}
-	if (!newPath.ChangePath(subDir)) {
-		newPath.clear();
-	}
-
-	if (newPath.empty()) {
-		log(logmsg::status, _("Retrieving directory listing..."));
-	}
-	else {
-		log(logmsg::status, _("Retrieving directory listing of \"%s\"..."), newPath.GetPath());
-	}
-
 	Push(std::make_unique<CFtpListOpData>(*this, path, subDir, flags));
 }
 
@@ -426,7 +420,6 @@ void CFtpControlSocket::FileTransfer(std::wstring const& localFile, CServerPath 
 	log(logmsg::debug_verbose, L"CFtpControlSocket::FileTransfer()");
 
 	auto pData = std::make_unique<CFtpFileTransferOpData>(*this, download, localFile, remoteFile, remotePath, transferSettings);
-	pData->binary = transferSettings.binary;
 	Push(std::move(pData));
 }
 
@@ -500,14 +493,12 @@ bool CFtpControlSocket::SetAsyncRequestReply(CAsyncRequestNotification *pNotific
 				return false;
 			}
 
-			auto & data = static_cast<CFtpLogonOpData&>(*operations_.back());
-
 			CInteractiveLoginNotification *pInteractiveLoginNotification = static_cast<CInteractiveLoginNotification *>(pNotification);
 			if (!pInteractiveLoginNotification->passwordSet) {
 				ResetOperation(FZ_REPLY_CANCELED);
 				return false;
 			}
-			data.credentials_.SetPass(pInteractiveLoginNotification->credentials.GetPass());
+			credentials_.SetPass(pInteractiveLoginNotification->credentials.GetPass());
 			SendNextCommand();
 		}
 		break;
@@ -560,7 +551,7 @@ void CFtpControlSocket::RawCommand(std::wstring const& command)
 	Push(std::make_unique<CFtpRawCommandOpData>(*this, command));
 }
 
-void CFtpControlSocket::Delete(CServerPath const& path, std::deque<std::wstring>&& files)
+void CFtpControlSocket::Delete(CServerPath const& path, std::vector<std::wstring>&& files)
 {
 	auto pData = std::make_unique<CFtpDeleteOpData>(*this);
 	pData->path_ = path;
@@ -582,15 +573,6 @@ void CFtpControlSocket::RemoveDir(CServerPath const& path, std::wstring const& s
 
 void CFtpControlSocket::Mkdir(CServerPath const& path)
 {
-	/* Directory creation works like this: First find a parent directory into
-	 * which we can CWD, then create the subdirs one by one. If either part
-	 * fails, try MKD with the full path directly.
-	 */
-
-	if (operations_.empty() && !path.empty()) {
-		log(logmsg::status, _("Creating directory '%s'..."), path.GetPath());
-	}
-
 	auto pData = std::make_unique<CFtpMkdirOpData>(*this);
 	pData->path_ = path;
 
@@ -599,15 +581,11 @@ void CFtpControlSocket::Mkdir(CServerPath const& path)
 
 void CFtpControlSocket::Rename(CRenameCommand const& command)
 {
-	log(logmsg::status, _("Renaming '%s' to '%s'"), command.GetFromPath().FormatFilename(command.GetFromFile()), command.GetToPath().FormatFilename(command.GetToFile()));
-
 	Push(std::make_unique<CFtpRenameOpData>(*this, command));
 }
 
 void CFtpControlSocket::Chmod(CChmodCommand const& command)
 {
-	log(logmsg::status, _("Setting permissions of '%s' to '%s'"), command.GetPath().FormatFilename(command.GetFile()), command.GetPermission());
-
 	Push(std::make_unique<CFtpChmodOpData>(*this, command));
 }
 
@@ -706,39 +684,6 @@ void CFtpControlSocket::Transfer(std::wstring const& cmd, CFtpTransferOpData* ol
 	pData->pOldData = oldData;
 	pData->pOldData->transferEndReason = TransferEndReason::successful;
 
-	if (proxy_layer_) {
-		// Only passive suported
-		// Theoretically could use reverse proxy ability in SOCKS5, but
-		// it is too fragile to set up with all those broken routers and
-		// firewalls sabotaging connections. Regular active mode is hard
-		// enough already
-		pData->bPasv = true;
-		pData->bTriedActive = true;
-	}
-	else {
-		switch (currentServer_.GetPasvMode())
-		{
-		case MODE_PASSIVE:
-			pData->bPasv = true;
-			break;
-		case MODE_ACTIVE:
-			pData->bPasv = false;
-			break;
-		default:
-			pData->bPasv = engine_.GetOptions().GetOptionVal(OPTION_USEPASV) != 0;
-			break;
-		}
-	}
-
-	if ((pData->pOldData->binary && m_lastTypeBinary == 1) ||
-		(!pData->pOldData->binary && m_lastTypeBinary == 0))
-	{
-		pData->opState = rawtransfer_port_pasv;
-	}
-	else {
-		pData->opState = rawtransfer_type;
-	}
-
 	Push(std::move(pData));
 }
 
@@ -750,8 +695,9 @@ void CFtpControlSocket::Connect(CServer const& server, Credentials const& creden
 	}
 
 	currentServer_ = server;
+	credentials_ = credentials;
 
-	Push(std::make_unique<CFtpLogonOpData>(*this, credentials));
+	Push(std::make_unique<CFtpLogonOpData>(*this));
 }
 
 void CFtpControlSocket::OnTimer(fz::timer_id id)
@@ -843,7 +789,10 @@ void CFtpControlSocket::operator()(fz::event_base const& ev)
 
 void CFtpControlSocket::ResetSocket()
 {
+	receiveBuffer_.clear();
 	tls_layer_.reset();
+	m_pendingReplies = 0;
+	m_repliesToSkip = 0;
 	CRealControlSocket::ResetSocket();
 }
 
@@ -854,4 +803,16 @@ void CFtpControlSocket::OnVerifyCert(fz::tls_layer* source, fz::tls_session_info
 	}
 
 	SendAsyncRequest(new CCertificateNotification(std::move(info)));
+}
+
+void CFtpControlSocket::Push(std::unique_ptr<COpData> && pNewOpData)
+{
+	CRealControlSocket::Push(std::move(pNewOpData));
+	if (operations_.size() == 1 && operations_.back()->opId != Command::connect) {
+		if (!active_layer_) {
+			std::unique_ptr<COpData> connOp = std::make_unique<CFtpLogonOpData>(*this);
+			connOp->topLevelOperation_ = true;
+			CRealControlSocket::Push(std::move(connOp));
+		}
+	}
 }

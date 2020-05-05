@@ -8,6 +8,7 @@
 #include "verifycertdialog.h"
 
 #include <wx/dcclient.h>
+#include <wx/menu.h>
 
 #include <algorithm>
 
@@ -460,9 +461,10 @@ void CStatusBar::DisplayEncrypted()
 	if (site) {
 		CCertificateNotification* info;
 		auto const protocol = site.server.GetProtocol();
-		if (protocol == FTPS || protocol == FTPES || protocol == SFTP || protocol == S3||
+		if (protocol == FTPS || protocol == FTPES || protocol == SFTP || protocol == S3 ||
 				protocol == WEBDAV || protocol == AZURE_BLOB || protocol == AZURE_FILE ||
-				protocol == SWIFT || protocol == GOOGLE_CLOUD || protocol == GOOGLE_DRIVE) {
+				protocol == SWIFT || protocol == GOOGLE_CLOUD || protocol == GOOGLE_DRIVE ||
+				protocol == DROPBOX || protocol == ONEDRIVE || protocol == B2 || protocol == BOX) {
 			encrypted = true;
 		}
 		else if (protocol == FTP && pState->GetSecurityInfo(info)) {
@@ -514,9 +516,7 @@ void CStatusBar::OnHandleLeftClick(wxWindow* pWnd)
 		CCertificateNotification *pCertificateNotification = 0;
 		CSftpEncryptionNotification *pSftpEncryptionNotification = 0;
 		if (pState->GetSecurityInfo(pCertificateNotification)) {
-			CertStore certStore;
-			CVerifyCertDialog dlg(certStore);
-			dlg.ShowVerificationDialog(*pCertificateNotification, true);
+			CVerifyCertDialog::DisplayCertificate(*pCertificateNotification);
 		}
 		else if (pState->GetSecurityInfo(pSftpEncryptionNotification)) {
 			CSftpEncryptioInfoDialog dlg;

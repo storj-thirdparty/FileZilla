@@ -94,15 +94,14 @@ class xml_node;
 class COptionsBase
 {
 public:
-	inline virtual ~COptionsBase() {};
+	virtual ~COptionsBase() noexcept = default;
 	virtual int GetOptionVal(unsigned int nID) = 0;
 	virtual std::wstring GetOption(unsigned int nID) = 0;
 	virtual std::unique_ptr<pugi::xml_document> GetOptionXml(unsigned int nID) = 0;
 
 	virtual bool SetOption(unsigned int nID, int value) = 0;
-	virtual bool SetOption(unsigned int nID, std::wstring const& value) = 0;
+	virtual bool SetOption(unsigned int nID, std::wstring_view const& value) = 0;
 	virtual bool SetOptionXml(unsigned int nID, pugi::xml_node const& value) = 0;
-	virtual bool SetOptionXml(unsigned int nID, pugi::xml_document const& value) = 0;
 };
 
 #endif

@@ -3,6 +3,7 @@
 
 #include <map>
 #include <memory>
+#include <vector>
 
 enum ServerProtocol
 {
@@ -39,7 +40,9 @@ enum ServerProtocol
 
 	BOX,
 
-	MAX_VALUE = BOX
+	INSECURE_WEBDAV,
+
+	MAX_VALUE = INSECURE_WEBDAV
 };
 
 enum ServerType
@@ -70,7 +73,6 @@ enum class ServerFormat
 {
 	host_only,
 	with_optional_port,
-	with_prefix_and_optional_port,
 	with_user_and_optional_port,
 	url,
 	url_with_password
@@ -97,8 +99,19 @@ enum class ProtocolFeature
 	RecursiveDelete,
 	ServerAssignedHome,
 	TemporaryUrl,
-	S3Sse
+	S3Sse,
+	Security, // Encryption, integrity protection and authentication
+	UnixChmod
 };
+
+enum class CaseSensitivity
+{
+	unspecified,
+	yes,
+	no
+};
+
+CaseSensitivity GetCaseSensitivity(ServerProtocol protocol);
 
 class Credentials;
 class CServerPath;
@@ -109,6 +122,12 @@ public:
 	// No error checking is done in the constructors
 	CServer() = default;
 	CServer(ServerProtocol protocol, ServerType type, std::wstring const& host, unsigned int);
+
+	CServer(CServer const&) = default;
+	CServer& operator=(CServer const&) = default;
+
+	CServer(CServer &&) noexcept = default;
+	CServer& operator=(CServer &&) noexcept = default;
 
 	void clear();
 
@@ -129,7 +148,6 @@ public:
 
 	void SetUser(std::wstring const& user);
 
-	CServer& operator=(const CServer &op);
 	bool operator==(const CServer &op) const;
 	bool operator<(const CServer &op) const;
 	bool operator!=(const CServer &op) const;
@@ -150,7 +168,6 @@ public:
 	std::wstring Format(ServerFormat formatType, Credentials const& credentials) const;
 
 	bool SetEncodingType(CharsetEncoding type, std::wstring const& encoding = std::wstring());
-	bool SetCustomEncoding(std::wstring const& encoding);
 	CharsetEncoding GetEncodingType() const;
 	std::wstring GetCustomEncoding() const;
 
@@ -167,16 +184,13 @@ public:
 	bool HasFeature(ProtocolFeature const feature) const;
 	static bool ProtocolHasFeature(ServerProtocol const protocol, ProtocolFeature const feature);
 
+	CaseSensitivity GetCaseSensitivity() const;
+
 	// These commands will be executed after a successful login.
 	std::vector<std::wstring> const& GetPostLoginCommands() const { return m_postLoginCommands; }
 	bool SetPostLoginCommands(std::vector<std::wstring> const& postLoginCommands);
 
 	void SetBypassProxy(bool val);
-
-	// Abstract server name.
-	// Not compared in ==, < and related operators
-	void SetName(std::wstring const& name) { m_name = name; }
-	std::wstring GetName() const { return m_name; }
 
 	static std::wstring GetNameFromServerType(ServerType type);
 	static ServerType GetServerTypeFromName(std::wstring const& name);
@@ -185,10 +199,11 @@ public:
 	explicit operator bool() const { return !empty(); }
 
 	void ClearExtraParameters();
-	std::wstring GetExtraParameter(std::string const& name) const;
-	std::map<std::string, std::wstring> const& GetExtraParameters() const;
-	void SetExtraParameter(std::string const& name, std::wstring const& value);
-	void ClearExtraParameter(std::string const& name);
+	std::wstring GetExtraParameter(std::string_view const& name) const;
+	std::map<std::string, std::wstring, std::less<>> const& GetExtraParameters() const;
+	bool HasExtraParameter(std::string_view const& name) const;
+	void SetExtraParameter(std::string_view const& name, std::wstring const& value);
+	void ClearExtraParameter(std::string_view const& name);
 
 protected:
 	ServerProtocol m_protocol{UNKNOWN};
@@ -201,12 +216,11 @@ protected:
 	int m_maximumMultipleConnections{};
 	CharsetEncoding m_encodingType{ENCODING_AUTO};
 	std::wstring m_customEncoding;
-	std::wstring m_name;
 
 	std::vector<std::wstring> m_postLoginCommands;
 	bool m_bypassProxy{};
 
-	std::map<std::string, std::wstring> extraParameters_;
+	std::map<std::string, std::wstring, std::less<>> extraParameters_;
 };
 
 
@@ -281,13 +295,14 @@ public:
 	std::wstring keyFile_;
 
 	void ClearExtraParameters();
-	std::wstring GetExtraParameter(std::string const& name) const;
-	std::map<std::string, std::wstring> const& GetExtraParameters() const;
-	void SetExtraParameter(ServerProtocol protocol, std::string const& name, std::wstring const& value);
+	std::wstring GetExtraParameter(std::string_view const& name) const;
+	std::map<std::string, std::wstring, std::less<>> const& GetExtraParameters() const;
+	bool HasExtraParameter(std::string_view const& name) const;
+	void SetExtraParameter(ServerProtocol protocol, std::string_view const& name, std::wstring const& value);
 
 protected:
 	std::wstring password_;
-	std::map<std::string, std::wstring> extraParameters_;
+	std::map<std::string, std::wstring, std::less<>> extraParameters_;
 };
 
 struct ServerHandleData {

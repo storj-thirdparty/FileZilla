@@ -4,7 +4,7 @@
 #include "delete.h"
 #include "event.h"
 #include "input_thread.h"
-#include "directorycache.h"
+#include "../directorycache.h"
 #include "directorylistingparser.h"
 #include "engineprivate.h"
 #include "file_transfer.h"
@@ -23,7 +23,8 @@
 #include <libfilezilla/thread_pool.hpp>
 
 #include <algorithm>
-#include <cwchar>
+
+#include <assert.h>
 
 CStorjControlSocket::CStorjControlSocket(CFileZillaEnginePrivate & engine)
 	: CControlSocket(engine)
@@ -39,35 +40,15 @@ CStorjControlSocket::~CStorjControlSocket()
 
 void CStorjControlSocket::Connect(CServer const &server, Credentials const& credentials)
 {
-	log(logmsg::status, _("Connecting to %s..."), server.Format(ServerFormat::with_optional_port));
-	SetWait(true);
-
 	currentServer_ = server;
+	credentials_ = credentials;
 
-	process_ = std::make_unique<fz::process>();
-
-	engine_.GetRateLimiter().AddObject(this);
-	Push(std::make_unique<CStorjConnectOpData>(*this, credentials));
+	Push(std::make_unique<CStorjConnectOpData>(*this));
 }
 
 void CStorjControlSocket::List(CServerPath const& path, std::wstring const& subDir, int flags)
 {
-	CServerPath newPath = currentPath_;
-	if (!path.empty()) {
-		newPath = path;
-	}
-	if (!newPath.ChangePath(subDir)) {
-		newPath.clear();
-	}
-
-	if (newPath.empty()) {
-		log(logmsg::status, _("Retrieving directory listing..."));
-	}
-	else {
-		log(logmsg::status, _("Retrieving directory listing of \"%s\"..."), newPath.GetPath());
-	}
-
-	Push(std::make_unique<CStorjListOpData>(*this, newPath, std::wstring(), flags));
+	Push(std::make_unique<CStorjListOpData>(*this, path, subDir, flags));
 }
 
 void CStorjControlSocket::FileTransfer(std::wstring const& localFile, CServerPath const& remotePath,
@@ -79,7 +60,7 @@ void CStorjControlSocket::FileTransfer(std::wstring const& localFile, CServerPat
 }
 
 
-void CStorjControlSocket::Delete(CServerPath const& path, std::deque<std::wstring>&& files)
+void CStorjControlSocket::Delete(CServerPath const& path, std::vector<std::wstring>&& files)
 {
 	// CFileZillaEnginePrivate should have checked this already
 	assert(!files.empty());
@@ -94,17 +75,13 @@ void CStorjControlSocket::Resolve(CServerPath const& path, std::wstring const& f
 	Push(std::make_unique<CStorjResolveOpData>(*this, path, file, bucket, fileId, ignore_missing_file));
 }
 
-void CStorjControlSocket::Resolve(CServerPath const& path, std::deque<std::wstring> const& files, std::wstring & bucket, std::deque<std::wstring> & fileIds)
+void CStorjControlSocket::Resolve(CServerPath const& path, std::vector<std::wstring> const& files, std::wstring & bucket, std::vector<std::wstring> & fileIds)
 {
 	Push(std::make_unique<CStorjResolveManyOpData>(*this, path, files, bucket, fileIds));
 }
 
 void CStorjControlSocket::Mkdir(CServerPath const& path)
 {
-	if (operations_.empty()) {
-		log(logmsg::status, _("Creating directory '%s'..."), path.GetPath());
-	}
-
 	auto pData = std::make_unique<CStorjMkdirOpData>(*this);
 	pData->path_ = path;
 	Push(std::move(pData));
@@ -174,12 +151,6 @@ void CStorjControlSocket::OnStorjEvent(storj_message const& message)
 				ResetOperation(res);
 			}
 		}
-		break;
-	case storjEvent::UsedQuotaRecv:
-		OnQuotaRequest(CRateLimiter::inbound);
-		break;
-	case storjEvent::UsedQuotaSend:
-		OnQuotaRequest(CRateLimiter::outbound);
 		break;
 	case storjEvent::Transfer:
 		{
@@ -342,8 +313,6 @@ int CStorjControlSocket::ResetOperation(int nErrorCode)
 
 int CStorjControlSocket::DoClose(int nErrorCode)
 {
-	engine_.GetRateLimiter().RemoveObject(this);
-
 	if (process_) {
 		process_->kill();
 	}
@@ -374,33 +343,6 @@ void CStorjControlSocket::Cancel()
 	}
 }
 
-void CStorjControlSocket::OnRateAvailable(CRateLimiter::rate_direction direction)
-{
-	//OnQuotaRequest(direction);
-}
-
-void CStorjControlSocket::OnQuotaRequest(CRateLimiter::rate_direction direction)
-{
-	/*int64_t bytes = GetAvailableBytes(direction);
-	if (bytes > 0) {
-		int b;
-		if (bytes > INT_MAX) {
-			b = INT_MAX;
-		}
-		else {
-			b = bytes;
-		}
-		AddToStream(fz::sprintf(L"-%d%d,%d\n", direction, b, engine_.GetOptions().GetOptionVal(OPTION_SPEEDLIMIT_INBOUND + static_cast<int>(direction))));
-		UpdateUsage(direction, b);
-	}
-	else if (bytes == 0) {
-		Wait(direction);
-	}
-	else if (bytes < 0) {
-		AddToStream(fz::sprintf(L"-%d-\n", direction));
-	}*/
-}
-
 void CStorjControlSocket::operator()(fz::event_base const& ev)
 {
 	if (fz::dispatch<CStorjEvent, StorjTerminateEvent>(ev, this,
@@ -415,4 +357,16 @@ void CStorjControlSocket::operator()(fz::event_base const& ev)
 std::wstring CStorjControlSocket::QuoteFilename(std::wstring const& filename)
 {
 	return L"\"" + fz::replaced_substrings(filename, L"\"", L"\"\"") + L"\"";
+}
+
+void CStorjControlSocket::Push(std::unique_ptr<COpData> && pNewOpData)
+{
+	CControlSocket::Push(std::move(pNewOpData));
+	if (operations_.size() == 1 && operations_.back()->opId != Command::connect) {
+		if (!process_) {
+			std::unique_ptr<COpData> connOp = std::make_unique<CStorjConnectOpData>(*this);
+			connOp->topLevelOperation_ = true;
+			CControlSocket::Push(std::move(connOp));
+		}
+	}
 }

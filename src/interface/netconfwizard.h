@@ -6,6 +6,7 @@
 #include "externalipresolver.h"
 #include <wx/timer.h>
 
+#include <libfilezilla/buffer.hpp>
 #include <libfilezilla/socket.hpp>
 
 #define NETCONFBUFFERSIZE 200
@@ -23,7 +24,7 @@ public:
 
 protected:
 
-	void PrintMessage(const wxString& msg, int type);
+	void PrintMessage(std::wstring const& msg, int type);
 
 	void ResetTest();
 
@@ -54,7 +55,7 @@ protected:
 	void OnConnect();
 	void OnSend();
 	void CloseSocket();
-	bool Send(wxString cmd);
+	bool Send(std::wstring const& cmd);
 	void OnDataReceive();
 	void OnDataClose();
 
@@ -62,7 +63,7 @@ protected:
 
 	void SendNextCommand();
 
-	wxString GetExternalIPAddress();
+	std::wstring GetExternalIPAddress();
 
 	int CreateListenSocket();
 	int CreateListenSocket(unsigned int port);
@@ -91,7 +92,7 @@ protected:
 	} m_testResult;
 
 	CExternalIPResolver* m_pIPResolver{};
-	wxString m_externalIP;
+	std::wstring m_externalIP;
 
 	std::unique_ptr<fz::listen_socket> listen_socket_;
 	std::unique_ptr<fz::socket> data_socket_;
@@ -99,7 +100,7 @@ protected:
 	bool gotListReply{};
 	int m_data{};
 
-	char* m_pSendBuffer{};
+	fz::buffer sendBuffer_;
 
 	wxTimer m_timer;
 };

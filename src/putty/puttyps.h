@@ -7,11 +7,11 @@
 
 #ifdef _WINDOWS
 
-#include "winstuff.h"
+#include "windows/winstuff.h"
 
 #else
 
-#include "unix.h"
+#include "unix/unix.h"
 
 #endif
 

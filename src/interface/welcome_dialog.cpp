@@ -74,7 +74,6 @@ bool CWelcomeDialog::Run(wxWindow* parent, bool force)
 
 	main->Add(new wxStaticLine(this), lay.grow);
 
-	int const leftIndent = lay.dlgUnits(10);
 	wxString const url = _T("https://welcome.filezilla-project.org/welcome?type=client&category=%s&version=") + ownVersion;
 
 	main->Add(new wxPanel(this, XRCID("ID_HEADERMESSAGE_PANEL")), lay.halign)->Show(false);
@@ -83,7 +82,7 @@ bool CWelcomeDialog::Run(wxWindow* parent, bool force)
 		auto news = new wxStaticText(this, -1, _("What's new"));
 		news->SetFont(news->GetFont().Bold());
 		main->Add(news);
-		main->Add(new wxHyperlinkCtrl(this, -1, wxString::Format(_("New features and improvements in %s"), CBuildInfo::GetVersion()), wxString::Format(url, _T("news")) + _T("&oldversion=") + greetingVersion), 0, wxLEFT, leftIndent);
+		main->Add(new wxHyperlinkCtrl(this, -1, wxString::Format(_("New features and improvements in %s"), CBuildInfo::GetVersion()), wxString::Format(url, _T("news")) + _T("&oldversion=") + greetingVersion), 0, wxLEFT, lay.indent);
 	}
 
 	main->AddSpacer(0);
@@ -92,8 +91,8 @@ bool CWelcomeDialog::Run(wxWindow* parent, bool force)
 	helpHeading->SetFont(helpHeading->GetFont().Bold());
 	main->Add(helpHeading);
 
-	main->Add(new wxHyperlinkCtrl(this, -1, _("Asking questions in the FileZilla Forums"), wxString::Format(url, _T("support_forum"))), 0, wxLEFT, leftIndent);
-	main->Add(new wxHyperlinkCtrl(this, -1, _("Reporting bugs and feature requests"), wxString::Format(url, _T("support_more"))), 0, wxLEFT, leftIndent);
+	main->Add(new wxHyperlinkCtrl(this, -1, _("Asking questions in the FileZilla Forums"), wxString::Format(url, _T("support_forum"))), 0, wxLEFT, lay.indent);
+	main->Add(new wxHyperlinkCtrl(this, -1, _("Reporting bugs and feature requests"), wxString::Format(url, _T("support_more"))), 0, wxLEFT, lay.indent);
 
 	main->AddSpacer(0);
 
@@ -101,9 +100,9 @@ bool CWelcomeDialog::Run(wxWindow* parent, bool force)
 	documentationHeading->SetFont(helpHeading->GetFont().Bold());
 	main->Add(documentationHeading);
 
-	main->Add(new wxHyperlinkCtrl(this, -1, _("Basic usage instructions"), wxString::Format(url, _T("documentation_basic"))), 0, wxLEFT, leftIndent);
-	main->Add(new wxHyperlinkCtrl(this, -1, _("Configuring FileZilla and your network"), wxString::Format(url, _T("documentation_network"))), 0, wxLEFT, leftIndent);
-	main->Add(new wxHyperlinkCtrl(this, -1, _("Further documentation"), wxString::Format(url, _T("documentation_more"))), 0, wxLEFT, leftIndent);
+	main->Add(new wxHyperlinkCtrl(this, -1, _("Basic usage instructions"), wxString::Format(url, _T("documentation_basic"))), 0, wxLEFT, lay.indent);
+	main->Add(new wxHyperlinkCtrl(this, -1, _("Configuring FileZilla and your network"), wxString::Format(url, _T("documentation_network"))), 0, wxLEFT, lay.indent);
+	main->Add(new wxHyperlinkCtrl(this, -1, _("Further documentation"), wxString::Format(url, _T("documentation_more"))), 0, wxLEFT, lay.indent);
 
 	main->Add(new wxStaticText(this, -1, _("You can always open this dialog again through the help menu.")));
 

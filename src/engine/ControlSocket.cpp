@@ -1,8 +1,9 @@
 #include <filezilla.h>
-#include "ControlSocket.h"
+#include "controlsocket.h"
 #include "directorycache.h"
 #include "engineprivate.h"
 #include "local_path.h"
+#include "lookup.h"
 #include "logging_private.h"
 #include "proxy.h"
 #include "servercapabilities.h"
@@ -11,7 +12,9 @@
 #include <libfilezilla/event_loop.hpp>
 #include <libfilezilla/iputils.hpp>
 #include <libfilezilla/local_filesys.hpp>
+#include <libfilezilla/rate_limited_layer.hpp>
 
+#include <assert.h>
 #include <string.h>
 
 #ifndef FZ_WINDOWS
@@ -57,7 +60,7 @@ Command CControlSocket::GetCurrentCommandId() const
 		return operations_.back()->opId;
 	}
 
-	return engine_.GetCurrentCommandId();
+	return Command::none;
 }
 
 void CControlSocket::LogTransferResultMessage(int nErrorCode, CFileTransferOpData *pData)
@@ -135,17 +138,18 @@ int CControlSocket::ResetOperation(int nErrorCode)
 		nErrorCode = oldOperation->Reset(nErrorCode);
 	}
 	if (!operations_.empty()) {
-		int ret;
 		if (nErrorCode == FZ_REPLY_OK ||
 			nErrorCode == FZ_REPLY_ERROR ||
-			nErrorCode == FZ_REPLY_CRITICALERROR)
+			nErrorCode == FZ_REPLY_CRITICALERROR ||
+			nErrorCode == FZ_REPLY_ERROR_NOTFOUND)
 		{
-			ret = ParseSubcommandResult(nErrorCode, *oldOperation);
+			if (!oldOperation->topLevelOperation_) {
+				return ParseSubcommandResult(nErrorCode, *oldOperation);
+			}
 		}
 		else {
-			ret = ResetOperation(nErrorCode);
+			return ResetOperation(nErrorCode);
 		}
-		return ret;
 	}
 
 	std::wstring prefix;
@@ -212,14 +216,18 @@ int CControlSocket::ResetOperation(int nErrorCode)
 
 	engine_.transfer_status_.Reset();
 
-	SetWait(false);
-
 	if (m_invalidateCurrentPath) {
 		currentPath_.clear();
 		m_invalidateCurrentPath = false;
 	}
 
-	return engine_.ResetOperation(nErrorCode);
+	if (operations_.empty()) {
+		SetWait(false);
+		return engine_.ResetOperation(nErrorCode);
+	}
+	else {
+		return SendNextCommand();
+	}
 }
 
 void CControlSocket::UpdateCache(COpData const &, CServerPath const& serverPath, std::wstring const& remoteFile, int64_t fileSize)
@@ -233,18 +241,8 @@ void CControlSocket::UpdateCache(COpData const &, CServerPath const& serverPath,
 int CControlSocket::DoClose(int nErrorCode)
 {
 	log(logmsg::debug_debug, L"CControlSocket::DoClose(%d)", nErrorCode);
-	if (m_closed) {
-		assert(operations_.empty());
-		return nErrorCode;
-	}
-
-	m_closed = true;
-
-	nErrorCode = ResetOperation(FZ_REPLY_ERROR | FZ_REPLY_DISCONNECTED | nErrorCode);
-
-	currentServer_.clear();
-
-	return nErrorCode;
+	currentPath_.clear();
+	return ResetOperation(FZ_REPLY_ERROR | FZ_REPLY_DISCONNECTED | nErrorCode);
 }
 
 std::wstring CControlSocket::ConvertDomainName(std::wstring const& domain)
@@ -301,38 +299,36 @@ CServer const& CControlSocket::GetCurrentServer() const
 	return currentServer_;
 }
 
-bool CControlSocket::ParsePwdReply(std::wstring reply, bool unquoted, CServerPath const& defaultPath)
+bool CControlSocket::ParsePwdReply(std::wstring reply, CServerPath const& defaultPath)
 {
-	if (!unquoted) {
-		size_t pos1 = reply.find('"');
-		size_t pos2 = reply.rfind('"');
-		// Due to searching the same character, pos1 is npos iff pos2 is npos
+	size_t pos1 = reply.find('"');
+	size_t pos2 = reply.rfind('"');
+	// Due to searching the same character, pos1 is npos iff pos2 is npos
 
-		if (pos1 == std::wstring::npos || pos1 >= pos2) {
-			pos1 = reply.find('\'');
-			pos2 = reply.rfind('\'');
+	if (pos1 == std::wstring::npos || pos1 >= pos2) {
+		pos1 = reply.find('\'');
+		pos2 = reply.rfind('\'');
 
-			if (pos1 != std::wstring::npos && pos1 < pos2) {
-				log(logmsg::debug_info, L"Broken server sending single-quoted path instead of double-quoted path.");
-			}
+		if (pos1 != std::wstring::npos && pos1 < pos2) {
+			log(logmsg::debug_info, L"Broken server sending single-quoted path instead of double-quoted path.");
 		}
-		if (pos1 == std::wstring::npos || pos1 >= pos2) {
-			log(logmsg::debug_info, L"Broken server, no quoted path found in pwd reply, trying first token as path");
-			pos1 = reply.find(' ');
-			if (pos1 != std::wstring::npos) {
-				reply = reply.substr(pos1 + 1);
-				pos2 = reply.find(' ');
-				if (pos2 != std::wstring::npos)
-					reply = reply.substr(0, pos2);
-			}
-			else {
-				reply.clear();
-			}
+	}
+	if (pos1 == std::wstring::npos || pos1 >= pos2) {
+		log(logmsg::debug_info, L"Broken server, no quoted path found in pwd reply, trying first token as path");
+		pos1 = reply.find(' ');
+		if (pos1 != std::wstring::npos) {
+			reply = reply.substr(pos1 + 1);
+			pos2 = reply.find(' ');
+			if (pos2 != std::wstring::npos)
+				reply = reply.substr(0, pos2);
 		}
 		else {
-			reply = reply.substr(pos1 + 1, pos2 - pos1 - 1);
-			fz::replace_substrings(reply, L"\"\"", L"\"");
+			reply.clear();
 		}
+	}
+	else {
+		reply = reply.substr(pos1 + 1, pos2 - pos1 - 1);
+		fz::replace_substrings(reply, L"\"\"", L"\"");
 	}
 
 	currentPath_.SetType(currentServer_.GetType());
@@ -426,6 +422,20 @@ int CControlSocket::CheckOverwriteFile()
 	SendAsyncRequest(pNotification);
 
 	return FZ_REPLY_WOULDBLOCK;
+}
+
+SleepOpData::SleepOpData(CControlSocket & controlSocket, fz::duration const& delay)
+	: COpData(Command::sleep, L"SleepOpData")
+	, fz::event_handler(controlSocket.event_loop_)
+	, controlSocket_(controlSocket)
+{
+	add_timer(delay, true);
+	controlSocket_.SetWait(false);
+}
+
+void SleepOpData::operator()(fz::event_base const&)
+{
+	controlSocket_.ResetOperation(FZ_REPLY_OK);
 }
 
 CFileTransferOpData::CFileTransferOpData(wchar_t const* name, bool is_download, std::wstring const& local_file, std::wstring const& remote_file, CServerPath const& remote_path, CFileTransferCommand::t_transferSettings const& settings)
@@ -635,7 +645,7 @@ void CControlSocket::InvalidateCurrentWorkingDir(const CServerPath& path)
 		return;
 	}
 
-	if (currentPath_ == path || path.IsParentOf(currentPath_, false)) {
+	if (path.IsParentOf(currentPath_, false, true)) {
 		if (!operations_.empty()) {
 			m_invalidateCurrentPath = true;
 		}
@@ -845,7 +855,7 @@ int CRealControlSocket::DoConnect(std::wstring const& host, unsigned int port)
 
 	ResetSocket();
 	socket_ = std::make_unique<fz::socket>(engine_.GetThreadPool(), nullptr);
-	ratelimit_layer_ = std::make_unique<CRatelimitLayer>(this, *socket_, engine_.GetRateLimiter());
+	ratelimit_layer_ = std::make_unique<fz::rate_limited_layer>(this, *socket_, &engine_.GetRateLimiter());
 	active_layer_ = ratelimit_layer_.get();
 
 	const int proxy_type = engine_.GetOptions().GetOptionVal(OPTION_PROXY_TYPE);
@@ -869,8 +879,6 @@ int CRealControlSocket::DoConnect(std::wstring const& host, unsigned int port)
 			log(logmsg::status, _("Resolving address of %s"), host);
 		}
 	}
-
-	m_closed = false;
 
 	int res = active_layer_->connect(fz::to_native(ConvertDomainName(host)), port);
 
@@ -1097,7 +1105,7 @@ void CControlSocket::RawCommand(std::wstring const&)
 	Push(std::make_unique<CNotSupportedOpData>());
 }
 
-void CControlSocket::Delete(CServerPath const&, std::deque<std::wstring>&&)
+void CControlSocket::Delete(CServerPath const&, std::vector<std::wstring>&&)
 {
 	Push(std::make_unique<CNotSupportedOpData>());
 }
@@ -1120,6 +1128,16 @@ void CControlSocket::Rename(CRenameCommand const&)
 void CControlSocket::Chmod(CChmodCommand const&)
 {
 	Push(std::make_unique<CNotSupportedOpData>());
+}
+
+void CControlSocket::Lookup(CServerPath const& path, std::wstring const& file, CDirentry * entry)
+{
+	Push(std::make_unique<LookupOpData>(*this, path, file, entry));
+}
+
+void CControlSocket::Lookup(CServerPath const& path, std::vector<std::wstring> const& files)
+{
+	Push(std::make_unique<LookupManyOpData>(*this, path, files));
 }
 
 void CControlSocket::operator()(fz::event_base const& ev)
@@ -1155,4 +1173,59 @@ void CControlSocket::CallSetAsyncRequestReply(CAsyncRequestNotification *pNotifi
 
 	SetAlive();
 	SetAsyncRequestReply(pNotification);
+}
+
+void CControlSocket::Sleep(fz::duration const& delay)
+{
+	Push(std::make_unique<SleepOpData>(*this, delay));
+}
+
+int64_t CalculateNextChunkSize(int64_t remaining, int64_t lastChunkSize, fz::duration const& lastChunkDuration, int64_t minChunkSize, int64_t multiple, int64_t partCount, int64_t maxPartCount, int64_t maxChunkSize)
+{
+	if (remaining <= 0) {
+		return 0;
+	}
+
+	int64_t newChunkSize = minChunkSize;
+
+	if (lastChunkDuration && lastChunkSize) {
+		int64_t size = lastChunkSize * 30000 / lastChunkDuration.get_milliseconds();
+		if (size > newChunkSize) {
+			newChunkSize = size;
+		}
+	}
+
+	if (maxPartCount) {
+		if (newChunkSize * (maxPartCount - partCount) < remaining) {
+			if (maxPartCount - partCount <= 1) {
+				newChunkSize = remaining;
+			}
+			else {
+				newChunkSize = remaining / (maxPartCount - partCount - 1);
+			}
+		}
+	}
+
+	if (multiple) {
+		// Round up
+		int modulus = newChunkSize % multiple;
+		if (modulus) {
+			newChunkSize += multiple - modulus;
+		}
+	}
+
+	if (maxChunkSize && newChunkSize > maxChunkSize) {
+		newChunkSize = maxChunkSize;
+	}
+
+	if (newChunkSize > remaining) {
+		newChunkSize = remaining;
+	}
+
+	return newChunkSize;
+}
+
+int64_t CalculateNextChunkSize(int64_t remaining, int64_t lastChunkSize, fz::monotonic_clock const& lastChunkStart, int64_t minChunkSize, int64_t multiple, int64_t partCount, int64_t maxPartCount, int64_t maxChunkSize)
+{
+	return CalculateNextChunkSize(remaining, lastChunkSize, fz::monotonic_clock::now() - lastChunkStart, minChunkSize, multiple, partCount, maxPartCount, maxChunkSize);
 }

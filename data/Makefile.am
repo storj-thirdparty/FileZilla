@@ -23,7 +23,7 @@ dll_install.nsh: Makefile
 	@rm -f dll_uninstall.nsh
 	@rm -rf dlls
 	@mkdir -p dlls
-	"$(srcdir)/dllcopy.sh" "$(top_builddir)/src/interface" filezilla.exe "$(OBJDUMP)" "$(CXX)" $$PATH
+	"$(srcdir)/dllcopy.sh" "$(top_builddir)/src/interface" filezilla.exe "$(OBJDUMP)" "$(CXX)" $$PATH "$(WX_LIBS)"
 	"$(srcdir)/dllcopy.sh" "$(top_builddir)/src/putty" fzsftp.exe "$(OBJDUMP)" "$(CXX)" $$PATH
 	"$(srcdir)/dllcopy.sh" "$(top_builddir)/src/putty" fzputtygen.exe "$(OBJDUMP)" "$(CXX)" $$PATH
 	if test -f "${top_builddir}/src/storj/fzstorj.exe"; then \

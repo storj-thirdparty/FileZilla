@@ -14,9 +14,11 @@ BEGIN_EVENT_TABLE(wxDialogEx, wxDialog)
 EVT_CHAR_HOOK(wxDialogEx::OnChar)
 END_EVENT_TABLE()
 
-int wxDialogEx::m_shown_dialogs = 0;
+std::vector<wxDialogEx*> wxDialogEx::shown_dialogs_;
 
 #ifdef __WXMAC__
+std::vector<void*> wxDialogEx::shown_dialogs_creation_events_;
+
 static int const pasteId = wxNewId();
 static int const selectAllId = wxNewId();
 
@@ -24,7 +26,7 @@ extern wxTextEntry* GetSpecialTextEntry(wxWindow*, wxChar);
 
 bool wxDialogEx::ProcessEvent(wxEvent& event)
 {
-	if(event.GetEventType() != wxEVT_MENU) {
+	if (event.GetEventType() != wxEVT_MENU) {
 		return wxDialog::ProcessEvent(event);
 	}
 
@@ -43,6 +45,17 @@ bool wxDialogEx::ProcessEvent(wxEvent& event)
 }
 #endif
 
+bool wxDialogEx::Create(wxWindow* parent, int id, wxString const& title, wxPoint const& pos, wxSize const& size, long style)
+{
+	bool ret = wxDialog::Create(parent, id, title, pos, size, style);
+#ifdef __WXMAC__
+	if (ret) {
+		FixPasswordPaste(acceleratorTable_);
+	}
+#endif
+	return ret;
+}
+
 void wxDialogEx::OnChar(wxKeyEvent& event)
 {
 	if (event.GetKeyCode() == WXK_ESCAPE) {
@@ -54,21 +67,17 @@ void wxDialogEx::OnChar(wxKeyEvent& event)
 	}
 }
 
-bool wxDialogEx::Load(wxWindow* pParent, const wxString& name)
+bool wxDialogEx::Load(wxWindow* pParent, wxString const& name, std::wstring const& file)
 {
 	SetParent(pParent);
 
-	InitXrc();
+	InitXrc(file);
 	if (!wxXmlResource::Get()->LoadDialog(this, pParent, name)) {
 		return false;
 	}
 
-#ifdef __WXMAC__
-	wxAcceleratorEntry entries[2];
-	entries[0].Set(wxACCEL_CMD, 'V', pasteId);
-	entries[1].Set(wxACCEL_CMD, 'A', selectAllId);
-	wxAcceleratorTable accel(sizeof(entries) / sizeof(wxAcceleratorEntry), entries);
-	SetAcceleratorTable(accel);
+#ifdef __WCMAC__
+	FixPasswordPaste(acceleratorTable_);
 #endif
 
 	return true;
@@ -121,11 +130,24 @@ int wxDialogEx::ShowModal()
 	::ReleaseCapture();
 #endif
 
-	++m_shown_dialogs;
+	shown_dialogs_.push_back(this);
+#ifdef __WXMAC__
+	shown_dialogs_creation_events_.push_back(wxGetApp().MacGetCurrentEvent());
+#endif
+
+	if (acceleratorTable_.empty()) {
+		SetAcceleratorTable(wxNullAcceleratorTable);
+	}
+	else {
+		SetAcceleratorTable(wxAcceleratorTable(acceleratorTable_.size(), acceleratorTable_.data()));
+	}
 
 	int ret = wxDialog::ShowModal();
 
-	--m_shown_dialogs;
+#ifdef __WXMAC__
+	shown_dialogs_creation_events_.pop_back();
+#endif
+	shown_dialogs_.pop_back();
 
 	return ret;
 }
@@ -140,10 +162,15 @@ bool wxDialogEx::ReplaceControl(wxWindow* old, wxWindow* wnd)
 	return true;
 }
 
-bool wxDialogEx::CanShowPopupDialog()
+bool wxDialogEx::CanShowPopupDialog(wxTopLevelWindow * parent)
 {
-	if (m_shown_dialogs != 0 || IsShowingMessageBox()) {
-		// There already is a dialog or message box showing
+	if (IsShowingMessageBox()) {
+		// There already a message box showing
+		return false;
+	}
+
+	if (!shown_dialogs_.empty() && shown_dialogs_.back() != parent) {
+		// There is an open dialog which isn't the expected parent
 		return false;
 	}
 
@@ -160,7 +187,8 @@ bool wxDialogEx::CanShowPopupDialog()
 #endif
 
 #ifdef __WXMAC__
-	if (wxGetApp().MacGetCurrentEvent()) {
+	void* ev = wxGetApp().MacGetCurrentEvent();
+	if (ev && (shown_dialogs_creation_events_.empty() || ev != shown_dialogs_creation_events_.back())) {
 		// We're inside an event handler for a native mac event, such as a popup menu
 		return false;
 	}
@@ -203,12 +231,14 @@ wxSizerFlags const DialogLayout::grow(wxSizerFlags().Expand());
 wxSizerFlags const DialogLayout::valign(wxSizerFlags().Align(wxALIGN_CENTER_VERTICAL));
 wxSizerFlags const DialogLayout::halign(wxSizerFlags().Align(wxALIGN_CENTER_HORIZONTAL));
 wxSizerFlags const DialogLayout::valigng(wxSizerFlags().Align(wxALIGN_CENTER_VERTICAL).Expand());
+wxSizerFlags const DialogLayout::ralign(wxSizerFlags().Align(wxALIGN_RIGHT));
 
 DialogLayout::DialogLayout(wxTopLevelWindow * parent)
 	: parent_(parent)
 {
 	gap = dlgUnits(3);
 	border = dlgUnits(3);
+	indent = dlgUnits(10);
 }
 
 int DialogLayout::dlgUnits(int num) const
@@ -231,6 +261,12 @@ wxFlexGridSizer* DialogLayout::createFlex(int cols, int rows) const
 {
 	int const g = gap;
 	return new wxFlexGridSizer(rows, cols, g, g);
+}
+
+wxGridSizer* DialogLayout::createGrid(int cols, int rows) const
+{
+	int const g = gap;
+	return new wxGridSizer(rows, cols, g, g);
 }
 
 wxGridBagSizer* DialogLayout::createGridBag(int cols, int rows) const
@@ -294,7 +330,27 @@ wxSizerItem* DialogLayout::gbAdd(wxGridBagSizer* gb, wxSizer* sizer, wxSizerFlag
 	return item;
 }
 
+std::tuple<wxStaticBox*, wxFlexGridSizer*> DialogLayout::createStatBox(wxSizer* parent, wxString const& title, int cols, int rows) const
+{
+	auto* boxSizer = new wxStaticBoxSizer(wxHORIZONTAL, parent->GetContainingWindow(), title);
+	auto* box = boxSizer->GetStaticBox();
+	parent->Add(boxSizer, 1, wxGROW);
+
+	auto* flex = createFlex(cols, rows);
+	boxSizer->Add(flex, 1, wxALL|wxGROW, border);
+
+	return std::make_tuple(box, flex);
+}
+
 std::wstring LabelEscape(std::wstring const& label)
 {
 	return fz::replaced_substrings(label, L"&", L"&&");
 }
+
+#ifdef __WXMAC__
+void FixPasswordPaste(std::vector<wxAcceleratorEntry> & entries)
+{
+	entries.emplace_back(wxACCEL_CMD, 'V', pasteId);
+	entries.emplace_back(wxACCEL_CMD, 'A', selectAllId);
+}
+#endif

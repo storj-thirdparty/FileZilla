@@ -140,24 +140,26 @@ std::wstring CServerPath::GetPath() const
 
 	std::wstring path;
 
-	if (!traits[m_type].prefixmode && m_data->m_prefix) {
-		path = *m_data->m_prefix;
+	auto const& data = *m_data;
+
+	if (!traits[m_type].prefixmode && data.m_prefix) {
+		path = *data.m_prefix;
 	}
 
 	if (traits[m_type].left_enclosure != 0) {
 		path += traits[m_type].left_enclosure;
 	}
-	if (m_data->m_segments.empty() && (!traits[m_type].has_root || !m_data->m_prefix || traits[m_type].separator_after_prefix)) {
+	if (data.m_segments.empty() && (!traits[m_type].has_root || !data.m_prefix || traits[m_type].separator_after_prefix)) {
 		path += traits[m_type].separators[0];
 	}
 
-	for (auto iter = m_data->m_segments.cbegin(); iter != m_data->m_segments.cend(); ++iter) {
+	for (auto iter = data.m_segments.cbegin(); iter != data.m_segments.cend(); ++iter) {
 		std::wstring const& segment = *iter;
-		if (iter != m_data->m_segments.cbegin()) {
+		if (iter != data.m_segments.cbegin()) {
 			path += traits[m_type].separators[0];
 		}
 		else if (traits[m_type].has_root) {
-			if (!m_data->m_prefix || traits[m_type].separator_after_prefix) {
+			if (!data.m_prefix || traits[m_type].separator_after_prefix) {
 				path += traits[m_type].separators[0];
 			}
 		}
@@ -172,8 +174,8 @@ std::wstring CServerPath::GetPath() const
 		}
 	}
 
-	if (traits[m_type].prefixmode && m_data->m_prefix) {
-		path += *m_data->m_prefix;
+	if (traits[m_type].prefixmode && data.m_prefix) {
+		path += *data.m_prefix;
 	}
 
 	if (traits[m_type].right_enclosure != 0) {
@@ -182,7 +184,7 @@ std::wstring CServerPath::GetPath() const
 
 	// DOS is strange.
 	// C: is current working dir on drive C, C:\ the drive root.
-	if ((m_type == DOS || m_type == DOS_FWD_SLASHES) && m_data->m_segments.size() == 1) {
+	if ((m_type == DOS || m_type == DOS_FWD_SLASHES) && data.m_segments.size() == 1) {
 		path += traits[m_type].separators[0];
 	}
 
@@ -232,8 +234,9 @@ std::wstring CServerPath::GetFirstSegment() const
 		return std::wstring();
 	}
 
-	if (!m_data->m_segments.empty()) {
-		return m_data->m_segments.front();
+	CServerPathData const& data = *m_data;
+	if (!data.m_segments.empty()) {
+		return data.m_segments.front();
 	}
 	else {
 		return std::wstring();
@@ -246,8 +249,9 @@ std::wstring CServerPath::GetLastSegment() const
 		return std::wstring();
 	}
 
-	if (!m_data->m_segments.empty()) {
-		return m_data->m_segments.back();
+	CServerPathData const& data = *m_data;
+	if (!data.m_segments.empty()) {
+		return data.m_segments.back();
 	}
 	else {
 		return std::wstring();
@@ -285,8 +289,9 @@ std::wstring CServerPath::GetSafePath() const
 	size_t len = 5 // Type and 2x' ' and terminating 0
 		+ INTLENGTH; // Max length of prefix
 
-	len += m_data->m_prefix ? m_data->m_prefix->size() : 0;
-	for (auto const& segment : m_data->m_segments) {
+	auto const& data = *m_data;
+	len += data.m_prefix ? data.m_prefix->size() : 0;
+	for (auto const& segment : data.m_segments) {
 		len += segment.size() + 2 + INTLENGTH;
 	}
 
@@ -297,15 +302,15 @@ std::wstring CServerPath::GetSafePath() const
 
 	t = fast_sprint_number(t, m_type);
 	*(t++) = ' ';
-	t = fast_sprint_number(t, m_data->m_prefix ? m_data->m_prefix->size() : 0);
+	t = fast_sprint_number(t, data.m_prefix ? data.m_prefix->size() : 0);
 
-	if (m_data->m_prefix) {
+	if (data.m_prefix) {
 		*(t++) = ' ';
-		tstrcpy(t, m_data->m_prefix->c_str());
-		t += m_data->m_prefix->size();
+		tstrcpy(t, data.m_prefix->c_str());
+		t += data.m_prefix->size();
 	}
 
-	for (auto const& segment : m_data->m_segments) {
+	for (auto const& segment : data.m_segments) {
 		*(t++) = ' ';
 		t = fast_sprint_number(t, segment.size());
 		*(t++) = ' ';
@@ -428,7 +433,7 @@ bool CServerPath::DoSetSafePath(std::wstring const& path)
 
 bool CServerPath::SetType(ServerType type)
 {
-	if (!empty() && m_type != DEFAULT) {
+	if (!empty() && m_type != DEFAULT && m_type != type) {
 		return false;
 	}
 
@@ -442,7 +447,7 @@ ServerType CServerPath::GetType() const
 	return m_type;
 }
 
-bool CServerPath::IsSubdirOf(const CServerPath &path, bool cmpNoCase) const
+bool CServerPath::IsSubdirOf(CServerPath const& path, bool cmpNoCase, bool allowEqual) const
 {
 	if (empty() || path.empty()) {
 		return false;
@@ -455,34 +460,36 @@ bool CServerPath::IsSubdirOf(const CServerPath &path, bool cmpNoCase) const
 	if (!HasParent()) {
 		return false;
 	}
-
+	
+	auto const& ld = *m_data;
+	auto const& rd = *path.m_data;
 	if (traits[m_type].prefixmode != 1) {
 		if (cmpNoCase ) {
-			if( m_data->m_prefix && !path.m_data->m_prefix ) {
+			if (ld.m_prefix && !rd.m_prefix) {
 				return false;
 			}
-			else if( !m_data->m_prefix && path.m_data->m_prefix ) {
+			else if (!ld.m_prefix && rd.m_prefix) {
 				return false;
 			}
-			else if( m_data->m_prefix && path.m_data->m_prefix && fz::stricmp(*m_data->m_prefix, *path.m_data->m_prefix) ) {
+			else if (ld.m_prefix && rd.m_prefix && fz::stricmp(*ld.m_prefix, *rd.m_prefix)) {
 				return false;
 			}
 		}
-		if (!cmpNoCase && m_data->m_prefix != path.m_data->m_prefix) {
+		if (!cmpNoCase && ld.m_prefix != rd.m_prefix) {
 			return false;
 		}
 	}
 
 	// On MVS, dirs like 'FOO.BAR' without trailing dot cannot have
 	// subdirectories
-	if (traits[m_type].prefixmode == 1 && !path.m_data->m_prefix) {
+	if (traits[m_type].prefixmode == 1 && !rd.m_prefix) {
 		return false;
 	}
 
-	tConstSegmentIter iter1 = m_data->m_segments.begin();
-	tConstSegmentIter iter2 = path.m_data->m_segments.begin();
-	while (iter1 != m_data->m_segments.end()) {
-		if (iter2 == path.m_data->m_segments.end()) {
+	auto iter1 = ld.m_segments.cbegin();
+	auto iter2 = rd.m_segments.cbegin();
+	while (iter1 != ld.m_segments.cend()) {
+		if (iter2 == rd.m_segments.cend()) {
 			return true;
 		}
 		if (cmpNoCase) {
@@ -498,12 +505,16 @@ bool CServerPath::IsSubdirOf(const CServerPath &path, bool cmpNoCase) const
 		++iter2;
 	}
 
+	if (allowEqual && iter2 == rd.m_segments.cend()) {
+		return true;
+	}
+
 	return false;
 }
 
-bool CServerPath::IsParentOf(const CServerPath &path, bool cmpNoCase) const
+bool CServerPath::IsParentOf(CServerPath const& path, bool cmpNoCase, bool allowEqual) const
 {
-	return path.IsSubdirOf(*this, cmpNoCase);
+	return path.IsSubdirOf(*this, cmpNoCase, allowEqual);
 }
 
 bool CServerPath::ChangePath(std::wstring const& subdir)
@@ -819,7 +830,7 @@ bool CServerPath::DoChangePath(std::wstring &subdir, bool isFile)
 	return true;
 }
 
-bool CServerPath::operator==(const CServerPath &op) const
+bool CServerPath::operator==(CServerPath const& op) const
 {
 	if (empty() != op.empty()) {
 		return false;
@@ -834,12 +845,12 @@ bool CServerPath::operator==(const CServerPath &op) const
 	return true;
 }
 
-bool CServerPath::operator!=(const CServerPath &op) const
+bool CServerPath::operator!=(CServerPath const& op) const
 {
 	return !(*this == op);
 }
 
-bool CServerPath::operator<(const CServerPath &op) const
+bool CServerPath::operator<(CServerPath const& op) const
 {
 	if (empty()) {
 		return !op.empty();
@@ -848,11 +859,14 @@ bool CServerPath::operator<(const CServerPath &op) const
 		return false;
 	}
 
-	if (m_data->m_prefix || op.m_data->m_prefix) {
-		if (m_data->m_prefix < op.m_data->m_prefix) {
+	auto const& ld = *m_data;
+	auto const& rd = *op.m_data;
+
+	if (ld.m_prefix || rd.m_prefix) {
+		if (ld.m_prefix < rd.m_prefix) {
 			return true;
 		}
-		else if (op.m_data->m_prefix < m_data->m_prefix) {
+		else if (rd.m_prefix < ld.m_prefix) {
 			return false;
 		}
 	}
@@ -865,8 +879,8 @@ bool CServerPath::operator<(const CServerPath &op) const
 	}
 
 	tConstSegmentIter iter1, iter2;
-	for (iter1 = m_data->m_segments.begin(), iter2 = op.m_data->m_segments.begin(); iter1 != m_data->m_segments.end(); ++iter1, ++iter2) {
-		if (iter2 == op.m_data->m_segments.end()) {
+	for (iter1 = ld.m_segments.cbegin(), iter2 = rd.m_segments.cbegin(); iter1 != ld.m_segments.cend(); ++iter1, ++iter2) {
+		if (iter2 == rd.m_segments.cend()) {
 			return false;
 		}
 
@@ -879,7 +893,7 @@ bool CServerPath::operator<(const CServerPath &op) const
 		}
 	}
 
-	return iter2 != op.m_data->m_segments.end();
+	return iter2 != rd.m_segments.cend();
 }
 
 std::wstring CServerPath::FormatFilename(std::wstring const& filename, bool omitPath) const
@@ -927,28 +941,35 @@ std::wstring CServerPath::FormatFilename(std::wstring const& filename, bool omit
 	return result;
 }
 
-int CServerPath::CmpNoCase(const CServerPath &op) const
+int CServerPath::CmpNoCase(CServerPath const& op) const
 {
 	if (empty() != op.empty()) {
 		return 1;
 	}
-	else if (m_data->m_prefix != op.m_data->m_prefix) {
+	else if (empty()) {
+		return 0;
+	}
+
+	auto const& ld = *m_data;
+	auto const& rd = *op.m_data;
+
+	if (ld.m_prefix != rd.m_prefix) {
 		return 1;
 	}
 	else if (m_type != op.m_type) {
 		return 1;
 	}
 
-	if (m_data->m_segments.size() > op.m_data->m_segments.size()) {
+	if (ld.m_segments.size() > rd.m_segments.size()) {
 		return 1;
 	}
-	else if (m_data->m_segments.size() < op.m_data->m_segments.size()) {
+	else if (ld.m_segments.size() < rd.m_segments.size()) {
 		return -1;
 	}
 
-	tConstSegmentIter iter = m_data->m_segments.begin();
-	tConstSegmentIter iter2 = op.m_data->m_segments.begin();
-	while (iter != m_data->m_segments.end()) {
+	auto iter = ld.m_segments.cbegin();
+	auto iter2 = rd.m_segments.cbegin();
+	while (iter != ld.m_segments.cend()) {
 		int res = fz::stricmp(*(iter++), *(iter2++));
 		if (res) {
 			return res;
@@ -970,7 +991,7 @@ bool CServerPath::AddSegment(std::wstring const& segment)
 	return true;
 }
 
-CServerPath CServerPath::GetCommonParent(const CServerPath& path) const
+CServerPath CServerPath::GetCommonParent(CServerPath const& path) const
 {
 	if (*this == path) {
 		return *this;
@@ -980,8 +1001,11 @@ CServerPath CServerPath::GetCommonParent(const CServerPath& path) const
 		return CServerPath();
 	}
 
+	auto const& ld = *m_data;
+	auto const& rd = *path.m_data;
+
 	if (m_type != path.m_type ||
-		(!traits[m_type].prefixmode && m_data->m_prefix != path.m_data->m_prefix))
+		(!traits[m_type].prefixmode && ld.m_prefix != rd.m_prefix))
 	{
 		return CServerPath();
 	}
@@ -1008,23 +1032,23 @@ CServerPath CServerPath::GetCommonParent(const CServerPath& path) const
 
 	CServerPathData& parentData = parent.m_data.get();
 
-	tConstSegmentIter last = m_data->m_segments.end();
-	tConstSegmentIter last2 = path.m_data->m_segments.end();
+	auto last = ld.m_segments.cend();
+	auto last2 = rd.m_segments.cend();
 	if (traits[m_type].prefixmode == 1) {
-		if (!m_data->m_prefix) {
+		if (!ld.m_prefix) {
 			--last;
 		}
-		if (!path.m_data->m_prefix) {
+		if (!rd.m_prefix) {
 			--last2;
 		}
 		parentData.m_prefix = GetParent().m_data->m_prefix;
 	}
 	else {
-		parentData.m_prefix = m_data->m_prefix;
+		parentData.m_prefix = ld.m_prefix;
 	}
 
-	tConstSegmentIter iter = m_data->m_segments.begin();
-	tConstSegmentIter iter2 = path.m_data->m_segments.begin();
+	auto iter = ld.m_segments.cbegin();
+	auto iter2 = rd.m_segments.cbegin();
 	while (iter != last && iter2 != last2) {
 		if (*iter != *iter2) {
 			if (!traits[m_type].has_root && parentData.m_segments.empty()) {
@@ -1119,8 +1143,9 @@ bool CServerPath::Segmentize(std::wstring const& str, tSegmentList& segments)
 		}
 	}
 
-	if (append)
+	if (append) {
 		return false;
+	}
 
 	return true;
 }
@@ -1167,4 +1192,13 @@ bool CServerPath::IsSeparator(wchar_t c) const
 	}
 
 	return false;
+}
+
+CServerPath CServerPath::GetChanged(CServerPath const& oldPath, CServerPath const& newPath, std::wstring const& newSubdir)
+{
+	CServerPath ret = newPath.empty() ? oldPath : newPath;
+	if (!ret.ChangePath(newSubdir)) {
+		ret.clear();
+	}
+	return ret;
 }

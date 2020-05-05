@@ -1,8 +1,6 @@
 #ifndef FILEZILLA_ENGINE_PROXY_HEADER
 #define FILEZILLA_ENGINE_PROXY_HEADER
 
-#include "backend.h"
-
 #include <libfilezilla/buffer.hpp>
 #include <libfilezilla/socket.hpp>
 

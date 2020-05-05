@@ -33,6 +33,7 @@ bool Bookmark::operator==(Bookmark const& b) const
 
 Site::Site(Site const& s)
 	: server(s.server)
+	, originalServer(s.originalServer)
 	, credentials(s.credentials)
 	, comments_(s.comments_)
 	, m_default_bookmark(s.m_default_bookmark)
@@ -48,6 +49,7 @@ Site& Site::operator=(Site const& s)
 {
 	if (this != &s) {
 		server = s.server;
+		originalServer = s.originalServer;
 		credentials = s.credentials;
 		comments_ = s.comments_;
 		m_default_bookmark = s.m_default_bookmark;
@@ -96,6 +98,24 @@ bool Site::operator==(Site const& s) const
 	return true;
 }
 
+void Site::SetName(std::wstring const& name) {
+	if (!data_) {
+		data_ = std::make_shared<SiteHandleData>();
+	}
+	data_->name_ = name;
+}
+
+std::wstring const& Site::GetName() const
+{
+	if (data_) {
+		return data_->name_;
+	}
+	else {
+		static std::wstring empty;
+		return empty;
+	}
+}
+
 void Site::SetSitePath(std::wstring const& sitePath) {
 	if (!data_) {
 		data_ = std::make_shared<SiteHandleData>();
@@ -121,8 +141,26 @@ ServerHandle Site::Handle() const
 
 void Site::Update(Site const& rhs)
 {
+	CServer newServer;
+	std::optional<CServer> newOriginalServer;
+	if (originalServer && originalServer->SameResource(rhs.GetOriginalServer())) {
+		newOriginalServer = rhs.GetOriginalServer();
+	}
+	else {
+		newOriginalServer = originalServer;
+	}
+
+	if (server.SameResource(rhs.server)) {
+		newServer = rhs.server;
+	}
+	else {
+		newServer = server;
+	}
+
 	std::shared_ptr<SiteHandleData> data = data_;
 	*this = rhs;
+	server = newServer;
+	originalServer = newOriginalServer;
 	if (data && rhs.data_) {
 		*data = *rhs.data_;
 		data_ = data;
@@ -167,6 +205,11 @@ bool Site::ParseUrl(std::wstring host, unsigned int port, std::wstring user, std
 		}
 		server.SetProtocol(p);
 	}
+	else {
+		if (hint != UNKNOWN) {
+			server.SetProtocol(hint);
+		}
+	}
 
 	pos = host.find('@');
 	if (pos != std::wstring::npos) {
@@ -179,7 +222,7 @@ bool Site::ParseUrl(std::wstring host, unsigned int port, std::wstring user, std
 
 		size_t next_at = host.find('@', pos + 1);
 		while (next_at != std::wstring::npos) {
-			if (slash != std::wstring::npos  && next_at > slash) {
+			if (slash != std::wstring::npos && next_at > slash) {
 				break;
 			}
 
@@ -378,7 +421,7 @@ void ProtectedCredentials::Protect(fz::public_key const& key)
 		password_.clear();
 	}
 	else {
-		password_ = fz::to_wstring_from_utf8(fz::base64_encode(std::string(encrypted.begin(), encrypted.end())));
+		password_ = fz::to_wstring_from_utf8(fz::base64_encode(std::string(encrypted.begin(), encrypted.end()), fz::base64_type::standard, false));
 		encrypted_ = key;
 	}
 }

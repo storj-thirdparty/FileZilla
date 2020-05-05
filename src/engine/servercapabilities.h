@@ -1,6 +1,12 @@
 #ifndef FILEZILLA_ENGINE_SERVERCAPABILITIES_HEADER
 #define FILEZILLA_ENGINE_SERVERCAPABILITIES_HEADER
 
+#include <libfilezilla/mutex.hpp>
+
+#include <server.h>
+
+#include <map>
+
 enum capabilities
 {
 	unknown,
@@ -52,9 +58,9 @@ public:
 protected:
 	struct t_cap
 	{
-		capabilities cap;
+		capabilities cap{unknown};
 		std::wstring option;
-		int number;
+		int number{};
 	};
 	std::map<capabilityNames, t_cap> m_capabilityMap;
 };
@@ -71,6 +77,8 @@ public:
 
 protected:
 	static std::map<CServer, CCapabilities> m_serverMap;
+
+	static fz::mutex m_;
 };
 
 #endif

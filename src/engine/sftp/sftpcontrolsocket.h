@@ -1,9 +1,9 @@
 #ifndef FILEZILLA_ENGINE_SFTP_SFTPCONTROLSOCKET_HEADER
 #define FILEZILLA_ENGINE_SFTP_SFTPCONTROLSOCKET_HEADER
 
-#include "ControlSocket.h"
+#include "controlsocket.h"
 
-#include "backend.h"
+#include <libfilezilla/rate_limiter.hpp>
 
 namespace fz {
 class process;
@@ -13,7 +13,7 @@ class CSftpInputThread;
 struct sftp_message;
 struct sftp_list_message;
 
-class CSftpControlSocket final : public CControlSocket, public CRateLimiterObject
+class CSftpControlSocket final : public CControlSocket, public fz::bucket
 {
 public:
 	CSftpControlSocket(CFileZillaEnginePrivate & engine);
@@ -25,7 +25,7 @@ public:
 	virtual void FileTransfer(std::wstring const& localFile, CServerPath const& remotePath,
 		std::wstring const& remoteFile, bool download,
 		CFileTransferCommand::t_transferSettings const& transferSettings) override;
-	virtual void Delete(CServerPath const& path, std::deque<std::wstring>&& files) override;
+	virtual void Delete(CServerPath const& path, std::vector<std::wstring>&& files) override;
 	virtual void RemoveDir(CServerPath const& path = CServerPath(), std::wstring const& subDir = std::wstring()) override;
 	virtual void Mkdir(CServerPath const& path) override;
 	virtual void Rename(CRenameCommand const& command) override;
@@ -37,6 +37,8 @@ public:
 	virtual bool SetAsyncRequestReply(CAsyncRequestNotification *pNotification) override;
 
 protected:
+	virtual void Push(std::unique_ptr<COpData> && pNewOpData) override;
+
 	// Replaces filename"with"quotes with
 	// "filename""with""quotes"
 	std::wstring QuoteFilename(std::wstring const& filename);
@@ -49,11 +51,8 @@ protected:
 	int AddToStream(std::wstring const& cmd);
 	int AddToStream(std::string const& cmd);
 
-	virtual void OnRateAvailable(CRateLimiter::rate_direction direction) override;
-	void OnQuotaRequest(CRateLimiter::rate_direction direction);
-
-	// see src/putty/wildcard.c
-	std::wstring WildcardEscape(std::wstring const& file);
+	virtual void wakeup(fz::direction::type const d) override;
+	void OnQuotaRequest(fz::direction::type const d);
 
 	std::unique_ptr<fz::process> process_;
 	std::unique_ptr<CSftpInputThread> input_thread_;

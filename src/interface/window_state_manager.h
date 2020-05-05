@@ -7,7 +7,7 @@
 class CWindowStateManager final : public wxEvtHandler
 {
 public:
-	CWindowStateManager(wxTopLevelWindow* pWindow);
+	explicit CWindowStateManager(wxTopLevelWindow* pWindow);
 	virtual ~CWindowStateManager();
 
 	bool Restore(const unsigned int optionId, const wxSize& default_size = wxSize(-1, -1));

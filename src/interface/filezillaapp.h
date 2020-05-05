@@ -45,7 +45,7 @@ public:
 	void AddStartupProfileRecord(std::string const& msg);
 
 protected:
-	void CheckExistsTool(std::wstring const& tool, std::wstring const& buildRelPath, std::string const& env, int setting, std::wstring const& description);
+	void CheckExistsTool(std::wstring const& tool, std::wstring const& buildRelPath, char const* env, int setting, std::wstring const& description);
 
 	bool InitDefaultsDir();
 	bool LoadResourceFiles();

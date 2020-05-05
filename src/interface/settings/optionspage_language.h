@@ -1,24 +1,26 @@
 #ifndef FILEZILLA_INTERFACE_OPTIONSPAGE_LANGUAGE_HEADER
 #define FILEZILLA_INTERFACE_OPTIONSPAGE_LANGUAGE_HEADER
 
+#include "optionspage.h"
+
+class wxListBox;
 class COptionsPageLanguage final : public COptionsPage
 {
 public:
-	virtual wxString GetResourceName() const override { return _T("ID_SETTINGS_LANGUAGE"); }
+	virtual bool CreateControls(wxWindow* parent) override;
 	virtual bool LoadPage() override;
 	virtual bool SavePage() override;
 	virtual bool Validate() override;
 
 	virtual bool OnDisplayedFirstTime();
 
-	struct _locale_info { wxString name; wxString code; };
+	struct _locale_info { wxString name; std::wstring code; };
 
 protected:
 	void GetLocales();
 
-	DECLARE_EVENT_TABLE()
-
-	std::vector<_locale_info> m_locale;
+	wxListBox* lb_{};
+	std::vector<_locale_info> locales_;
 };
 
 #endif

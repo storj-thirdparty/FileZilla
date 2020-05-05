@@ -3,6 +3,7 @@
 
 #include "systemimagelist.h"
 #include <wx/dnd.h>
+#include <wx/listctrl.h>
 
 #ifdef __WXMSW__
 typedef wxNavigationEnabled<wxListCtrl> wxListCtrlExBase;

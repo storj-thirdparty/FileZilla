@@ -973,32 +973,39 @@ bool CWrapEngine::LoadCache()
 	}
 
 	CLocalPath resourceDir = wxGetApp().GetResourceDir();
-	resourceDir.AddSegment(_T("xrc"));
-	wxDir dir(resourceDir.GetPath());
+	
+	if (resourceDir.empty()) {
+		cacheValid = false;
+		while (resources.remove_child("xrc")) {};
+	}
+	else {
+		resourceDir.AddSegment(_T("xrc"));
+		wxDir dir(resourceDir.GetPath());
 
-	wxLogNull log;
+		wxLogNull log;
 
-	wxString xrc;
-	for (bool found = dir.GetFirst(&xrc, _T("*.xrc")); found; found = dir.GetNext(&xrc)) {
-		if (!wxFileName::FileExists(resourceDir.GetPath() + xrc)) {
-			continue;
-		}
+		wxString xrc;
+		for (bool found = dir.GetFirst(&xrc, _T("*.xrc")); found; found = dir.GetNext(&xrc)) {
+			if (!wxFileName::FileExists(resourceDir.GetPath() + xrc)) {
+				continue;
+			}
 
-		fz::datetime const date = fz::local_filesys::get_modification_time(fz::to_native(resourceDir.GetPath() + xrc));
-		std::wstring const ticks = std::to_wstring(date.get_time_t());
+			fz::datetime const date = fz::local_filesys::get_modification_time(fz::to_native(resourceDir.GetPath() + xrc));
+			std::wstring const ticks = std::to_wstring(date.get_time_t());
 
-		auto resourceElement = FindElementWithAttribute(resources, "xrc", "file", xrc.mb_str());
-		if (!resourceElement) {
-			resourceElement = resources.append_child("xrc");
-			SetTextAttribute(resourceElement, "file", xrc.ToStdWstring());
-			SetTextAttribute(resourceElement, "date", ticks);
-			cacheValid = false;
-		}
-		else {
-			std::wstring xrcNodeDate = GetTextAttribute(resourceElement, "date");
-			if (xrcNodeDate.empty() || xrcNodeDate != ticks) {
-				cacheValid = false;
+			auto resourceElement = FindElementWithAttribute(resources, "xrc", "file", xrc.mb_str());
+			if (!resourceElement) {
+				resourceElement = resources.append_child("xrc");
+				SetTextAttribute(resourceElement, "file", xrc.ToStdWstring());
 				SetTextAttribute(resourceElement, "date", ticks);
+				cacheValid = false;
+			}
+			else {
+				std::wstring xrcNodeDate = GetTextAttribute(resourceElement, "date");
+				if (xrcNodeDate.empty() || xrcNodeDate != ticks) {
+					cacheValid = false;
+					SetTextAttribute(resourceElement, "date", ticks);
+				}
 			}
 		}
 	}

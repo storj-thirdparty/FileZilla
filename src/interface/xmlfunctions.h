@@ -38,7 +38,7 @@ public:
 	size_t GetRawDataLength();
 	void GetRawDataHere(char* p, size_t size); // p has to big enough to hold at least GetRawDataLength() bytes
 
-	bool ParseData(char* data); // data has to be 0-terminated
+	bool ParseData(uint8_t const* data, size_t len);
 
 	void Close();
 
@@ -47,7 +47,7 @@ public:
 
 	bool Modified();
 
-	bool Save(bool printError);
+	bool Save(bool printError, bool updateMetadata = true);
 
 	bool IsFromFutureVersion() const;
 protected:

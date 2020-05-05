@@ -27,6 +27,8 @@ public:
 	// Always terminated by a separator
 	std::wstring const& GetPath() const { return *m_path; }
 
+	explicit operator bool() const { return !empty(); }
+
 	bool empty() const;
 	void clear();
 

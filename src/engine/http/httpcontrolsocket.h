@@ -1,7 +1,7 @@
 #ifndef FILEZILLA_ENGINE_HTTP_HTTPCONTROLSOCKET_HEADER
 #define FILEZILLA_ENGINE_HTTP_HTTPCONTROLSOCKET_HEADER
 
-#include "ControlSocket.h"
+#include "controlsocket.h"
 #include "httpheaders.h"
 
 #include <libfilezilla/file.hpp>
@@ -71,7 +71,7 @@ public:
 
 	std::function<void(int64_t)> progress_callback_;
 
-private:
+protected:
 	fz::file & file_;
 	uint64_t start_{};
 	uint64_t written_{};
@@ -226,6 +226,17 @@ namespace fz {
 class tls_layer;
 }
 
+class RequestThrottler final
+{
+public:
+	void throttle(std::string const& hostname, fz::datetime const& backoff);
+	fz::duration get_throttle(std::string const& hostname);
+
+private:
+	fz::mutex mtx_{false};
+	std::vector<std::pair<std::string, fz::datetime>> backoff_;
+};
+
 class CHttpControlSocket : public CRealControlSocket
 {
 public:
@@ -269,17 +280,20 @@ protected:
 	virtual void OnSocketError(int error) override;
 	virtual void OnReceive() override;
 	virtual int OnSend() override;
-	
+
 	virtual void ResetSocket() override;
-	
+
 	friend class CProtocolOpData<CHttpControlSocket>;
 	friend class CHttpFileTransferOpData;
 	friend class CHttpInternalConnectOpData;
 	friend class CHttpRequestOpData;
+
 private:
-	std::wstring	connected_host_;
-	unsigned short	connected_port_{};
-	bool			connected_tls_{};
+	std::wstring connected_host_;
+	unsigned short connected_port_{};
+	bool connected_tls_{};
+
+	static RequestThrottler throttler_;
 };
 
 typedef CProtocolOpData<CHttpControlSocket> CHttpOpData;

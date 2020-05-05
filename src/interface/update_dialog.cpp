@@ -6,9 +6,12 @@
 #include "filezillaapp.h"
 #include "file_utils.h"
 #include "update_dialog.h"
+#include "textctrlex.h"
 #include "themeprovider.h"
 #include "xrc_helper.h"
 #include "Options.h"
+
+#include <libfilezilla/process.hpp>
 
 #include <wx/animate.h>
 #include <wx/hyperlink.h>
@@ -76,41 +79,125 @@ int CUpdateDialog::ShowModal()
 	main->AddGrowableCol(0);
 	main->AddGrowableRow(0);
 
-	main->Add(new wxPanel(this, XRCID("ID_CONTENT")), 1, wxGROW);
+	content_ = new wxPanel(this);
+	main->Add(content_, 1, wxGROW);
 	main->Add(new wxStaticLine(this), lay.grow);
 
 	auto buttons = new wxBoxSizer(wxHORIZONTAL);
 	main->Add(buttons, 0, wxALIGN_RIGHT);
 
-	bool debug = false;
-	wxString v;
-	if (wxGetEnv(_T("FZDEBUG"), &v) && v == _T("1")) {
-		debug = true;
-	}
+	bool const debug = GetEnv("FZDEBUG") == L"1";
 	buttons->Add(new wxButton(this, XRCID("ID_DEBUGLOG"), L"show log"))->Show(debug);
 	buttons->Add(new wxButton(this, wxID_CANCEL, _("&Close")));
 
-	InitXrc();
-	LoadPanel(_T("ID_CHECKING_PANEL"));
-	LoadPanel(_T("ID_FAILURE_PANEL"));
-	LoadPanel(_T("ID_NEWVERSION_PANEL"));
-	LoadPanel(_T("ID_LATEST_PANEL"));
-	if (panels_.size() != 4) {
-		return wxID_CANCEL;
+	wxAnimation throbber = CThemeProvider::Get()->CreateAnimation(_T("ART_THROBBER"), wxSize(16, 16));
+
+	{
+		auto p = new wxPanel(content_, XRCID("ID_CHECKING_PANEL"));
+		panels_.push_back(p);
+
+		auto s = lay.createMain(p, 1);
+
+		s->AddGrowableCol(0);
+		s->AddGrowableRow(0);
+		s->AddGrowableRow(2);
+
+		s->AddStretchSpacer();
+
+		auto row = lay.createFlex(0, 1);
+		s->Add(row, 0, wxALIGN_CENTER_HORIZONTAL | wxALIGN_CENTER_VERTICAL);
+		
+		row->Add(new wxStaticText(p, -1, _("Checking for updates...")), lay.valign);
+
+		if (throbber.IsOk()) {
+			auto anim = new wxAnimationCtrl(p, -1, throbber);
+			anim->SetMinSize(throbber.GetSize());
+			anim->Play();
+			row->Add(anim, lay.valign);
+		}
+
+		s->AddStretchSpacer();
 	}
 
-	wxAnimation a = CThemeProvider::Get()->CreateAnimation(_T("ART_THROBBER"), wxSize(16,16));
-	auto ctrl = XRCCTRL(*this, "ID_WAIT_CHECK", wxAnimationCtrl);
-	if (ctrl) {
-		ctrl->SetMinSize(a.GetSize());
-		ctrl->SetAnimation(a);
-		ctrl->Play();
+	{
+		auto p = new wxPanel(content_, XRCID("ID_FAILURE_PANEL"));
+		panels_.push_back(p);
+
+		auto s = lay.createMain(p, 1);
+		s->AddGrowableCol(0);
+		s->AddGrowableRow(2);
+		
+		s->Add(new wxStaticText(p, -1, _("Information about the latest version of FileZilla could not be retrieved. Please try again later.")));
+		s->Add(new wxHyperlinkCtrl(p, XRCID("ID_RETRY"), _("Try again"), wxString()));
+
+		s->Add(new wxTextCtrlEx(p, XRCID("ID_DETAILS"), wxString(), wxDefaultPosition, wxDefaultSize, wxTE_MULTILINE | wxTE_READONLY | wxHSCROLL | wxTE_DONTWRAP), 1, wxGROW)->SetMinSize(wxSize(-1, 200));
+		s->Add(new wxHyperlinkCtrl(p, XRCID("ID_SHOW_DETAILS"), _("Show details"), wxString()), lay.valign);
+
+		s->AddSpacer(lay.dlgUnits(5));
+
+		s->Add(new wxStaticText(p, XRCID("ID_WEBSITE_TEXT"), _("You can download the latest version from the FileZilla website:")));
+		s->Add(new wxHyperlinkCtrl(p, XRCID("ID_WEBSITE_LINK"), L"https://filezilla-project.org/", L"https://filezilla-project.org/"));
+
 	}
-	ctrl = XRCCTRL(*this, "ID_WAIT_DOWNLOAD", wxAnimationCtrl);
-	if (ctrl) {
-		ctrl->SetMinSize(a.GetSize());
-		ctrl->SetAnimation(a);
-		ctrl->Play();
+
+	{
+		auto p = new wxPanel(content_, XRCID("ID_NEWVERSION_PANEL"));
+		panels_.push_back(p);
+
+		auto s = lay.createMain(p, 1);
+		s->AddGrowableRow(4);
+		s->AddGrowableCol(0);
+		s->Add(new wxStaticText(p, -1, _("A new version of FileZilla is available:")));
+		s->Add(new wxStaticText(p, XRCID("ID_VERSION"), L"1.2.3.4"));
+		s->AddSpacer(0);
+		s->Add(new wxStaticText(p, XRCID("ID_NEWS_LABEL"), _("What's new:")));
+		s->Add(new wxTextCtrlEx(p, XRCID("ID_NEWS"), wxString(), wxDefaultPosition, wxDefaultSize, wxTE_MULTILINE | wxTE_READONLY), 1, wxGROW)->SetMinSize(400, 150);
+
+		auto dl = lay.createFlex(0, 1);
+		s->Add(dl, lay.halign);
+		dl->Add(new wxStaticText(p, XRCID("ID_DOWNLOAD_LABEL"), _("Downloading update...")), lay.valign);
+
+		if (throbber.IsOk()) {
+			auto anim = new wxAnimationCtrl(p, XRCID("ID_WAIT_DOWNLOAD"), throbber);
+			anim->SetMinSize(throbber.GetSize());
+			anim->Play();
+			dl->Add(anim, lay.valign);
+		}
+
+		dl->Add(new wxStaticText(p, XRCID("ID_DOWNLOAD_PROGRESS"), L"12% downloaded"), lay.valign);
+
+		s->Add(new wxStaticText(p, XRCID("ID_DOWNLOADED"), _("The new version has been saved in your Downloads directory.")));
+		auto install = new wxButton(p, XRCID("ID_INSTALL"), _("&Install new version"));
+		install->SetDefault();
+		s->Add(install, lay.halign);
+		s->Add(new wxStaticText(p, XRCID("ID_OUTDATED"), _("Unfortunately information about the new update could not be retrieved.")));
+		s->Add(new wxStaticText(p, XRCID("ID_DISABLED_CHECK"), _("Either you or your system administrator has disabled checking for updates. Please re-enable checking for updates to obtain more information.")));
+		s->Add(new wxStaticText(p, XRCID("ID_DOWNLOAD_FAIL"), _("The new version could not be downloaded, please retry later.")));
+
+		s->Add(new wxTextCtrlEx(p, XRCID("ID_DETAILS_DL"), wxString(), wxDefaultPosition, wxDefaultSize, wxTE_MULTILINE | wxTE_READONLY | wxHSCROLL | wxTE_DONTWRAP), 1, wxGROW)->SetMinSize(wxSize(-1, 0));
+		auto retry = lay.createFlex(0, 1);
+		s->Add(retry);
+		retry->Add(new wxHyperlinkCtrl(p, XRCID("ID_DOWNLOAD_RETRY"), _("Try again"), wxString()), lay.valign);
+		retry->Add(new wxHyperlinkCtrl(p, XRCID("ID_SHOW_DETAILS_DL"), _("Show details"), wxString()), lay.valign);
+
+		s->Add(new wxStaticText(p, XRCID("ID_NEWVERSION_WEBSITE_TEXT_DLFAIL"), _("Alternatively, you can also download the latest version from the FileZilla website:")));
+		s->Add(new wxStaticText(p, XRCID("ID_NEWVERSION_WEBSITE_TEXT"), _("You can download the latest version from the FileZilla website:")));
+		s->Add(new wxHyperlinkCtrl(p, XRCID("ID_NEWVERSION_WEBSITE_LINK"), L"https://filezilla-project.org/", L"https://filezilla-project.org/"));
+	}
+
+	{
+		auto p = new wxPanel(content_, XRCID("ID_LATEST_PANEL"));
+		panels_.push_back(p);
+
+		auto s = lay.createMain(p, 1);
+
+		s->AddGrowableCol(0);
+		s->AddGrowableRow(0);
+		s->AddGrowableRow(2);
+
+		s->AddStretchSpacer();
+		s->Add(new wxStaticText(p, -1, _("You are using the latest version of FileZilla."), wxDefaultPosition, wxDefaultSize, wxALIGN_CENTRE_HORIZONTAL), lay.grow);
+		s->AddStretchSpacer();
 	}
 
 	InitFooter();
@@ -121,11 +208,9 @@ int CUpdateDialog::ShowModal()
 	xrc_call(*this, "ID_DETAILS_DL", &wxTextCtrl::Hide);
 
 	UpdaterState s = updater_.GetState();
-	UpdaterStateChanged( s, updater_.AvailableBuild() );
+	UpdaterStateChanged(s, updater_.AvailableBuild());
 
 	updater_.AddHandler(*this);
-
-	updater_.RunIfNeeded();
 
 	int ret = wxDialogEx::ShowModal();
 	updater_.RemoveHandler(*this);
@@ -184,14 +269,13 @@ void CUpdateDialog::InitFooter()
 
 void CUpdateDialog::Wrap()
 {
-	wxPanel* parentPanel = XRCCTRL(*this, "ID_CONTENT", wxPanel);
-	if (!parentPanel) {
+	if (!content_) {
 		return;
 	}
 
 	wxSize canvas;
-	canvas.x = GetSize().x - parentPanel->GetSize().x;
-	canvas.y = GetSize().y - parentPanel->GetSize().y;
+	canvas.x = GetSize().x - content_->GetSize().x;
+	canvas.y = GetSize().y - content_->GetSize().y;
 
 	// Wrap pages nicely
 	std::vector<wxWindow*> pages;
@@ -203,20 +287,24 @@ void CUpdateDialog::Wrap()
 	// Keep track of maximum page size
 	wxSize size = GetSizer()->GetMinSize();
 	for (auto const& panel : panels_) {
-		size.IncTo(panel->GetSizer()->GetMinSize());
+		if (panel->GetSizer()) {
+			size.IncTo(panel->GetSizer()->GetMinSize());
+		}
 	}
 
 	wxSize panelSize = size;
 #ifdef __WXGTK__
 	panelSize.x += 1;
 #endif
-	parentPanel->SetInitialSize(panelSize);
+	content_->SetInitialSize(panelSize);
 
 	// Adjust pages sizes according to maximum size
 	for (auto const& panel : panels_) {
-		panel->GetSizer()->SetMinSize(size);
-		panel->GetSizer()->Fit(panel);
-		panel->GetSizer()->SetSizeHints(panel);
+		if (panel->GetSizer()) {
+			panel->GetSizer()->SetMinSize(size);
+			panel->GetSizer()->Fit(panel);
+			panel->GetSizer()->SetSizeHints(panel);
+		}
 		if (GetLayoutDirection() == wxLayout_RightToLeft) {
 			panel->Move(wxPoint(0, 0));
 		}
@@ -236,35 +324,23 @@ void CUpdateDialog::Wrap()
 	panels_[0]->Show();
 }
 
-void CUpdateDialog::LoadPanel(wxString const& name)
-{
-	wxPanel* p = new wxPanel();
-	if (!wxXmlResource::Get()->LoadPanel(p, XRCCTRL(*this, "ID_CONTENT", wxPanel), name)) {
-		delete p;
-		return;
-	}
-
-	panels_.push_back(p);
-}
-
-
-void CUpdateDialog::UpdaterStateChanged( UpdaterState s, build const& v )
+void CUpdateDialog::UpdaterStateChanged(UpdaterState s, build const& v)
 {
 	timer_.Stop();
 	for (auto const& panel : panels_) {
 		panel->Hide();
 	}
-	if( s == UpdaterState::idle ) {
+	if (s == UpdaterState::idle) {
 		panels_[pagenames::latest]->Show();
 	}
-	else if( s == UpdaterState::failed ) {
-		XRCCTRL(*this, "ID_DETAILS", wxTextCtrl)->ChangeValue(updater_.GetLog());
+	else if (s == UpdaterState::failed) {
+		xrc_call(*this, "ID_DETAILS", &wxTextCtrl::ChangeValue, updater_.GetLog());
 		panels_[pagenames::failed]->Show();
 	}
-	else if( s == UpdaterState::checking ) {
+	else if (s == UpdaterState::checking) {
 		panels_[pagenames::checking]->Show();
 	}
-	else if( s == UpdaterState::newversion || s == UpdaterState::newversion_ready || s == UpdaterState::newversion_downloading ) {
+	else if (s == UpdaterState::newversion || s == UpdaterState::newversion_ready || s == UpdaterState::newversion_downloading || s == UpdaterState::newversion_stale) {
 		xrc_call(*this, "ID_VERSION", &wxStaticText::SetLabel, v.version_);
 
 		wxString news = updater_.GetChangelog();
@@ -281,7 +357,10 @@ void CUpdateDialog::UpdaterStateChanged( UpdaterState s, build const& v )
 		}
 		bool downloading = s == UpdaterState::newversion_downloading;
 		XRCCTRL(*this, "ID_DOWNLOAD_LABEL", wxStaticText)->Show(downloading);
-		XRCCTRL(*this, "ID_WAIT_DOWNLOAD", wxAnimationCtrl)->Show(downloading);
+		auto anim = FindWindow(XRCID("ID_WAIT_DOWNLOAD"));
+		if (anim) {
+			anim->Show(downloading);
+		}
 		XRCCTRL(*this, "ID_DOWNLOAD_PROGRESS", wxStaticText)->Show(downloading);
 		if (downloading) {
 			timer_.Start(500);
@@ -292,8 +371,14 @@ void CUpdateDialog::UpdaterStateChanged( UpdaterState s, build const& v )
 		XRCCTRL(*this, "ID_DOWNLOADED", wxStaticText)->Show(ready);
 		XRCCTRL(*this, "ID_INSTALL", wxButton)->Show(ready);
 
-		bool manual = s == UpdaterState::newversion;
-		bool dlfail = s == UpdaterState::newversion && !v.url_.empty();
+		bool const outdated = s == UpdaterState::newversion_stale;
+		bool const manual = s == UpdaterState::newversion || outdated;
+		bool const dlfail = s == UpdaterState::newversion && !v.url_.empty();
+		bool const disabled = COptions::Get()->GetOptionVal(OPTION_DEFAULT_DISABLEUPDATECHECK) != 0 || !COptions::Get()->GetOptionVal(OPTION_UPDATECHECK);
+
+		XRCCTRL(*this, "ID_OUTDATED", wxStaticText)->Show(outdated);
+		XRCCTRL(*this, "ID_DISABLED_CHECK", wxStaticText)->Show(outdated && disabled);
+		XRCCTRL(*this, "ID_DOWNLOAD_FAIL", wxStaticText)->Show(dlfail);
 		XRCCTRL(*this, "ID_DOWNLOAD_FAIL", wxStaticText)->Show(dlfail);
 		XRCCTRL(*this, "ID_DOWNLOAD_RETRY", wxHyperlinkCtrl)->Show(dlfail);
 		XRCCTRL(*this, "ID_SHOW_DETAILS_DL", wxHyperlinkCtrl)->Show(dlfail);
@@ -311,24 +396,29 @@ void CUpdateDialog::UpdaterStateChanged( UpdaterState s, build const& v )
 
 void CUpdateDialog::OnInstall(wxCommandEvent&)
 {
-	wxString f = updater_.DownloadedFile();
-	if( f.empty() ) {
+	std::wstring f = updater_.DownloadedFile();
+	if (f.empty()) {
 		return;
 	}
 	COptions::Get()->SetOption(OPTION_GREETINGRESOURCES, updater_.GetResources());
 #ifdef __WXMSW__
-	wxExecute(_T("\"") + f +  _T("\" /update /NCRC"));
+	std::vector<std::wstring> cmd_with_args;
+	cmd_with_args.push_back(f);
+	cmd_with_args.push_back(L"/update");
+	cmd_with_args.push_back(L"/NCRC");
+	fz::spawn_detached_process(cmd_with_args);
+
 	wxWindow* p = parent_;
-	while( p->GetParent() ) {
+	while (p->GetParent()) {
 		p = p->GetParent();
 	}
 	p->Close();
 #else
-	bool program_exists = false;
-	wxString cmd = GetSystemOpenCommand(f, program_exists);
-	if( program_exists && !cmd.empty() ) {
-		if (wxExecute(cmd))
+	auto cmd_with_args = GetSystemAssociation(f);
+	if (!cmd_with_args.empty()) {
+		if (fz::spawn_detached_process(AssociationToCommand(cmd_with_args, f))) {
 			return;
+		}
 	}
 
 	wxFileName fn(f);

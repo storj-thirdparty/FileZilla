@@ -3,6 +3,8 @@
 
 #include "state.h"
 
+#include <list>
+
 class CComboBoxEx;
 class CWindowTinter;
 class CViewHeader : public wxNavigationEnabled<wxWindow>

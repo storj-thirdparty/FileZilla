@@ -7,13 +7,14 @@
 #include <libfilezilla_engine.h>
 #include <option_change_event_handler.h>
 
-#include <set>
-#include <wx/progdlg.h>
-
 #include "queue_storage.h"
 #include "local_recursive_operation.h"
 #include "notification.h"
 
+#include <wx/progdlg.h>
+
+#include <list>
+#include <set>
 
 namespace ActionAfterState {
 enum type {
@@ -116,9 +117,9 @@ public:
 	CQueueView(CQueue* parent, int index, CMainFrame* pMainFrame, CAsyncRequestQueue* pAsyncRequestQueue);
 	virtual ~CQueueView();
 
-	bool QueueFile(const bool queueOnly, const bool download,
-		std::wstring const& localFile, std::wstring const& remoteFile,
-		const CLocalPath& localPath, const CServerPath& remotePath,
+	bool QueueFile(bool const queueOnly, bool const download,
+		std::wstring const& sourceFile, std::wstring const& targetFile,
+		CLocalPath const& localPath, CServerPath const& remotePath,
 		Site const& site, int64_t size, CEditHandler::fileType edit = CEditHandler::none,
 		QueuePriority priority = QueuePriority::normal);
 
@@ -150,7 +151,7 @@ public:
 
 	void RenameFileInTransfer(CFileZillaEngine *pEngine, const wxString& newName, bool local);
 
-	static std::wstring ReplaceInvalidCharacters(std::wstring const& filename);
+	static std::wstring ReplaceInvalidCharacters(std::wstring const& filename, bool includeQuotesAndBreaks = false);
 
 	// Get the current download speed as the sum of all active downloads.
 	// Unit is byte/s.
@@ -221,11 +222,6 @@ protected:
 	CServer m_last_refresh_server;
 	CServerPath m_last_refresh_path;
 	fz::monotonic_clock m_last_refresh_listing_time;
-
-	// Called from Process Reply.
-	// After a disconnect, check if there's another idle engine that
-	// is already connected.
-	bool SwitchEngine(t_EngineData** ppEngineData);
 
 	bool IsOtherEngineConnected(t_EngineData* pEngineData);
 

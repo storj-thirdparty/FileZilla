@@ -6,22 +6,27 @@
 #include "conditionaldialog.h"
 #include "drop_target_ex.h"
 #include "filezillaapp.h"
+#include "inputdialog.h"
 #include "ipcmutex.h"
 #include "Options.h"
 #include "sitemanager_site.h"
 #include "themeprovider.h"
+#include "textctrlex.h"
 #include "treectrlex.h"
 #include "window_state_manager.h"
 #include "wrapengine.h"
 #include "xmlfunctions.h"
 #include "xrc_helper.h"
 
+#include <wx/dirdlg.h>
 #include <wx/dnd.h>
-#include <wx/file.h>
+#include <wx/filedlg.h>
+#include <wx/menu.h>
 #include <wx/statline.h>
 
 #include <algorithm>
 #include <array>
+#include <list>
 
 BEGIN_EVENT_TABLE(CSiteManagerDialog, wxDialogEx)
 EVT_BUTTON(XRCID("wxID_OK"), CSiteManagerDialog::OnOK)
@@ -43,6 +48,7 @@ EVT_TREE_ITEM_MENU(XRCID("ID_SITETREE"), CSiteManagerDialog::OnContextMenu)
 EVT_MENU(XRCID("ID_EXPORT"), CSiteManagerDialog::OnExportSelected)
 EVT_BUTTON(XRCID("ID_NEWBOOKMARK"), CSiteManagerDialog::OnNewBookmark)
 EVT_BUTTON(XRCID("ID_BOOKMARK_BROWSE"), CSiteManagerDialog::OnBookmarkBrowse)
+EVT_MENU(XRCID("ID_SEARCH"), CSiteManagerDialog::OnSearch)
 END_EVENT_TABLE()
 
 class CSiteManagerItemData : public wxTreeItemData
@@ -291,11 +297,11 @@ wxPanel * CreateBookmarkPanel(wxWindow* parent, DialogLayout const& lay)
 	auto row = lay.createFlex(0, 1);
 	main->Add(row, lay.grow);
 	row->AddGrowableCol(0);
-	row->Add(new wxTextCtrl(panel, XRCID("ID_BOOKMARK_LOCALDIR")), lay.valigng);
+	row->Add(new wxTextCtrlEx(panel, XRCID("ID_BOOKMARK_LOCALDIR")), lay.valigng);
 	row->Add(new wxButton(panel, XRCID("ID_BOOKMARK_BROWSE"), _("&Browse...")), lay.valign);
 	main->AddSpacer(0);
 	main->Add(new wxStaticText(panel, -1, _("&Remote directory:")));
-	main->Add(new wxTextCtrl(panel, XRCID("ID_BOOKMARK_REMOTEDIR")), lay.grow);
+	main->Add(new wxTextCtrlEx(panel, XRCID("ID_BOOKMARK_REMOTEDIR")), lay.grow);
 	main->AddSpacer(0);
 	main->Add(new wxCheckBox(panel, XRCID("ID_BOOKMARK_SYNC"), _("Use &synchronized browsing")));
 	main->Add(new wxCheckBox(panel, XRCID("ID_BOOKMARK_COMPARISON"), _("Directory comparison")));
@@ -318,7 +324,7 @@ bool CSiteManagerDialog::Create(wxWindow* parent, std::vector<_connected_site>* 
 	}
 
 	SetExtraStyle(wxWS_EX_BLOCK_EVENTS);
-	if (!wxDialogEx::Create(parent, XRCID("ID_SITEMANAGER"), _("Site Manager"), wxDefaultPosition, wxDefaultSize, wxCAPTION | wxSYSTEM_MENU | wxRESIZE_BORDER | wxCLOSE_BOX)) {
+	if (!wxDialogEx::Create(parent, -1, _("Site Manager"), wxDefaultPosition, wxDefaultSize, wxCAPTION | wxSYSTEM_MENU | wxRESIZE_BORDER | wxCLOSE_BOX)) {
 		return false;
 	}
 
@@ -338,7 +344,7 @@ bool CSiteManagerDialog::Create(wxWindow* parent, std::vector<_connected_site>* 
 
 	left->Add(new wxStaticText(this, wxID_ANY, _("&Select entry:")));
 
-	tree_ = new wxTreeCtrlEx(this, XRCID("ID_SITETREE"), wxDefaultPosition, wxDefaultSize, wxBORDER_SUNKEN | wxTR_EDIT_LABELS | wxTR_HAS_BUTTONS | wxTR_MULTIPLE);
+	tree_ = new wxTreeCtrlEx(this, XRCID("ID_SITETREE"), wxDefaultPosition, wxDefaultSize, DEFAULT_TREE_STYLE | wxBORDER_SUNKEN | wxTR_EDIT_LABELS | wxTR_MULTIPLE);
 	tree_->SetFocus();
 	left->Add(tree_, lay.grow)->SetProportion(1);
 
@@ -443,6 +449,8 @@ bool CSiteManagerDialog::Create(wxWindow* parent, std::vector<_connected_site>* 
 		}
 	}
 #endif
+
+	acceleratorTable_.emplace_back(0, WXK_F3, XRCID("ID_SEARCH"));
 
 	m_connected_sites = connected_sites;
 	MarkConnectedSites();
@@ -624,7 +632,7 @@ public:
 			data->credentials.encrypted_ = fz::public_key();
 		}
 
-		std::wstring const name = data->server.GetName();
+		std::wstring const name = data->GetName();
 
 		CSiteManagerItemData* pData = new CSiteManagerItemData(std::move(data));
 		wxTreeItemId newItem = m_tree_->AppendItem(m_item, name, 2, 2, pData);
@@ -863,10 +871,8 @@ bool CSiteManagerDialog::SaveChild(pugi::xml_node element, wxTreeItemId child)
 		CSiteManager::Save(node, *data->m_site);
 
 		if (data->connected_item != -1) {
-			if ((*m_connected_sites)[data->connected_item].site.server == data->m_site->server) {
-				(*m_connected_sites)[data->connected_item].new_path = GetSitePath(child);
-				(*m_connected_sites)[data->connected_item].site = *data->m_site;
-			}
+			(*m_connected_sites)[data->connected_item].site = *data->m_site;
+			(*m_connected_sites)[data->connected_item].site.SetSitePath(GetSitePath(child));
 		}
 	}
 
@@ -917,8 +923,8 @@ bool CSiteManagerDialog::Verify()
 	}
 
 	if (data->m_site) {
-		bool const predefined = IsPredefinedItem(item);
-		if (!m_pNotebook_Site->Verify(predefined)) {
+		Site newSite = *data->m_site;
+		if (!m_pNotebook_Site->UpdateSite(newSite, false)) {
 			return false;
 		}
 	}
@@ -1135,10 +1141,16 @@ void CSiteManagerDialog::OnSelChanging(wxTreeEvent& event)
 	UpdateItem();
 }
 
-void CSiteManagerDialog::OnSelChanged(wxTreeEvent&)
+void CSiteManagerDialog::OnSelChanged(wxTreeEvent& evt)
 {
 	if (m_is_deleting) {
 		return;
+	}
+
+	if (tree_->InPrefixSearch()) {
+		m_is_deleting = true;
+		tree_->SafeSelectItem(evt.GetItem());
+		m_is_deleting = false;
 	}
 
 	SetCtrlState();
@@ -1186,8 +1198,7 @@ bool CSiteManagerDialog::UpdateItem()
 	}
 
 	if (data->m_site) {
-		UpdateServer(*data->m_site, tree_->GetItemText(item));
-		return true;
+		return UpdateServer(*data->m_site, tree_->GetItemText(item));
 	}
 	else {
 		wxASSERT(data->m_bookmark);
@@ -1213,11 +1224,16 @@ bool CSiteManagerDialog::UpdateBookmark(Bookmark &bookmark, Site const& site)
 	return true;
 }
 
-void CSiteManagerDialog::UpdateServer(Site & site, const wxString &name)
+bool CSiteManagerDialog::UpdateServer(Site & site, const wxString &name)
 {
-	m_pNotebook_Site->UpdateSite(site);
+	Site newSite = site;
+	newSite.SetName(name.ToStdWstring());
+	if (!m_pNotebook_Site->UpdateSite(newSite, true)) {
+		return false;
+	}
 
-	site.server.SetName(name.ToStdWstring());
+	site = newSite;
+	return true;
 }
 
 bool CSiteManagerDialog::GetServer(Site& data, Bookmark& bookmark)
@@ -1381,8 +1397,47 @@ void CSiteManagerDialog::SetCtrlState()
 #endif
 }
 
-void CSiteManagerDialog::OnCopySite(wxCommandEvent&)
+void CSiteManagerDialog::OnSearch(wxCommandEvent&)
 {
+	CInputDialog dlg;
+	if (!dlg.Create(this, _("Search sites"), _("Search for entries containing the entered text."))) {
+		return;
+	}
+
+	if (dlg.ShowModal() != wxID_OK) {
+		return;
+	}
+
+	wxString search = dlg.GetValue().Lower();
+
+	m_is_deleting = true;
+	tree_->UnselectAll();
+
+	bool match{};
+	wxTreeItemId item = tree_->GetRootItem();
+	while (item) {
+		auto name = tree_->GetItemText(item).Lower();
+		if (name.find(search) != wxString::npos) {
+			tree_->SafeSelectItem(item, false);
+			match = true;
+		}
+
+		item = tree_->GetNextItemSimple(item, true);
+	}
+	SetCtrlState();
+	m_is_deleting = false;
+
+	if (match) {
+		tree_->SetFocus();
+	}
+	else {
+		wxMessageBoxEx(wxString::Format(_("No entries found matching '%s'."), dlg.GetValue()), _("Search result"), wxICON_INFORMATION);
+	}
+}
+
+
+void CSiteManagerDialog::OnCopySite(wxCommandEvent&)
+	{
 	std::vector<wxTreeItemId> items;
 
 	wxTreeItemId item = tree_->GetSelection();
@@ -1501,7 +1556,19 @@ bool CSiteManagerDialog::IsPredefinedItem(wxTreeItemId item)
 
 void CSiteManagerDialog::OnBeginDrag(wxTreeEvent& event)
 {
+#ifdef __WXMSW__
+	// On a multi-selection tree control, if vetoing a selection change,
+	// wxWidgets doesn't reset the drag source. Next time mouse is moved
+	// drag is started even if mouse if up again...
+	wxMouseState mouseState = wxGetMouseState();
+	if (!mouseState.LeftIsDown()) {
+		event.Veto();
+		return;
+	}
+#endif
+
 	if (COptions::Get()->GetOptionVal(OPTION_DND_DISABLED) != 0) {
+		event.Veto();
 		return;
 	}
 
@@ -1780,6 +1847,10 @@ void CSiteManagerDialog::AddNewSite(wxTreeItemId parent, Site const& site, bool 
 	CSiteManagerItemData* pData = new CSiteManagerItemData;
 	pData->m_site = std::make_unique<Site>();
 	*pData->m_site = site;
+
+	// Erase updated server info
+	pData->m_site->server = site.GetOriginalServer();
+	pData->m_site->originalServer.reset();
 	if (connected) {
 		pData->connected_item = 0;
 	}
@@ -1821,12 +1892,15 @@ void CSiteManagerDialog::RememberLastSelected()
 	COptions::Get()->SetOption(OPTION_SITEMANAGER_LASTSELECTED, path);
 }
 
-void CSiteManagerDialog::OnContextMenu(wxTreeEvent& event)
+void CSiteManagerDialog::OnContextMenu(wxTreeEvent&)
 {
+	if (!Verify()) {
+		return;
+	}
+	UpdateItem();
+
 	wxMenu menu;
 	menu.Append(XRCID("ID_EXPORT"), _("&Export..."));
-
-	m_contextMenuItem = event.GetItem();
 
 	PopupMenu(&menu);
 }
@@ -1851,7 +1925,25 @@ void CSiteManagerDialog::OnExportSelected(wxCommandEvent&)
 	auto exportRoot = xml.CreateEmpty();
 
 	auto servers = exportRoot.append_child("Servers");
-	SaveChild(servers, m_contextMenuItem);
+
+	auto selections = tree_->GetSelections();
+
+	wxTreeItemId ancestor;
+	for (auto const& item : selections) {
+		if (!item.IsOk() || item == tree_->GetRootItem()) {
+			return;
+		}
+
+		// Only keep items that do not have an ancestor that is already being copied
+		auto parent = tree_->GetItemParent(item);
+		while (parent && parent != ancestor) {
+			parent = tree_->GetItemParent(parent);
+		}
+		if (!parent) {
+			ancestor = item;
+			SaveChild(servers, item);
+		}
+	}
 
 	if (!xml.Save(false)) {
 		wxString msg = wxString::Format(_("Could not write \"%s\", the selected sites could not be exported: %s"), xml.GetFileName(), xml.GetError());

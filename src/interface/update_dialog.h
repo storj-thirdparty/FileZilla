@@ -23,16 +23,16 @@ public:
 protected:
 	virtual void UpdaterStateChanged( UpdaterState s, build const& v );
 
-	void LoadPanel(wxString const& name);
 	void Wrap();
 
 	void InitFooter();
 
 	void UpdateProgress();
 
-	wxWindow* parent_;
+	wxWindow* parent_{};
 	CUpdater& updater_;
 
+	wxPanel* content_{};
 	std::vector<wxPanel*> panels_;
 
 	wxTimer timer_;

@@ -7,6 +7,8 @@
 #include <libfilezilla/process.hpp>
 #include <libfilezilla/translate.hpp>
 
+#include <wx/filedlg.h>
+
 CFZPuttyGenInterface::CFZPuttyGenInterface(wxWindow* parent)
 	: m_parent(parent)
 {
@@ -93,11 +95,9 @@ bool CFZPuttyGenInterface::LoadKeyFile(std::wstring& keyFile, bool silent, std::
 
 		msg = wxString::Format(_("Enter the password for the file '%s'.\nThe converted file will be protected with the same password."), keyFile);
 		CInputDialog dlg;
-		if (!dlg.Create(m_parent, _("Password required"), msg)) {
+		if (!dlg.Create(m_parent, _("Password required"), msg, -1, true)) {
 			return false;
 		}
-
-		dlg.SetPasswordMode(true);
 
 		if (dlg.ShowModal() != wxID_OK) {
 			return false;

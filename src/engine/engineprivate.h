@@ -11,10 +11,11 @@
 #include "option_change_event_handler.h"
 
 #include <atomic>
+#include <list>
+#include <deque>
 
 class CControlSocket;
 class CLogging;
-class CRateLimiter;
 class OpLockManager;
 
 enum EngineNotificationType
@@ -63,9 +64,6 @@ public:
 	int Cancel();
 	int ResetOperation(int nErrorCode);
 
-	const CCommand *GetCurrentCommand() const;
-	Command GetCurrentCommandId() const;
-
 	bool IsBusy() const;
 	bool IsConnected() const;
 
@@ -87,11 +85,12 @@ public:
 	std::unique_ptr<CNotification> GetNextNotification();
 
 	COptionsBase& GetOptions() { return m_options; }
-	CRateLimiter& GetRateLimiter() { return m_rateLimiter; }
+	fz::rate_limiter& GetRateLimiter() { return rate_limiter_; }
 	CDirectoryCache& GetDirectoryCache() { return directory_cache_; }
 	CPathCache& GetPathCache() { return path_cache_; }
 	fz::thread_pool& GetThreadPool() { return thread_pool_; }
 	CFileZillaEngineContext& GetContext() { return context_; }
+	CFileZillaEngine& GetParent() { return parent_; }
 
 	// If deleting or renaming a directory, it could be possible that another
 	// engine's CControlSocket instance still has that directory as
@@ -168,15 +167,16 @@ protected:
 
 	std::unique_ptr<CControlSocket> controlSocket_;
 
-	std::unique_ptr<CCommand> m_pCurrentCommand;
+	std::unique_ptr<CCommand> currentCommand_;
 
-	// Protect access to these three with notification_mutex_
+	// Protect access to these with notification_mutex_
 	std::deque<CNotification*> m_NotificationList;
 	bool m_maySendNotificationEvent{true};
-	unsigned int m_asyncRequestCounter{};
+	bool queue_logs_{true};
+	std::vector<CLogmsgNotification*> queued_logs_;
 
-	bool m_bIsInCommand{}; //true if Command is on the callstack
-	int m_nControlSocketError{};
+
+	std::atomic<unsigned int> asyncRequestCounter_{};
 
 	COptionsBase& m_options;
 
@@ -200,15 +200,11 @@ protected:
 	int m_retryCount{};
 	fz::timer_id m_retryTimer{};
 
-	CRateLimiter& m_rateLimiter;
+	fz::rate_limiter& rate_limiter_;
 	CDirectoryCache& directory_cache_;
 	CPathCache& path_cache_;
 
 	CFileZillaEngine& parent_;
-
-	bool queue_logs_{true};
-
-	std::vector<CLogmsgNotification*> queued_logs_;
 
 	fz::thread_pool & thread_pool_;
 
@@ -216,9 +212,6 @@ protected:
 
 	CFileZillaEngineContext& context_;
 };
-
-struct command_event_type{};
-typedef fz::simple_event<command_event_type> CCommandEvent;
 
 struct async_request_reply_event_type{};
 typedef fz::simple_event<async_request_reply_event_type, std::unique_ptr<CAsyncRequestNotification>> CAsyncRequestReplyEvent;

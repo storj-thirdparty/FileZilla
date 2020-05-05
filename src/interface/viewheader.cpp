@@ -68,6 +68,7 @@ CViewHeader::CViewHeader(wxWindow* pParent, const wxString& label)
 	Create(pParent, wxID_ANY);
 
 	m_pComboBox = new CComboBoxEx(this);
+	m_pComboBox->SetMaxLength(20000);
 	m_pLabel = new wxStaticText(this, wxID_ANY, label, wxDefaultPosition, wxDefaultSize);
 	wxSize size = GetSize();
 	size.SetHeight(m_pComboBox->GetBestSize().GetHeight() + border_offset);

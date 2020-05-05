@@ -6,7 +6,8 @@
 class COptionsPageSizeFormatting final : public COptionsPage
 {
 public:
-	virtual wxString GetResourceName() const override { return _T("ID_SETTINGS_SIZEFORMATTING"); }
+	virtual bool CreateControls(wxWindow* parent) override;
+
 	virtual bool LoadPage() override;
 	virtual bool SavePage() override;
 	virtual bool Validate() override;

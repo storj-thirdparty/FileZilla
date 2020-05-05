@@ -1,7 +1,7 @@
 #include <filezilla.h>
 
 #include "chmod.h"
-#include "directorycache.h"
+#include "../directorycache.h"
 
 enum chmodStates
 {
@@ -13,6 +13,7 @@ enum chmodStates
 int CSftpChmodOpData::Send()
 {
 	if (opState == chmod_init) {
+		log(logmsg::status, _("Setting permissions of '%s' to '%s'"), command_.GetPath().FormatFilename(command_.GetFile()), command_.GetPermission());
 		controlSocket_.ChangeDir(command_.GetPath());
 		opState = chmod_waitcwd;
 		return FZ_REPLY_CONTINUE;
@@ -22,8 +23,7 @@ int CSftpChmodOpData::Send()
 
 		std::wstring quotedFilename = controlSocket_.QuoteFilename(command_.GetPath().FormatFilename(command_.GetFile(), !useAbsolute_));
 
-		return controlSocket_.SendCommand(L"chmod " + command_.GetPermission() + L" " + controlSocket_.WildcardEscape(quotedFilename),
-				L"chmod " + command_.GetPermission() + L" " + quotedFilename);		
+		return controlSocket_.SendCommand(L"chmod " + command_.GetPermission() + L" " + quotedFilename);
 	}
 
 	return FZ_REPLY_INTERNALERROR;

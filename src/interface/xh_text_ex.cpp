@@ -15,9 +15,7 @@ wxObject *wxTextCtrlXmlHandlerEx::DoCreateResource()
 				 GetID(),
 				 GetText(wxT("value")),
 				 GetPosition(), GetSize(),
-				 GetStyle(),
-				 wxDefaultValidator,
-				 GetName());
+				 GetStyle());
 
 	SetupWindow(text);
 

@@ -1,6 +1,8 @@
 #include <filezilla.h>
 #include "wxfilesystem_blob_handler.h"
 
+#include <libfilezilla/encode.hpp>
+
 #include <wx/mstream.h>
 
 bool wxFileSystemBlobHandler::CanOpen(wxString const& location)
@@ -48,7 +50,7 @@ wxFSFile* wxFileSystemBlobHandler::OpenFile(wxFileSystem&, const wxString& locat
 		if (!data.empty()) {
 			buf = static_cast<unsigned char*>(malloc(data.size()));
 			if (buf) {
-				memcpy(buf, &data, data.size());
+				memcpy(buf, data.data(), data.size());
 				buf_len = data.size();
 			}
 		}

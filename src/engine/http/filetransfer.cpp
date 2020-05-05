@@ -4,6 +4,7 @@
 
 #include <libfilezilla/local_filesys.hpp>
 
+#include <assert.h>
 #include <string.h>
 
 enum filetransferStates

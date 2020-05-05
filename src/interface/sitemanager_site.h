@@ -5,6 +5,8 @@
 
 class Site;
 class CSiteManagerDialog;
+class SiteControls;
+class GeneralSiteControls; //remove
 class CSiteManagerSite : public wxNotebook
 {
 public:
@@ -12,49 +14,23 @@ public:
 
 	bool Load(wxWindow * parent);
 
-	bool Verify(bool predefined);
-
-	void UpdateSite(Site &site);
+	bool UpdateSite(Site &site, bool silent);
 	void SetSite(Site const& site, bool predefined);
 
 private:
-	void InitProtocols();
-	void SetProtocol(ServerProtocol protocol);
-	ServerProtocol GetProtocol() const;
-
-	LogonType GetLogonType() const;
-	
 	void SetControlVisibility(ServerProtocol protocol, LogonType type);
-	
-	
-	void SetLogonTypeCtrlState();
-
-	void UpdateHostFromDefaults(ServerProtocol const protocol);
-
-	void SetExtraParameters(CServer const& server);
-	void UpdateExtraParameters(CServer & server);
-
-	DECLARE_EVENT_TABLE()
-	void OnProtocolSelChanged(wxCommandEvent& event);
-	void OnLogontypeSelChanged(wxCommandEvent& event);
-	void OnCharsetChange(wxCommandEvent& event);
-	void OnLimitMultipleConnectionsChanged(wxCommandEvent& event);
-	void OnRemoteDirBrowse(wxCommandEvent& event);
-	void OnKeyFileBrowse(wxCommandEvent&);
-	void OnGenerateEncryptionKey(wxCommandEvent&);
 
 	CSiteManagerDialog & sitemanager_;
 
-	std::map<ServerProtocol, int> mainProtocolListIndex_;
+	wxNotebookPage *generalPage_{};
+	wxNotebookPage *advancedPage_{};
+	wxNotebookPage *charsetPage_{};
+	wxNotebookPage *transferPage_{};
+	wxNotebookPage *s3Page_{};
 
-	wxNotebookPage *m_pCharsetPage{};
-	wxNotebookPage *m_pS3Page{};
+	std::vector<std::unique_ptr<SiteControls>> controls_;
 	wxString m_charsetPageText;
 	size_t m_totalPages = -1;
-
-	ServerProtocol previousProtocol_{UNKNOWN};
-
-	std::vector<std::pair<wxStaticText*, wxTextCtrl*>> extraParameters_[ParameterSection::section_count];
 
 	bool predefined_{};
 };

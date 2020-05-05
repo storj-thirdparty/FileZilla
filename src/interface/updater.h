@@ -7,9 +7,10 @@
 
 #include <wx/timer.h>
 
-#include <functional>
-
 #include <libfilezilla/uri.hpp>
+
+#include <functional>
+#include <list>
 
 struct build
 {
@@ -22,7 +23,7 @@ struct build
 struct version_information
 {
 	bool empty() const {
-		return available_.version_.empty();
+		return available_.version_.empty() && !eol_;
 	}
 
 	void update_available();
@@ -36,6 +37,8 @@ struct version_information
 	std::wstring changelog_;
 
 	std::wstring resources_;
+
+	bool eol_{};
 };
 
 enum class UpdaterState
@@ -45,7 +48,9 @@ enum class UpdaterState
 	checking,
 	newversion, // There is a new version available, user needs to manually download
 	newversion_downloading, // There is a new version available, file is being downloaded
-	newversion_ready // There is a new version available, file has been downloaded
+	newversion_ready, // There is a new version available, file has been downloaded
+	newversion_stale, // Very old version of FileZilla. Either update checking has been disabled or is otherwise not working.
+	eol // Too old of an operating system
 };
 
 class CUpdateHandler
@@ -78,8 +83,6 @@ public:
 
 	std::wstring GetLog() const { return log_; }
 
-	bool LongTimeSinceLastCheck() const;
-
 	static CUpdater* GetInstance();
 
 	bool UpdatableBuild() const;
@@ -89,6 +92,8 @@ public:
 	bool Busy() const;
 
 protected:
+	bool LongTimeSinceLastCheck() const;
+
 	int Download(std::wstring const& url, std::wstring const& local_file = std::wstring());
 	int Request(fz::uri const& uri);
 	int ContinueDownload();
@@ -123,10 +128,10 @@ protected:
 
 	UpdaterState state_;
 	std::wstring local_file_;
-	
+
 	CFileZillaEngineContext& engine_context_;
 	CFileZillaEngine* engine_{};
-	
+
 	bool m_use_internal_rootcert{};
 
 	std::wstring raw_version_information_;

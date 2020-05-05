@@ -11,10 +11,7 @@ public:
 	bool Create(wxWindow* parent);
 
 protected:
-
-	DECLARE_EVENT_TABLE()
-	void OnOK(wxCommandEvent&);
-	void OnCopy(wxCommandEvent&);
+	void OnCopy();
 };
 
 #endif

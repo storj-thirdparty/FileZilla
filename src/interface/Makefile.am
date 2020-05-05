@@ -21,7 +21,8 @@ filezilla_DEPENDENCIES += libfzmac.a
 endif
 
 # the application source, library search path, and link libraries
-filezilla_SOURCES = aboutdialog.cpp \
+filezilla_SOURCES = \
+		aboutdialog.cpp \
 		asksavepassworddialog.cpp \
 		asyncrequestqueue.cpp \
 		aui_notebook_ex.cpp \
@@ -54,6 +55,7 @@ filezilla_SOURCES = aboutdialog.cpp \
 		fzputtygen_interface.cpp \
 		graphics.cpp \
 		import.cpp \
+		infotext.cpp \
 		inputdialog.cpp \
 		ipcmutex.cpp \
 		led.cpp \
@@ -112,6 +114,7 @@ filezilla_SOURCES = aboutdialog.cpp \
 		settings/settingsdialog.cpp \
 		sftp_crypt_info_dlg.cpp \
 		sitemanager.cpp \
+		sitemanager_controls.cpp \
 		sitemanager_dialog.cpp \
 		sitemanager_site.cpp \
 		sizeformatting.cpp \
@@ -137,133 +140,138 @@ filezilla_SOURCES = aboutdialog.cpp \
 		welcome_dialog.cpp \
 		window_state_manager.cpp \
 		wrapengine.cpp \
+		wxext/spinctrlex.cpp \
 		wxfilesystem_blob_handler.cpp \
 		xh_text_ex.cpp \
 		xmlfunctions.cpp \
 		xrc_helper.cpp
 
 
-noinst_HEADERS = aboutdialog.h \
-		 asksavepassworddialog.h \
-		 asyncrequestqueue.h \
-		 aui_notebook_ex.h \
-		 auto_ascii_files.h \
-		 bookmarks_dialog.h \
-		 buildinfo.h \
-		 chmoddialog.h \
-		 clearprivatedata.h \
-		 cmdline.h \
-		 commandqueue.h \
-		 conditionaldialog.h \
-		 context_control.h \
-		 customheightlistctrl.h \
-		 defaultfileexistsdlg.h \
-		 dialogex.h \
-		 dndobjects.h \
-		 dragdropmanager.h \
-		 drop_target_ex.h \
-		 edithandler.h \
-		 encoding_converter.h \
-		 export.h \
-		 fileexistsdlg.h \
-		 filelistctrl.h \
-		 filelist_statusbar.h \
-		 filezilla.h \
-		 filezillaapp.h \
-		 filter.h \
-		 filter_conditions_dialog.h \
-		 filteredit.h \
-		 file_utils.h \
-		 fzputtygen_interface.h \
-		 graphics.h \
-		 import.h \
-		 inputdialog.h \
-		 ipcmutex.h \
-		 led.h \
-		 listctrlex.h \
-		 listingcomparison.h \
-		 list_search_panel.h \
-		 local_recursive_operation.h \
-		 locale_initializer.h \
-		 LocalListView.h \
-		 LocalTreeView.h \
-		 loginmanager.h \
-		 Mainfrm.h \
-		 manual_transfer.h \
-		 menu_bar.h \
-		 msgbox.h \
-		 netconfwizard.h \
-		 Options.h \
-		 power_management.h \
-		 queue.h \
-		 queue_storage.h \
-		 QueueView.h \
-		 queueview_failed.h \
-		 queueview_successful.h \
-		 quickconnectbar.h \
-		 recentserverlist.h \
-		 recursive_operation.h \
-		 recursive_operation_status.h \
-		 remote_recursive_operation.h \
-		 RemoteListView.h \
-		 RemoteTreeView.h \
-		 search.h \
-		 serverdata.h \
-		 settings/optionspage.h \
-		 settings/optionspage_connection.h \
-		 settings/optionspage_connection_active.h \
-		 settings/optionspage_connection_ftp.h \
-		 settings/optionspage_connection_passive.h \
-		 settings/optionspage_connection_sftp.h \
-		 settings/optionspage_dateformatting.h \
-		 settings/optionspage_debug.h \
-		 settings/optionspage_edit.h \
-		 settings/optionspage_edit_associations.h \
-		 settings/optionspage_fileexists.h \
-		 settings/optionspage_filelists.h \
-		 settings/optionspage_filetype.h \
-		 settings/optionspage_ftpproxy.h \
-		 settings/optionspage_interface.h \
-		 settings/optionspage_language.h \
-		 settings/optionspage_logging.h \
-		 settings/optionspage_passwords.h \
-		 settings/optionspage_proxy.h \
-		 settings/optionspage_sizeformatting.h \
-		 settings/optionspage_themes.h \
-		 settings/optionspage_transfer.h \
-		 settings/optionspage_updatecheck.h \
-		 settings/settingsdialog.h \
-		 sftp_crypt_info_dlg.h \
-		 sitemanager.h \
-		 sitemanager_dialog.h \
-		 sitemanager_site.h \
-		 sizeformatting.h \
-		 speedlimits_dialog.h \
-		 splitter.h \
-		 state.h \
-		 statuslinectrl.h \
-		 statusbar.h \
-		 StatusView.h \
-		 systemimagelist.h \
-		 textctrlex.h \
-		 themeprovider.h \
-		 timeformatting.h \
-		 toolbar.h \
-		 treectrlex.h \
-		 updater.h \
-		 update_dialog.h \
-		 verifycertdialog.h \
-		 verifyhostkeydialog.h \
-		 view.h \
-		 viewheader.h \
-		 volume_enumerator.h \
-		 welcome_dialog.h \
-		 window_state_manager.h \
-		 wrapengine.h \
-		 wxfilesystem_blob_handler.h \
-		 xh_text_ex.h \
-		 xmlfunctions.h \
-		 xrc_helper.h
+noinst_HEADERS = \
+		aboutdialog.h \
+		asksavepassworddialog.h \
+		asyncrequestqueue.h \
+		aui_notebook_ex.h \
+		auto_ascii_files.h \
+		bookmarks_dialog.h \
+		buildinfo.h \
+		chmoddialog.h \
+		clearprivatedata.h \
+		cmdline.h \
+		commandqueue.h \
+		conditionaldialog.h \
+		context_control.h \
+		customheightlistctrl.h \
+		defaultfileexistsdlg.h \
+		dialogex.h \
+		dndobjects.h \
+		dragdropmanager.h \
+		drop_target_ex.h \
+		edithandler.h \
+		encoding_converter.h \
+		export.h \
+		fileexistsdlg.h \
+		filelistctrl.h \
+		filelist_statusbar.h \
+		filezilla.h \
+		filezillaapp.h \
+		filter.h \
+		filter_conditions_dialog.h \
+		filteredit.h \
+		file_utils.h \
+		fzputtygen_interface.h \
+		graphics.h \
+		import.h \
+		infotext.h \
+		inputdialog.h \
+		ipcmutex.h \
+		led.h \
+		listctrlex.h \
+		listingcomparison.h \
+		list_search_panel.h \
+		local_recursive_operation.h \
+		locale_initializer.h \
+		LocalListView.h \
+		LocalTreeView.h \
+		loginmanager.h \
+		Mainfrm.h \
+		manual_transfer.h \
+		menu_bar.h \
+		msgbox.h \
+		netconfwizard.h \
+		Options.h \
+		power_management.h \
+		queue.h \
+		queue_storage.h \
+		QueueView.h \
+		queueview_failed.h \
+		queueview_successful.h \
+		quickconnectbar.h \
+		recentserverlist.h \
+		recursive_operation.h \
+		recursive_operation_status.h \
+		remote_recursive_operation.h \
+		RemoteListView.h \
+		RemoteTreeView.h \
+		search.h \
+		serverdata.h \
+		settings/optionspage.h \
+		settings/optionspage_connection.h \
+		settings/optionspage_connection_active.h \
+		settings/optionspage_connection_ftp.h \
+		settings/optionspage_connection_passive.h \
+		settings/optionspage_connection_sftp.h \
+		settings/optionspage_dateformatting.h \
+		settings/optionspage_debug.h \
+		settings/optionspage_edit.h \
+		settings/optionspage_edit_associations.h \
+		settings/optionspage_fileexists.h \
+		settings/optionspage_filelists.h \
+		settings/optionspage_filetype.h \
+		settings/optionspage_ftpproxy.h \
+		settings/optionspage_interface.h \
+		settings/optionspage_language.h \
+		settings/optionspage_logging.h \
+		settings/optionspage_passwords.h \
+		settings/optionspage_proxy.h \
+		settings/optionspage_sizeformatting.h \
+		settings/optionspage_themes.h \
+		settings/optionspage_transfer.h \
+		settings/optionspage_updatecheck.h \
+		settings/settingsdialog.h \
+		sftp_crypt_info_dlg.h \
+		sitemanager.h \
+		sitemanager_controls.h \
+		sitemanager_dialog.h \
+		sitemanager_site.h \
+		sizeformatting.h \
+		speedlimits_dialog.h \
+		splitter.h \
+		state.h \
+		statuslinectrl.h \
+		statusbar.h \
+		StatusView.h \
+		systemimagelist.h \
+		textctrlex.h \
+		themeprovider.h \
+		timeformatting.h \
+		toolbar.h \
+		treectrlex.h \
+		updater.h \
+		update_dialog.h \
+		verifycertdialog.h \
+		verifyhostkeydialog.h \
+		view.h \
+		viewheader.h \
+		volume_enumerator.h \
+		welcome_dialog.h \
+		window_state_manager.h \
+		wrapengine.h \
+		wxext/spinctrlex.h \
+		wxfilesystem_blob_handler.h \
+		xh_text_ex.h \
+		xmlfunctions.h \
+		xrc_helper.h
 
 if ENABLE_STORJ
 filezilla_SOURCES += \
@@ -303,7 +311,7 @@ filezilla_CPPFLAGS += $(LIBSQLITE3_CFLAGS)
 filezilla_LDFLAGS += $(LIBSQLITE3_LIBS)
 
 if MINGW
-filezilla_LDFLAGS += -lnormaliz -lole32 -luuid -lnetapi32 -lmpr -lpowrprof -lws2_32
+filezilla_LDFLAGS += -lnormaliz -lole32 -luuid -lnetapi32 -lmpr -lpowrprof -lws2_32 -lshlwapi
 endif
 
 # GTK+ libs, empty if not using wxGTK

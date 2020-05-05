@@ -1,4 +1,4 @@
-#define FZSFTP_PROTOCOL_VERSION 8
+#define FZSFTP_PROTOCOL_VERSION 9
 
 typedef enum
 {
@@ -30,6 +30,8 @@ typedef enum
     sftpMacServerToClient,
     sftpHostkey
 } sftpEventTypes;
+
+extern bool pending_reply;
 
 int fznotify(sftpEventTypes type);
 

@@ -6,6 +6,8 @@
 #include <libfilezilla/buffer.hpp>
 #include <libfilezilla/socket.hpp>
 
+#include <directorylisting.h>
+
 #include "oplock_manager.h"
 #include "server.h"
 #include "serverpath.h"
@@ -32,13 +34,14 @@ public:
 	virtual int Send() = 0;
 	virtual int ParseResponse() = 0;
 
-	virtual int SubcommandResult(int, COpData const&) { return FZ_REPLY_INTERNALERROR; }
+	virtual int SubcommandResult(int prevResult, COpData const&) { return prevResult == FZ_REPLY_OK ? FZ_REPLY_CONTINUE : prevResult; }
 
 	// Called just prior to destructing the operation. Do not push a new operation here.
 	virtual int Reset(int result) { return result; }
 
 	int opState{};
 	Command const opId;
+	bool topLevelOperation_{}; // If set to true, if this command finishes, any other commands on the stack do not get a SubCommandResult
 
 	bool waitForAsyncRequest{};
 	OpLock opLock_;
@@ -73,6 +76,20 @@ public:
 	CServerPath& currentPath_;
 };
 
+class ResultOpData : public COpData
+{
+public:
+	explicit ResultOpData(int result)
+		: COpData(Command::none, L"ResultOpData")
+		, result_(result)
+	{}
+
+	virtual int Send() override { return result_; }
+	virtual int ParseResponse() override { return FZ_REPLY_INTERNALERROR; }
+
+	int const result_{};
+};
+
 class CNotSupportedOpData : public COpData
 {
 public:
@@ -80,8 +97,27 @@ public:
 		: COpData(Command::none, L"CNotSupportedOpData")
 	{}
 
-	virtual int Send() { return FZ_REPLY_NOTSUPPORTED; }
-	virtual int ParseResponse() { return FZ_REPLY_INTERNALERROR; }
+	virtual int Send() override { return FZ_REPLY_NOTSUPPORTED; }
+	virtual int ParseResponse() override { return FZ_REPLY_INTERNALERROR; }
+};
+
+class SleepOpData final : public COpData, public::fz::event_handler
+{
+public:
+	SleepOpData(CControlSocket & controlSocket, fz::duration const& delay);
+
+	virtual ~SleepOpData()
+	{
+		remove_handler();
+	}
+
+	virtual int Send() override { return FZ_REPLY_WOULDBLOCK; }
+	virtual int ParseResponse() override { return FZ_REPLY_INTERNALERROR; }
+
+private:
+	virtual void operator()(fz::event_base const&) override;
+
+	CControlSocket & controlSocket_;
 };
 
 class CFileTransferOpData : public COpData
@@ -178,16 +214,15 @@ public:
 							 std::wstring const& remoteFile, bool download,
 							 CFileTransferCommand::t_transferSettings const& transferSettings) = 0;
 	virtual void RawCommand(std::wstring const& command = std::wstring());
-	virtual void Delete(CServerPath const& path, std::deque<std::wstring>&& files);
+	virtual void Delete(CServerPath const& path, std::vector<std::wstring>&& files);
 	virtual void RemoveDir(CServerPath const& path = CServerPath(), std::wstring const& subDir = std::wstring());
 	virtual void Mkdir(CServerPath const& path);
 	virtual void Rename(CRenameCommand const& command);
 	virtual void Chmod(CChmodCommand const& command);
+	void Sleep(fz::duration const& delay);
 
 	virtual bool Connected() const = 0;
 
-	// If m_pCurrentOpData is zero, this function returns the current command
-	// from the engine.
 	Command GetCurrentCommandId() const;
 
 	void SendAsyncRequest(CAsyncRequestNotification* pNotification);
@@ -231,14 +266,24 @@ public:
 	void log_raw(Args&& ... args) {
 		logger_.log_raw(std::forward<Args>(args)...);
 	}
+
+	fz::logger_interface& logger() const { return logger_; }
+
 protected:
+	virtual void Lookup(CServerPath const& path, std::wstring const& file, CDirentry * entry = nullptr);
+	virtual void Lookup(CServerPath const& path, std::vector<std::wstring> const& files);
+
+	friend class SleepOpData;
+	friend class LookupOpData;
+	friend class LookupManyOpData;
+	friend class CProtocolOpData<CControlSocket>;
+
 	virtual bool SetAsyncRequestReply(CAsyncRequestNotification *pNotification) = 0;
 	void SendDirectoryListingNotification(CServerPath const& path, bool failed);
 
 	fz::duration GetTimezoneOffset() const;
 
 	virtual int DoClose(int nErrorCode = FZ_REPLY_DISCONNECTED | FZ_REPLY_ERROR);
-	bool m_closed{};
 
 	virtual int ResetOperation(int nErrorCode);
 	virtual void UpdateCache(COpData const& data, CServerPath const& serverPath, std::wstring const& remoteFile, int64_t fileSize);
@@ -254,15 +299,16 @@ protected:
 
 	void CreateLocalDir(std::wstring const& local_file);
 
-	bool ParsePwdReply(std::wstring reply, bool unquoted = false, const CServerPath& defaultPath = CServerPath());
+	bool ParsePwdReply(std::wstring reply, const CServerPath& defaultPath = CServerPath());
 
-	void Push(std::unique_ptr<COpData> && pNewOpData);
+	virtual void Push(std::unique_ptr<COpData> && pNewOpData);
 
 	OpLock Lock(locking_reason reason, CServerPath const& path, bool inclusive = false);
 
 	std::vector<std::unique_ptr<COpData>> operations_;
 	CFileZillaEnginePrivate & engine_;
 	CServer currentServer_;
+	Credentials credentials_;
 
 	CServerPath currentPath_;
 
@@ -286,7 +332,10 @@ protected:
 };
 
 class CProxySocket;
-class CRatelimitLayer;
+
+namespace fz {
+class rate_limited_layer;
+}
 
 class CRealControlSocket : public CControlSocket
 {
@@ -317,7 +366,7 @@ protected:
 	}
 
 	std::unique_ptr<fz::socket> socket_;
-	std::unique_ptr<CRatelimitLayer> ratelimit_layer_;
+	std::unique_ptr<fz::rate_limited_layer> ratelimit_layer_;
 	std::unique_ptr<CProxySocket> proxy_layer_;
 	fz::socket_layer* active_layer_{};
 

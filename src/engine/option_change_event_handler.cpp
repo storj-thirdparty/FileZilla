@@ -1,9 +1,10 @@
 #include <filezilla.h>
 #include "option_change_event_handler.h"
 
-#include <algorithm>
-
 #include <libfilezilla/util.hpp>
+
+#include <algorithm>
+#include <assert.h>
 
 std::vector<COptionChangeEventHandler*> COptionChangeEventHandler::m_handlers;
 std::size_t COptionChangeEventHandler::notify_index_{npos};

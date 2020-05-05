@@ -4,6 +4,8 @@
 #include <option_change_event_handler.h>
 #include "state.h"
 
+#include <wx/toolbar.h>
+
 class CMainFrame;
 
 class CToolBar final : public wxToolBar, public CGlobalStateEventHandler, public COptionChangeEventHandler

@@ -5,9 +5,17 @@
       <Configuration>Debug</Configuration>
       <Platform>Win32</Platform>
     </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
     <ProjectConfiguration Include="Release|Win32">
       <Configuration>Release</Configuration>
       <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
@@ -18,13 +26,24 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
-    <PlatformToolset>v141</PlatformToolset>
+    <PlatformToolset>v142</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <PlatformToolset>v142</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
     <WholeProgramOptimization>true</WholeProgramOptimization>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
-    <PlatformToolset>v141</PlatformToolset>
+    <PlatformToolset>v142</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <PlatformToolset>v142</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
@@ -42,9 +61,15 @@
     <IntDir>$(Configuration)\</IntDir>
     <LinkIncremental>true</LinkIncremental>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <LinkIncremental>true</LinkIncremental>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <OutDir>$(Configuration)\</OutDir>
     <IntDir>$(Configuration)\</IntDir>
+    <LinkIncremental>false</LinkIncremental>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -65,6 +90,31 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
       <TargetMachine>MachineX86</TargetMachine>
+      <GenerateMapFile>true</GenerateMapFile>
+      <AdditionalDependencies>libnettle.dll.a;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    <Manifest>
+      <AdditionalManifestFiles>windows/windows_manifest.xml;%(AdditionalManifestFiles)</AdditionalManifestFiles>
+    </Manifest>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <AdditionalOptions>/MP %(AdditionalOptions)</AdditionalOptions>
+      <Optimization>Disabled</Optimization>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)\windows;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;_WINDOWS;NO_GSSAPI;SECURITY_WIN32;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <WarningLevel>Level3</WarningLevel>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+    </ClCompile>
+    <Link>
+      <OutputFile>..\bin\fzsftp.exe</OutputFile>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <SubSystem>Console</SubSystem>
       <GenerateMapFile>true</GenerateMapFile>
       <AdditionalDependencies>libnettle.dll.a;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
@@ -95,6 +145,29 @@
       <AdditionalDependencies>libnettle.dll.a;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <AdditionalOptions>/MP %(AdditionalOptions)</AdditionalOptions>
+      <Optimization>MaxSpeed</Optimization>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)\windows;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;_WINDOWS;NO_GSSAPI;SECURITY_WIN32;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+    </ClCompile>
+    <Link>
+      <OutputFile>..\bin\fzsftp.exe</OutputFile>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <SubSystem>Console</SubSystem>
+      <OptimizeReferences>true</OptimizeReferences>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <AdditionalDependencies>libnettle.dll.a;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="be_misc.c" />
     <ClCompile Include="be_none.c" />
@@ -102,13 +175,21 @@
     <ClCompile Include="cmdline.c" />
     <ClCompile Include="conf.c" />
     <ClCompile Include="cproxy.c" />
+    <ClCompile Include="ecc.c" />
     <ClCompile Include="errsock.c" />
     <ClCompile Include="fzprintf.c" />
     <ClCompile Include="fzsftp.c" />
     <ClCompile Include="import.c" />
-    <ClCompile Include="int64.c" />
     <ClCompile Include="logging.c" />
+    <ClCompile Include="mainchan.c" />
+    <ClCompile Include="marshal.c" />
+    <ClCompile Include="memory.c" />
     <ClCompile Include="misc.c" />
+    <ClCompile Include="mpint.c" />
+    <ClCompile Include="noprint.c" />
+    <ClCompile Include="noshare.c" />
+    <ClCompile Include="noterm.c" />
+    <ClCompile Include="nullplug.c" />
     <ClCompile Include="pinger.c" />
     <ClCompile Include="portfwd.c" />
     <ClCompile Include="pproxy.c" />
@@ -116,20 +197,35 @@
     <ClCompile Include="psftp.c" />
     <ClCompile Include="settings.c" />
     <ClCompile Include="sftp.c" />
+    <ClCompile Include="sftpcommon.c" />
     <ClCompile Include="ssh.c" />
+    <ClCompile Include="ssh2bpp.c" />
+    <ClCompile Include="ssh2censor.c" />
+    <ClCompile Include="ssh2connection-client.c" />
+    <ClCompile Include="ssh2connection.c" />
+    <ClCompile Include="ssh2kex-client.c" />
+    <ClCompile Include="ssh2transhk.c" />
+    <ClCompile Include="ssh2transport.c" />
+    <ClCompile Include="ssh2userauth.c" />
     <ClCompile Include="sshaes.c" />
     <ClCompile Include="ssharcf.c" />
+    <ClCompile Include="sshauxcrypt.c" />
     <ClCompile Include="sshbcrypt.c" />
     <ClCompile Include="sshblowf.c" />
-    <ClCompile Include="sshbn.c" />
     <ClCompile Include="sshccp.c" />
+    <ClCompile Include="sshcommon.c" />
     <ClCompile Include="sshcrc.c" />
     <ClCompile Include="sshcrcda.c" />
     <ClCompile Include="sshdes.c" />
     <ClCompile Include="sshdh.c" />
     <ClCompile Include="sshdss.c" />
     <ClCompile Include="sshecc.c" />
+    <ClCompile Include="sshecdsag.c" />
+    <ClCompile Include="sshgssc.c" />
+    <ClCompile Include="sshhmac.c" />
+    <ClCompile Include="sshmac.c" />
     <ClCompile Include="sshmd5.c" />
+    <ClCompile Include="sshprng.c" />
     <ClCompile Include="sshpubk.c" />
     <ClCompile Include="sshrand.c" />
     <ClCompile Include="sshrsa.c" />
@@ -137,10 +233,14 @@
     <ClCompile Include="sshsh512.c" />
     <ClCompile Include="sshsha.c" />
     <ClCompile Include="sshshare.c" />
+    <ClCompile Include="sshverstring.c" />
     <ClCompile Include="sshzlib.c" />
+    <ClCompile Include="stripctrl.c" />
     <ClCompile Include="timing.c" />
     <ClCompile Include="tree234.c" />
+    <ClCompile Include="utils.c" />
     <ClCompile Include="version.c" />
+    <ClCompile Include="wcwidth.c" />
     <ClCompile Include="wildcard.c" />
     <ClCompile Include="windows\wincapi.c" />
     <ClCompile Include="windows\wincons.c" />
@@ -148,23 +248,30 @@
     <ClCompile Include="windows\winhandl.c" />
     <ClCompile Include="windows\winhsock.c" />
     <ClCompile Include="windows\winmisc.c" />
+    <ClCompile Include="windows\winmiscs.c" />
     <ClCompile Include="windows\winnet.c" />
+    <ClCompile Include="windows\winnohlp.c" />
     <ClCompile Include="windows\winnoise.c" />
+    <ClCompile Include="windows\winnojmp.c" />
     <ClCompile Include="windows\winnpc.c" />
     <ClCompile Include="windows\winnps.c" />
     <ClCompile Include="windows\winpgntc.c" />
     <ClCompile Include="windows\winsecur.c" />
     <ClCompile Include="windows\winsftp.c" />
-    <ClCompile Include="windows\winshare.c" />
     <ClCompile Include="windows\winstore.c" />
     <ClCompile Include="windows\wintime.c" />
+    <ClCompile Include="windows\winucs.c" />
     <ClCompile Include="x11fwd.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="defs.h" />
+    <ClInclude Include="ecc.h" />
     <ClInclude Include="fzprintf.h" />
     <ClInclude Include="fzsftp.h" />
-    <ClInclude Include="int64.h" />
+    <ClInclude Include="marshal.h" />
     <ClInclude Include="misc.h" />
+    <ClInclude Include="mpint.h" />
+    <ClInclude Include="mpint_i.h" />
     <ClInclude Include="network.h" />
     <ClInclude Include="proxy.h" />
     <ClInclude Include="psftp.h" />
@@ -173,9 +280,15 @@
     <ClInclude Include="puttyps.h" />
     <ClInclude Include="sftp.h" />
     <ClInclude Include="ssh.h" />
+    <ClInclude Include="ssh2connection.h" />
+    <ClInclude Include="ssh2transport.h" />
     <ClInclude Include="sshblowf.h" />
-    <ClInclude Include="sshbn.h" />
+    <ClInclude Include="sshchan.h" />
+    <ClInclude Include="sshgssc.h" />
+    <ClInclude Include="sshsignals.h" />
+    <ClInclude Include="sshttymodes.h" />
     <ClInclude Include="storage.h" />
+    <ClInclude Include="terminal.h" />
     <ClInclude Include="tree234.h" />
     <ClInclude Include="windows\rcstuff.h" />
     <ClInclude Include="windows\wincapi.h" />

@@ -1,6 +1,6 @@
 #include <filezilla.h>
 
-#include "directorycache.h"
+#include "../directorycache.h"
 #include "mkd.h"
 
 enum mkdStates
@@ -20,6 +20,11 @@ int CStorjMkdirOpData::Send()
 			log(logmsg::error, _("Invalid path"));
 			return FZ_REPLY_CRITICALERROR;
 		}
+
+		if (controlSocket_.operations_.size() == 1) {
+			log(logmsg::status, _("Creating directory '%s'..."), path_.GetPath());
+		}
+
 		opState = mkd_mkbucket;
 		return FZ_REPLY_CONTINUE;
 	case mkd_mkbucket:

@@ -34,9 +34,9 @@ enum class loginCommandType
 
 struct t_loginCommand
 {
-	bool optional;
-	bool hide_arguments;
-	loginCommandType type;
+	bool optional{};
+	bool hide_arguments{};
+	loginCommandType type{};
 
 	std::wstring command;
 };
@@ -45,7 +45,7 @@ struct t_loginCommand
 class CFtpLogonOpData final : public COpData, public CFtpOpData
 {
 public:
-	CFtpLogonOpData(CFtpControlSocket& controlSocket, Credentials const& credentials);
+	CFtpLogonOpData(CFtpControlSocket& controlSocket);
 
 	virtual int Send() override;
 	virtual int ParseResponse() override;
@@ -55,7 +55,6 @@ public:
 	std::wstring challenge; // Used for interactive logons
 	bool waitChallenge{};
 	bool gotFirstWelcomeLine{};
-	Credentials credentials_;
 
 private:
 
@@ -66,7 +65,7 @@ private:
 
 	unsigned int customCommandIndex{};
 
-	int neededCommands[LOGON_DONE];
+	int neededCommands[LOGON_DONE]{};
 
 	std::deque<t_loginCommand> loginSequence;
 

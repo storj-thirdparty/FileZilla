@@ -4,6 +4,7 @@
 #include "filelistctrl.h"
 #include "state.h"
 
+class CInfoText;
 class CQueueView;
 class CLocalListViewDropTarget;
 #ifdef __WXMSW__
@@ -63,7 +64,7 @@ protected:
 public:
 	virtual bool CanStartComparison();
 	virtual void StartComparison();
-	virtual bool get_next_file(std::wstring & name, bool &dir, int64_t &size, fz::datetime& date) override;
+	virtual bool get_next_file(std::wstring_view & name, std::wstring & path, bool &dir, int64_t &size, fz::datetime& date) override;
 	virtual void FinishComparison();
 
 	virtual bool ItemIsDir(int index) const;
@@ -94,6 +95,9 @@ protected:
 
 	CView *m_parentView{};
 
+	CInfoText* m_pInfoText{};
+	void SetInfoText(wxString const& text);
+
 	// Event handlers
 	DECLARE_EVENT_TABLE()
 	void OnItemActivated(wxListEvent& event);
@@ -104,6 +108,7 @@ protected:
 	void OnMenuDelete(wxCommandEvent& event);
 	void OnMenuRename(wxCommandEvent& event);
 	void OnKeyDown(wxKeyEvent& event);
+	void OnSize(wxSizeEvent& event);
 	void OnBeginDrag(wxListEvent& event);
 	void OnMenuOpen(wxCommandEvent& event);
 	void OnMenuEdit(wxCommandEvent& event);

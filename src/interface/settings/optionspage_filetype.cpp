@@ -4,68 +4,136 @@
 #include "optionspage.h"
 #include "optionspage_filetype.h"
 
-BEGIN_EVENT_TABLE(COptionsPageFiletype, COptionsPage)
-EVT_BUTTON(XRCID("ID_ADD"), COptionsPageFiletype::OnAdd)
-EVT_BUTTON(XRCID("ID_REMOVE"), COptionsPageFiletype::OnRemove)
-EVT_TEXT(XRCID("ID_EXTENSION"), COptionsPageFiletype::OnTextChanged)
-EVT_LIST_ITEM_SELECTED(XRCID("ID_EXTENSIONS"), COptionsPageFiletype::OnSelChanged)
-EVT_LIST_ITEM_DESELECTED(XRCID("ID_EXTENSIONS"), COptionsPageFiletype::OnSelChanged)
-END_EVENT_TABLE()
+#include "../textctrlex.h"
+
+#include <wx/listctrl.h>
+#include <wx/statbox.h>
+
+struct COptionsPageFiletype::impl
+{
+	wxRadioButton* rbAuto_{};
+	wxRadioButton* rbAscii_{};
+	wxRadioButton* rbBinary_{};
+
+	wxListCtrl* types_{};
+	wxTextCtrlEx* extension_{};
+	wxButton* add_{};
+	wxButton* remove_{};
+
+	wxCheckBox* noext_{};
+	wxCheckBox* dotfile_{};
+};
+
+COptionsPageFiletype::COptionsPageFiletype()
+	: impl_(std::make_unique<impl>())
+{
+}
+
+COptionsPageFiletype::~COptionsPageFiletype()
+{
+}
+
+bool COptionsPageFiletype::CreateControls(wxWindow* parent)
+{
+	auto const& lay = m_pOwner->layout();
+
+	Create(parent);
+	auto main = lay.createFlex(1);
+	main->AddGrowableCol(0);
+	main->AddGrowableRow(1);
+	SetSizer(main);
+
+	{
+		auto [box, inner] = lay.createStatBox(main, _("Default transfer type:"), 1);
+		impl_->rbAuto_ = new wxRadioButton(box, -1, _("&Auto"), wxDefaultPosition, wxDefaultSize, wxRB_GROUP);
+		inner->Add(impl_->rbAuto_);
+		impl_->rbAscii_ = new wxRadioButton(box, -1, _("A&SCII"));
+		inner->Add(impl_->rbAscii_);
+		impl_->rbBinary_ = new wxRadioButton(box, -1, _("&Binary"));
+		inner->Add(impl_->rbBinary_);
+	}
+
+	{
+		auto [box, inner] = lay.createStatBox(main, _("Automatic file type classification"), 1);
+
+		inner->Add(new wxStaticText(box, -1, _("Treat the &following filetypes as ASCII files:")));
+		auto row = lay.createFlex(3);
+		inner->Add(row);
+
+		impl_->types_ = new wxListCtrl(box, -1, wxDefaultPosition, wxDefaultSize, wxLC_SORT_ASCENDING | wxLC_REPORT | wxLC_NO_HEADER | wxBORDER_SUNKEN);
+		impl_->types_->SetMinSize(wxSize(100, 150));
+		impl_->types_->Bind(wxEVT_LIST_ITEM_SELECTED, [this](auto const&) { SetCtrlState(); });
+		impl_->types_->Bind(wxEVT_LIST_ITEM_DESELECTED, [this](auto const&) { SetCtrlState(); });
+		row->Add(impl_->types_);
+
+		auto col = lay.createGrid(1);
+		row->Add(col);
+		impl_->extension_ = new wxTextCtrlEx(box, -1);
+		impl_->extension_->Bind(wxEVT_TEXT, [this](auto const&) { SetCtrlState(); });
+		col->Add(impl_->extension_, lay.grow)->SetMinSize(wxSize(lay.dlgUnits(20), -1));
+		impl_->add_ = new wxButton(box, -1, _("A&dd"));
+		impl_->add_->Bind(wxEVT_BUTTON, [this](auto const&) { OnAdd(); });
+		col->Add(impl_->add_, lay.grow);
+		impl_->remove_ = new wxButton(box, -1, _("&Remove"));
+		impl_->remove_->Bind(wxEVT_BUTTON, [this](auto const&) { OnRemove(); });
+		col->Add(impl_->remove_, lay.grow);
+
+		row->Add(new wxStaticText(box, -1, _("If you enter the wrong filetypes, those files may get corrupted when transferred.")));
+
+		impl_->noext_ = new wxCheckBox(box, -1, _("Treat files &without extension as ASCII file"));
+		inner->Add(impl_->noext_);
+		impl_->dotfile_ = new wxCheckBox(box, -1, _("&Treat dotfiles as ASCII files"));
+		inner->Add(impl_->dotfile_);
+
+		inner->Add(new wxStaticText(box, -1, _("Dotfiles are filenames starting with a dot, e.g. .htaccess")));
+	}
+
+	return true;
+}
 
 bool COptionsPageFiletype::LoadPage()
 {
-	bool failure = false;
+	impl_->noext_->SetValue(m_pOptions->GetOptionVal(OPTION_ASCIINOEXT) != 0);
+	impl_->dotfile_->SetValue(m_pOptions->GetOptionVal(OPTION_ASCIIDOTFILE) != 0);
 
-	SetCheckFromOption(XRCID("ID_ASCIIWITHOUT"), OPTION_ASCIINOEXT, failure);
-	SetCheckFromOption(XRCID("ID_ASCIIDOTFILE"), OPTION_ASCIIDOTFILE, failure);
+	int const mode = m_pOptions->GetOptionVal(OPTION_ASCIIBINARY);
+	if (mode == 1) {
+		impl_->rbAscii_->SetValue(true);
+	}
+	else if (mode == 2) {
+		impl_->rbBinary_->SetValue(true);
+	}
+	else {
+		impl_->rbAuto_->SetValue(true);
+	}
+	impl_->types_->InsertColumn(0, wxString());
 
-	if (failure)
-		return false;
-
-	if (!FindWindow(XRCID("ID_EXTENSION")) || !FindWindow(XRCID("ID_ADD")) ||
-		!FindWindow(XRCID("ID_REMOVE")) || !FindWindow(XRCID("ID_EXTENSIONS")) ||
-		!FindWindow(XRCID("ID_TYPE_AUTO")) || !FindWindow(XRCID("ID_TYPE_ASCII")) ||
-		!FindWindow(XRCID("ID_TYPE_BINARY")))
-		return false;
-
-	int mode = m_pOptions->GetOptionVal(OPTION_ASCIIBINARY);
-	if (mode == 1)
-		SetRCheck(XRCID("ID_TYPE_ASCII"), true, failure);
-	else if (mode == 2)
-		SetRCheck(XRCID("ID_TYPE_BINARY"), true, failure);
-	else
-		SetRCheck(XRCID("ID_TYPE_AUTO"), true, failure);
-
-	wxListCtrl* pListCtrl = XRCCTRL(*this, "ID_EXTENSIONS", wxListCtrl);
-	pListCtrl->ClearAll();
-	pListCtrl->InsertColumn(0, wxString());
-
-	wxString extensions = m_pOptions->GetOption(OPTION_ASCIIFILES);
-	wxString ext;
-	int pos = extensions.Find(_T("|"));
-	while (pos != -1) {
+	std::wstring extensions = m_pOptions->GetOption(OPTION_ASCIIFILES);
+	std::wstring ext;
+	size_t pos = extensions.find('|');
+	while (pos != std::wstring::npos) {
 		if (!pos) {
 			if (!ext.empty()) {
-				ext.Replace(_T("\\\\"), _T("\\"));
-				pListCtrl->InsertItem(pListCtrl->GetItemCount(), ext);
+				fz::replace_substrings(ext, L"\\\\", L"\\");
+				impl_->types_->InsertItem(impl_->types_->GetItemCount(), ext);
 				ext.clear();
 			}
 		}
-		else if (extensions.c_str()[pos - 1] != '\\') {
-			ext += extensions.Left(pos);
-			ext.Replace(_T("\\\\"), _T("\\"));
-			pListCtrl->InsertItem(pListCtrl->GetItemCount(), ext);
+		else if (extensions[pos - 1] != '\\') {
+			ext += extensions.substr(0, pos);
+			fz::replace_substrings(ext, L"\\\\", L"\\");
+			impl_->types_->InsertItem(impl_->types_->GetItemCount(), ext);
 			ext.clear();
 		}
 		else {
-			ext += extensions.Left(pos - 1) + _T("|");
+			ext += extensions.substr(0, pos - 1) + '|';
 		}
-		extensions = extensions.Mid(pos + 1);
-		pos = extensions.Find(_T("|"));
+		extensions = extensions.substr(pos + 1);
+		pos = extensions.find('|');
 	}
 	ext += extensions;
-	ext.Replace(_T("\\\\"), _T("\\"));
-	pListCtrl->InsertItem(pListCtrl->GetItemCount(), ext);
+	fz::replace_substrings(ext, L"\\\\", L"\\");
+	impl_->types_->InsertItem(impl_->types_->GetItemCount(), ext);
 
 	SetCtrlState();
 
@@ -74,98 +142,71 @@ bool COptionsPageFiletype::LoadPage()
 
 bool COptionsPageFiletype::SavePage()
 {
-	SetOptionFromCheck(XRCID("ID_ASCIIWITHOUT"), OPTION_ASCIINOEXT);
-	SetOptionFromCheck(XRCID("ID_ASCIIDOTFILE"), OPTION_ASCIIDOTFILE);
+	m_pOptions->SetOption(OPTION_ASCIINOEXT, impl_->noext_->GetValue() ? 1 : 0);
+	m_pOptions->SetOption(OPTION_ASCIIDOTFILE, impl_->dotfile_->GetValue() ? 1 : 0);
 
-	int mode;
-	if (GetRCheck(XRCID("ID_TYPE_ASCII")))
+	int mode{};
+	if (impl_->rbAscii_->GetValue()) {
 		mode = 1;
-	else if (GetRCheck(XRCID("ID_TYPE_BINARY")))
+	}
+	else if (impl_->rbBinary_->GetValue()) {
 		mode = 2;
-	else
-		mode = 0;
+	}
 	m_pOptions->SetOption(OPTION_ASCIIBINARY, mode);
 
-	const wxListCtrl* pListCtrl = XRCCTRL(*this, "ID_EXTENSIONS", wxListCtrl);
-	wxASSERT(pListCtrl);
+	std::wstring extensions;
 
-	wxString extensions;
-
-	for (int i = 0; i < pListCtrl->GetItemCount(); i++) {
-		wxString ext = pListCtrl->GetItemText(i);
-		ext.Replace(_T("\\"), _T("\\\\"));
-		ext.Replace(_T("|"), _T("\\|"));
-		if (!extensions.empty())
-			extensions += _T("|");
+	for (int i = 0; i < impl_->types_->GetItemCount(); ++i) {
+		std::wstring ext = impl_->types_->GetItemText(i).ToStdWstring();
+		fz::replace_substrings(ext, L"\\", L"\\\\");
+		fz::replace_substrings(ext, L"|", L"\\|");
+		if (!extensions.empty()) {
+			extensions += '|';
+		}
 		extensions += ext;
 	}
-	m_pOptions->SetOption(OPTION_ASCIIFILES, extensions.ToStdWstring());
+	m_pOptions->SetOption(OPTION_ASCIIFILES, extensions);
 
-	return true;
-}
-
-bool COptionsPageFiletype::Validate()
-{
 	return true;
 }
 
 void COptionsPageFiletype::SetCtrlState()
 {
-	wxListCtrl* pListCtrl = XRCCTRL(*this, "ID_EXTENSIONS", wxListCtrl);
-	wxASSERT(pListCtrl);
-	pListCtrl->SetColumnWidth(0, wxLIST_AUTOSIZE);
+	impl_->types_->SetColumnWidth(0, wxLIST_AUTOSIZE);
 
-	FindWindow(XRCID("ID_REMOVE"))->Enable(pListCtrl->GetSelectedItemCount() != 0);
-	FindWindow(XRCID("ID_ADD"))->Enable( !GetText(XRCID("ID_EXTENSION")).empty() );
+	impl_->remove_->Enable(impl_->types_->GetSelectedItemCount() != 0);
+	impl_->add_->Enable(!impl_->extension_->GetValue().empty());
 }
 
-void COptionsPageFiletype::OnRemove(wxCommandEvent&)
+void COptionsPageFiletype::OnRemove()
 {
-	wxListCtrl* pListCtrl = XRCCTRL(*this, "ID_EXTENSIONS", wxListCtrl);
-	wxASSERT(pListCtrl);
-
 	int item = -1;
-	item = pListCtrl->GetNextItem(item, wxLIST_NEXT_ALL, wxLIST_STATE_SELECTED);
+	item = impl_->types_->GetNextItem(item, wxLIST_NEXT_ALL, wxLIST_STATE_SELECTED);
 	while (item != -1) {
-		pListCtrl->DeleteItem(item);
+		impl_->types_->DeleteItem(item);
 		--item;
-		item = pListCtrl->GetNextItem(item, wxLIST_NEXT_ALL, wxLIST_STATE_SELECTED);
+		item = impl_->types_->GetNextItem(item, wxLIST_NEXT_ALL, wxLIST_STATE_SELECTED);
 	}
 	SetCtrlState();
 }
 
-void COptionsPageFiletype::OnAdd(wxCommandEvent&)
+void COptionsPageFiletype::OnAdd()
 {
-	wxString ext = GetText(XRCID("ID_EXTENSION"));
+	std::wstring ext = impl_->extension_->GetValue().ToStdWstring();
 	if (ext.empty()) {
 		wxBell();
 		return;
 	}
 
-	wxListCtrl* pListCtrl = XRCCTRL(*this, "ID_EXTENSIONS", wxListCtrl);
-	wxASSERT(pListCtrl);
-
-	for (int i = 0; i < pListCtrl->GetItemCount(); i++)
-	{
-		wxString text = pListCtrl->GetItemText(i);
-		if (text == ext)
-		{
+	for (int i = 0; i < impl_->types_->GetItemCount(); ++i) {
+		std::wstring text = impl_->types_->GetItemText(i).ToStdWstring();
+		if (text == ext) {
 			DisplayError(0, wxString::Format(_("The extension '%s' does already exist in the list"), ext));
 			return;
 		}
 	}
 
-	pListCtrl->InsertItem(pListCtrl->GetItemCount(), ext);
+	impl_->types_->InsertItem(impl_->types_->GetItemCount(), ext);
 
-	SetCtrlState();
-}
-
-void COptionsPageFiletype::OnTextChanged(wxCommandEvent&)
-{
-	SetCtrlState();
-}
-
-void COptionsPageFiletype::OnSelChanged(wxListEvent&)
-{
 	SetCtrlState();
 }

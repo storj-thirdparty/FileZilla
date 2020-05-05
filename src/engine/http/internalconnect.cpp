@@ -2,8 +2,6 @@
 
 #include "internalconnect.h"
 
-#include "backend.h"
-
 int CHttpInternalConnectOpData::Send()
 {
 	if (!port_) {

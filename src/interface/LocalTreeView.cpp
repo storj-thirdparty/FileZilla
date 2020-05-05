@@ -15,6 +15,8 @@
 
 #include <libfilezilla/local_filesys.hpp>
 
+#include <wx/menu.h>
+
 #ifdef __WXMSW__
 #include <wx/msw/registry.h>
 #include <shlobj.h>
@@ -248,7 +250,7 @@ EVT_MENU(XRCID("ID_OPEN"), CLocalTreeView::OnMenuOpen)
 END_EVENT_TABLE()
 
 CLocalTreeView::CLocalTreeView(wxWindow* parent, wxWindowID id, CState& state, CQueueView *pQueueView)
-	: wxTreeCtrlEx(parent, id, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL | wxTR_EDIT_LABELS | wxTR_LINES_AT_ROOT | wxTR_HAS_BUTTONS | wxNO_BORDER),
+	: wxTreeCtrlEx(parent, id, wxDefaultPosition, wxDefaultSize, DEFAULT_TREE_STYLE | wxTAB_TRAVERSAL | wxTR_EDIT_LABELS | wxNO_BORDER),
 	CSystemImageList(CThemeProvider::GetIconSize(iconSizeSmall).x),
 	CStateEventHandler(state),
 	m_pQueueView(pQueueView)
@@ -401,12 +403,11 @@ wxTreeItemId CLocalTreeView::GetNearestParent(wxString& localDir)
 	return root;
 }
 
-wxTreeItemId CLocalTreeView::GetSubdir(wxTreeItemId parent, const wxString& subDir)
+wxTreeItemId CLocalTreeView::GetSubdir(wxTreeItemId parent, wxString const& subDir)
 {
 	wxTreeItemIdValue value;
 	wxTreeItemId child = GetFirstChild(parent, value);
-	while (child)
-	{
+	while (child) {
 #ifdef __WXMSW__
 		if (!GetItemText(child).CmpNoCase(subDir))
 #else
@@ -435,14 +436,15 @@ bool CLocalTreeView::DisplayDrives(wxTreeItemId parent)
 		m_pVolumeEnumeratorThread = 0;
 	}
 
+	wxTreeItemId last;
 	for (auto it = drives.begin(); it != drives.end(); ++it) {
 		wxString drive = *it;
 		if (drive.Right(1) == _T("\\")) {
 			drive = drive.RemoveLast();
 		}
 
-		wxTreeItemId item = AppendItem(parent, drive, GetIconIndex(iconType::dir, _T(""), false));
-		AppendItem(item, _T(""));
+		last = InsertItem(parent, last, drive, GetIconIndex(iconType::dir, _T(""), false));
+		AppendItem(last, _T(""));
 	}
 	SortChildren(parent);
 
@@ -492,13 +494,14 @@ void CLocalTreeView::DisplayDir(wxTreeItemId parent, std::wstring const& dirname
 	bool matchedKnown = false;
 
 	fz::native_string file;
-	bool wasLink;
-	int attributes;
-	bool is_dir;
+	bool wasLink{};
+	int attributes{};
+	fz::local_filesys::type t{};
 	static int64_t const size(-1);
 	fz::datetime date;
-	while (local_filesys.get_next_file(file, wasLink, is_dir, 0, &date, &attributes)) {
-		wxASSERT(is_dir);
+
+	wxTreeItemId last;
+	while (local_filesys.get_next_file(file, wasLink, t, 0, &date, &attributes)) {
 		std::wstring wfile = fz::to_wstring(file);
 		if (file.empty() || wfile.empty()) {
 			wxGetApp().DisplayEncodingWarning();
@@ -520,7 +523,7 @@ void CLocalTreeView::DisplayDir(wxTreeItemId parent, std::wstring const& dirname
 			matchedKnown = true;
 		}
 
-		wxTreeItemId item = AppendItem(parent, wfile, GetIconIndex(iconType::dir, fullName),
+		last = InsertItem(parent, last, wfile, GetIconIndex(iconType::dir, fullName),
 #ifdef __WXMSW__
 				-1
 #else
@@ -528,7 +531,7 @@ void CLocalTreeView::DisplayDir(wxTreeItemId parent, std::wstring const& dirname
 #endif
 			);
 
-		CheckSubdirStatus(item, fullName);
+		CheckSubdirStatus(last, fullName);
 	}
 
 	if (!matchedKnown && !knownSubdir.empty()) {
@@ -559,13 +562,13 @@ std::wstring CLocalTreeView::HasSubdir(std::wstring const& dirname)
 	}
 
 	fz::native_string file;
-	bool wasLink;
-	int attributes;
-	bool is_dir;
+	bool wasLink{};
+	int attributes{};
+	fz::local_filesys::type t{};
 	static int64_t const size(-1);
 	fz::datetime date;
-	while (local_filesys.get_next_file(file, wasLink, is_dir, 0, &date, &attributes)) {
-		wxASSERT(is_dir);
+	while (local_filesys.get_next_file(file, wasLink, t, 0, &date, &attributes)) {
+
 		std::wstring wfile = fz::to_wstring(file);
 		if (file.empty() || wfile.empty()) {
 			wxGetApp().DisplayEncodingWarning();
@@ -692,19 +695,21 @@ std::wstring CLocalTreeView::GetDirFromItem(wxTreeItemId item)
 
 void CLocalTreeView::UpdateSortMode()
 {
+	CFileListCtrlSortBase::NameSortMode sortMode;
 	switch (COptions::Get()->GetOptionVal(OPTION_FILELIST_NAMESORT))
 	{
 	case 0:
 	default:
-		m_nameSortMode = CFileListCtrlSortBase::namesort_caseinsensitive;
+		sortMode = CFileListCtrlSortBase::namesort_caseinsensitive;
 		break;
 	case 1:
-		m_nameSortMode = CFileListCtrlSortBase::namesort_casesensitive;
+		sortMode = CFileListCtrlSortBase::namesort_casesensitive;
 		break;
 	case 2:
-		m_nameSortMode = CFileListCtrlSortBase::namesort_natural;
+		sortMode = CFileListCtrlSortBase::namesort_natural;
 		break;
 	}
+	sortFunction_ = CFileListCtrlSortBase::GetCmpFunction(sortMode);
 }
 
 namespace {
@@ -724,6 +729,9 @@ void CLocalTreeView::RefreshListing()
 	std::list<t_dir> dirsToCheck;
 
 #ifdef __WXMSW__
+	if (!m_drives) {
+		return;
+	}
 	int prevErrorMode = SetErrorMode(SEM_FAILCRITICALERRORS);
 
 	wxTreeItemIdValue tmp;
@@ -745,6 +753,9 @@ void CLocalTreeView::RefreshListing()
 	t_dir root_dir;
 	root_dir.dir = separator;
 	root_dir.item = GetRootItem();
+	if (!root_dir.item) {
+		return;
+	}
 	dirsToCheck.push_back(root_dir);
 #endif
 
@@ -774,11 +785,11 @@ void CLocalTreeView::RefreshListing()
 
 		fz::native_string file;
 		static int64_t const size(-1);
-		bool was_link;
-		bool is_dir;
-		int attributes;
+		bool was_link{};
+		fz::local_filesys::type t{};
+		int attributes{};
 		fz::datetime date;
-		while (local_filesys.get_next_file(file, was_link, is_dir, 0, &date, &attributes)) {
+		while (local_filesys.get_next_file(file, was_link, t, 0, &date, &attributes)) {
 			std::wstring wfile = fz::to_wstring(file);
 			if (file.empty() || wfile.empty()) {
 				wxGetApp().DisplayEncodingWarning();
@@ -791,22 +802,24 @@ void CLocalTreeView::RefreshListing()
 
 			dirs.emplace_back(std::move(wfile));
 		}
-		auto const& sortFunc = CFileListCtrlSortBase::GetCmpFunction(m_nameSortMode);
-		std::sort(dirs.begin(), dirs.end(), [&](auto const& lhs, auto const& rhs) { return sortFunc(lhs, rhs) < 0; });
+		std::sort(dirs.begin(), dirs.end(), [&](auto const& lhs, auto const& rhs) { return sortFunction_(lhs, rhs) < 0; });
+
+		// Step 3: Merge list of subdirectories with subtree.
+		std::vector<wxTreeItemId> toDelete;
 
 		bool inserted = false;
 
-		// Step 3: Merge list of subdirectories with subtree.
-		wxTreeItemId child = GetLastChild(dir.item);
-		auto iter = dirs.rbegin();
-		while (child || iter != dirs.rend()) {
+		wxTreeItemIdValue unused;
+		wxTreeItemId child = GetFirstChild(dir.item, unused);
+
+		wxTreeItemId last = GetLastChild(dir.item);
+
+		auto iter = dirs.begin();
+		while (child || iter != dirs.end()) {
 			int cmp;
-			if (child && iter != dirs.rend()) {
-#ifdef __WXMSW__
-				cmp = GetItemText(child).CmpNoCase(*iter);
-#else
-				cmp = GetItemText(child).Cmp(*iter);
-#endif
+			if (child && iter != dirs.end()) {
+				wxString const& childName = GetItemText(child);
+				cmp = sortFunction_(std::wstring_view(childName.data(), childName.size()), *iter);
 			}
 			else if (child) {
 				cmp = 1;
@@ -832,7 +845,7 @@ void CLocalTreeView::RefreshListing()
 					subdir.item = child;
 					dirsToCheck.push_front(subdir);
 				}
-				child = GetPrevSibling(child);
+				child = GetNextSibling(child);
 				++iter;
 			}
 			else if (cmp > 0) {
@@ -843,16 +856,13 @@ void CLocalTreeView::RefreshListing()
 				while (sel && sel != child) {
 					sel = GetItemParent(sel);
 				}
-				wxTreeItemId prev = GetPrevSibling(child);
-				if (!sel) {
-					Delete(child);
-				}
-				child = prev;
+				toDelete.push_back(child);
+				child = GetNextSibling(child);
 			}
 			else if (cmp < 0) {
 				// New subdirectory, add treeitem
 				std::wstring fullname = dir.dir + *iter + separator;
-				wxTreeItemId newItem = AppendItem(dir.item, *iter, GetIconIndex(iconType::dir, fullname),
+				last = InsertItem(dir.item, last, *iter, GetIconIndex(iconType::dir, fullname),
 #ifdef __WXMSW__
 						-1
 #else
@@ -860,10 +870,13 @@ void CLocalTreeView::RefreshListing()
 #endif
 					);
 
-				CheckSubdirStatus(newItem, fullname);
+				CheckSubdirStatus(last, fullname);
 				++iter;
 				inserted = true;
 			}
+		}
+		for (auto it = toDelete.rbegin(); it != toDelete.rend(); ++it) {
+			Delete(*it);
 		}
 		if (inserted) {
 			SortChildren(dir.item);

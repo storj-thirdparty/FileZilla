@@ -6,6 +6,135 @@
 
 #include <libfilezilla/iputils.hpp>
 
+#include <assert.h>
+
+int CFtpRawTransferOpData::Send()
+{
+	if (!controlSocket_.m_pTransferSocket) {
+		log(logmsg::debug_info, L"Empty m_pTransferSocket");
+		return FZ_REPLY_INTERNALERROR;
+	}
+
+	std::wstring cmd;
+	bool measureRTT = false;
+	switch (opState)
+	{
+	case rawtransfer_init:
+		if ((pOldData->binary && controlSocket_.m_lastTypeBinary == 1) ||
+			(!pOldData->binary && controlSocket_.m_lastTypeBinary == 0))
+		{
+			opState = rawtransfer_port_pasv;
+		}
+		else {
+			opState = rawtransfer_type;
+		}
+
+		if (controlSocket_.proxy_layer_) {
+			// Only passive supported
+			// Theoretically could use reverse proxy ability in SOCKS5, but
+			// it is too fragile to set up with all those broken routers and
+			// firewalls sabotaging connections. Regular active mode is hard
+			// enough already
+			bPasv = true;
+			bTriedActive = true;
+		}
+		else {
+			switch (currentServer_.GetPasvMode())
+			{
+			case MODE_PASSIVE:
+				bPasv = true;
+				break;
+			case MODE_ACTIVE:
+				bPasv = false;
+				break;
+			default:
+				bPasv = engine_.GetOptions().GetOptionVal(OPTION_USEPASV) != 0;
+				break;
+			}
+		}
+
+		return FZ_REPLY_CONTINUE;
+	case rawtransfer_type:
+		controlSocket_.m_lastTypeBinary = -1;
+		if (pOldData->binary) {
+			cmd = L"TYPE I";
+		}
+		else {
+			cmd = L"TYPE A";
+		}
+		measureRTT = true;
+		break;
+	case rawtransfer_port_pasv:
+		if (bPasv) {
+			cmd = GetPassiveCommand();
+		}
+		else {
+			std::string address;
+			int res = controlSocket_.GetExternalIPAddress(address);
+			if (res == FZ_REPLY_WOULDBLOCK) {
+				return res;
+			}
+			else if (res == FZ_REPLY_OK) {
+				std::wstring portArgument = controlSocket_.m_pTransferSocket->SetupActiveTransfer(address);
+				if (!portArgument.empty()) {
+					bTriedActive = true;
+					if (controlSocket_.socket_->address_family() == fz::address_type::ipv6) {
+						cmd = L"EPRT " + portArgument;
+					}
+					else {
+						cmd = L"PORT " + portArgument;
+					}
+					break;
+				}
+			}
+
+			if (!engine_.GetOptions().GetOptionVal(OPTION_ALLOW_TRANSFERMODEFALLBACK) || bTriedPasv) {
+				log(logmsg::error, _("Failed to create listening socket for active mode transfer"));
+				return FZ_REPLY_ERROR;
+			}
+			log(logmsg::debug_warning, _("Failed to create listening socket for active mode transfer"));
+			bTriedActive = true;
+			bPasv = true;
+			cmd = GetPassiveCommand();
+		}
+		break;
+	case rawtransfer_rest:
+		cmd = L"REST " + std::to_wstring(pOldData->resumeOffset);
+		if (pOldData->resumeOffset > 0) {
+			controlSocket_.m_sentRestartOffset = true;
+		}
+		measureRTT = true;
+		break;
+	case rawtransfer_transfer:
+		if (bPasv) {
+			if (!controlSocket_.m_pTransferSocket->SetupPassiveTransfer(host_, port_)) {
+				log(logmsg::error, _("Could not establish connection to server"));
+				return FZ_REPLY_ERROR;
+			}
+		}
+
+		cmd = cmd_;
+		pOldData->tranferCommandSent = true;
+
+		engine_.transfer_status_.SetStartTime();
+		controlSocket_.m_pTransferSocket->SetActive();
+		break;
+	case rawtransfer_waitfinish:
+	case rawtransfer_waittransferpre:
+	case rawtransfer_waittransfer:
+	case rawtransfer_waitsocket:
+		break;
+	default:
+		log(logmsg::debug_warning, L"invalid opstate");
+		return FZ_REPLY_INTERNALERROR;
+	}
+	if (!cmd.empty()) {
+		return controlSocket_.SendCommand(cmd, false, measureRTT);
+	}
+
+	return FZ_REPLY_WOULDBLOCK;
+}
+
 int CFtpRawTransferOpData::ParseResponse()
 {
 	if (opState == rawtransfer_init) {
@@ -162,98 +291,6 @@ int CFtpRawTransferOpData::ParseResponse()
 	}
 
 	return FZ_REPLY_CONTINUE;
-}
-
-int CFtpRawTransferOpData::Send()
-{
-	if (!controlSocket_.m_pTransferSocket) {
-		log(logmsg::debug_info, L"Empty m_pTransferSocket");
-		return FZ_REPLY_INTERNALERROR;
-	}
-
-	std::wstring cmd;
-	bool measureRTT = false;
-	switch (opState)
-	{
-	case rawtransfer_type:
-		controlSocket_.m_lastTypeBinary = -1;
-		if (pOldData->binary) {
-			cmd = L"TYPE I";
-		}
-		else {
-			cmd = L"TYPE A";
-		}
-		measureRTT = true;
-		break;
-	case rawtransfer_port_pasv:
-		if (bPasv) {
-			cmd = GetPassiveCommand();
-		}
-		else {
-			std::string address;
-			int res = controlSocket_.GetExternalIPAddress(address);
-			if (res == FZ_REPLY_WOULDBLOCK) {
-				return res;
-			}
-			else if (res == FZ_REPLY_OK) {
-				std::wstring portArgument = controlSocket_.m_pTransferSocket->SetupActiveTransfer(address);
-				if (!portArgument.empty()) {
-					bTriedActive = true;
-					if (controlSocket_.socket_->address_family() == fz::address_type::ipv6) {
-						cmd = L"EPRT " + portArgument;
-					}
-					else {
-						cmd = L"PORT " + portArgument;
-					}
-					break;
-				}
-			}
-
-			if (!engine_.GetOptions().GetOptionVal(OPTION_ALLOW_TRANSFERMODEFALLBACK) || bTriedPasv) {
-				log(logmsg::error, _("Failed to create listening socket for active mode transfer"));
-				return FZ_REPLY_ERROR;
-			}
-			log(logmsg::debug_warning, _("Failed to create listening socket for active mode transfer"));
-			bTriedActive = true;
-			bPasv = true;
-			cmd = GetPassiveCommand();
-		}
-		break;
-	case rawtransfer_rest:
-		cmd = L"REST " + std::to_wstring(pOldData->resumeOffset);
-		if (pOldData->resumeOffset > 0) {
-			controlSocket_.m_sentRestartOffset = true;
-		}
-		measureRTT = true;
-		break;
-	case rawtransfer_transfer:
-		if (bPasv) {
-			if (!controlSocket_.m_pTransferSocket->SetupPassiveTransfer(host_, port_)) {
-				log(logmsg::error, _("Could not establish connection to server"));
-				return FZ_REPLY_ERROR;
-			}
-		}
-
-		cmd = cmd_;
-		pOldData->tranferCommandSent = true;
-
-		engine_.transfer_status_.SetStartTime();
-		controlSocket_.m_pTransferSocket->SetActive();
-		break;
-	case rawtransfer_waitfinish:
-	case rawtransfer_waittransferpre:
-	case rawtransfer_waittransfer:
-	case rawtransfer_waitsocket:
-		break;
-	default:
-		log(logmsg::debug_warning, L"invalid opstate");
-		return FZ_REPLY_INTERNALERROR;
-	}
-	if (!cmd.empty()) {
-		return controlSocket_.SendCommand(cmd, false, measureRTT);
-	}
-
-	return FZ_REPLY_WOULDBLOCK;
 }
 
 bool CFtpRawTransferOpData::ParseEpsvResponse()

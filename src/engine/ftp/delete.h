@@ -19,7 +19,7 @@ public:
 	virtual int Reset(int result) override;
 
 	CServerPath path_;
-	std::deque<std::wstring> files_;
+	std::vector<std::wstring> files_;
 	bool omitPath_{};
 
 	// Set to fz::monotonic_clock::now initially and after

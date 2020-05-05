@@ -137,26 +137,19 @@ extern "C" void fv_listBuckets(Project *project)
 
 extern "C" void fv_listObjects(Project *project, std::string bucket, std::string prefix)
 {			
-	ObjectIterator *it;
-	ListObjectsOptions options;
-	
-	if(prefix.empty()) {
-		options = {
-			system : true,
-			custom : true,
-		};	
-	}
-	else {
+	if(!(prefix.empty()))
 		prefix = prefix + "/";
-		options = {
-			prefix : const_cast<char*>(prefix.c_str()),
-			system : true,
-			custom : true,
-		};
-	}
 	
-	it = list_objects(project, const_cast<char*>(bucket.c_str()), &options);
-	
+	ListObjectsOptions options = {
+		prefix : const_cast<char*>(prefix.c_str()),
+		cursor : "",
+		recursive: false, 
+		system : true,
+		custom : true,
+	};
+
+	ObjectIterator *it = list_objects(project, const_cast<char*>(bucket.c_str()), &options);
+
 	int count = 0;
 	while (object_iterator_next(it)) {
 		Object *object = object_iterator_item(it);
@@ -295,8 +288,8 @@ int main()
 	std::string ls_serializedAccessGrantKey;
 	
 	Config config = {
-        	user_agent : "FileZilla",
-    	};
+        user_agent : "FileZilla",
+    };
 	
 	auto fv_openStorjProject = [&]() -> ProjectResult {
 		AccessResult access_result;
@@ -534,5 +527,4 @@ int main()
 
 	}
 
-	return ret;
-}
+	return ret;}

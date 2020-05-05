@@ -6,6 +6,8 @@
 #include "queue.h"
 #include "xrc_helper.h"
 
+#include <wx/filedlg.h>
+
 CExportDialog::CExportDialog(wxWindow* parent, CQueueView* pQueueView)
 	: m_parent(parent), m_pQueueView(pQueueView)
 {

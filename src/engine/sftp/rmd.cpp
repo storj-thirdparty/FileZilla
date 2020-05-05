@@ -1,6 +1,6 @@
 #include <filezilla.h>
 
-#include "directorycache.h"
+#include "../directorycache.h"
 #include "pathcache.h"
 #include "rmd.h"
 
@@ -22,7 +22,7 @@ int CSftpRemoveDirOpData::Send()
 
 	engine_.InvalidateCurrentWorkingDirs(fullPath);
 	std::wstring quotedFilename = controlSocket_.QuoteFilename(fullPath.GetPath());
-	return controlSocket_.SendCommand(L"rmdir " + controlSocket_.WildcardEscape(quotedFilename), L"rmdir " + quotedFilename);
+	return controlSocket_.SendCommand(L"rmdir " + quotedFilename);
 }
 
 int CSftpRemoveDirOpData::ParseResponse()

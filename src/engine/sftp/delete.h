@@ -17,7 +17,7 @@ public:
 	virtual int Reset(int result) override;
 
 	CServerPath path_;
-	std::deque<std::wstring> files_;
+	std::vector<std::wstring> files_;
 
 	// Set to fz::datetime::Now initially and after
 	// sending an updated listing to the UI.

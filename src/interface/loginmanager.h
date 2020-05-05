@@ -36,7 +36,7 @@ protected:
 	struct t_passwordcache
 	{
 		std::wstring host;
-		unsigned int port;
+		unsigned int port{};
 		std::wstring user;
 		std::wstring password;
 		std::wstring challenge;

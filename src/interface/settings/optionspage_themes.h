@@ -4,13 +4,11 @@
 class COptionsPageThemes final : public COptionsPage
 {
 public:
-	virtual wxString GetResourceName() const override { return _T("ID_SETTINGS_THEMES"); }
 	virtual bool LoadPage() override;
 	virtual bool SavePage() override;
 	virtual bool Validate() override;
 
-	virtual bool CreatePage(COptions* pOptions, CSettingsDialog* pOwner, wxWindow* parent, wxSize& maxSize);
-
+	virtual bool CreateControls(wxWindow* parent) override;
 protected:
 	bool DisplayTheme(std::wstring const& theme);
 

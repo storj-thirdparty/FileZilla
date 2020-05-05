@@ -1,6 +1,8 @@
 #ifndef FILEZILLA_INTERFACE_LISTINGCOMPARISON_HEADER
 #define FILEZILLA_INTERFACE_LISTINGCOMPARISON_HEADER
 
+#include <wx/listctrl.h>
+
 class CComparisonManager;
 class CComparableListing
 {
@@ -20,7 +22,7 @@ public:
 
 	virtual bool CanStartComparison() = 0;
 	virtual void StartComparison() = 0;
-	virtual bool get_next_file(std::wstring & name, bool &dir, int64_t &size, fz::datetime& date) = 0;
+	virtual bool get_next_file(std::wstring_view & name, std::wstring & path, bool &dir, int64_t &size, fz::datetime& date) = 0;
 	virtual void CompareAddFile(t_fileEntryFlags flags) = 0;
 	virtual void FinishComparison() = 0;
 	virtual void ScrollTopItem(int item) = 0;
@@ -58,8 +60,14 @@ public:
 
 	void SetListings(CComparableListing* pLeft, CComparableListing* pRight);
 
+	CComparableListing* LeftListing() const { return m_pLeft; }
+	CComparableListing* RightListing() const { return m_pRight; }
+
+	void SetComparisonMode(int mode) { m_comparisonMode = mode; }
+	void SetHideIdentical(bool hideIdentical) { m_hideIdentical = hideIdentical; }
+
 protected:
-	int CompareFiles(const int dirSortMode, std::wstring const& local, std::wstring const& remote, bool localDir, bool remoteDir);
+	int CompareFiles(const int dirSortMode, std::wstring_view const& local_path, std::wstring_view const& local, std::wstring_view const& remote_path, std::wstring_view const& remote, bool localDir, bool remoteDir);
 
 	CState& m_state;
 
@@ -68,6 +76,8 @@ protected:
 	CComparableListing* m_pRight{};
 
 	bool m_isComparing{};
+	int m_comparisonMode{};
+	bool m_hideIdentical{};
 };
 
 #endif

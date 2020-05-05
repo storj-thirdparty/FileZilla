@@ -5,9 +5,11 @@
 #include "optionspage.h"
 #include "optionspage_themes.h"
 #include "../themeprovider.h"
+#include "wxext/spinctrlex.h"
 
 #include <wx/dcclient.h>
 #include <wx/scrolwin.h>
+#include <wx/statbox.h>
 
 #include "xrc_helper.h"
 
@@ -22,8 +24,8 @@ class CIconPreview final : public wxScrolledWindow
 public:
 	CIconPreview() = default;
 
-	CIconPreview(wxWindow* pParent)
-		: wxScrolledWindow(pParent, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxSTATIC_BORDER | wxVSCROLL)
+	CIconPreview(wxWindow* pParent, int id = -1)
+		: wxScrolledWindow(pParent, id, wxDefaultPosition, wxDefaultSize, wxVSCROLL)
 	{
 	}
 
@@ -115,44 +117,52 @@ protected:
 	wxSize m_iconSize;
 	bool m_sizeInitialized{};
 	int m_extra_padding{};
-
-	DECLARE_DYNAMIC_CLASS(CIconPreview)
 };
-
-IMPLEMENT_DYNAMIC_CLASS(CIconPreview, wxScrolledWindow)
 
 BEGIN_EVENT_TABLE(CIconPreview, wxScrolledWindow)
 EVT_PAINT(CIconPreview::OnPaint)
 END_EVENT_TABLE()
 
-bool COptionsPageThemes::CreatePage(COptions* pOptions, CSettingsDialog* pOwner, wxWindow* parent, wxSize& maxSize)
+bool COptionsPageThemes::CreateControls(wxWindow* parent)
 {
-	bool success = COptionsPage::CreatePage(pOptions, pOwner, parent, maxSize);
-	if (success) {
-		auto dummy = XRCCTRL(*this, "ID_SCALE", wxWindow);
-		auto sizer = dummy ? dummy->GetContainingSizer() : 0;
-		if (!sizer) {
-			return false;
-		}
+	auto const& lay = m_pOwner->layout();
 
-		wxWindow* sizerParent = dummy->GetParent();
-		sizer->Detach(dummy);
-		delete dummy;
+	Create(parent);
+	auto main = lay.createFlex(1);
+	main->AddGrowableCol(0);
+	main->AddGrowableRow(1);
+	SetSizer(main);
 
-		auto scale = new wxSpinCtrlDouble(sizerParent, XRCID("ID_SCALE"));
+	{
+		auto [box, inner] = lay.createStatBox(main, _("Select Theme"), 2);
+		inner->Add(new wxStaticText(box, -1, _("&Theme:")), lay.valign);
+		inner->Add(new wxChoice(box, XRCID("ID_THEME")));
+		inner->Add(new wxStaticText(box, -1, _("Author:")), lay.valign);
+		inner->Add(new wxStaticText(box, XRCID("ID_AUTHOR"), wxString()), lay.valign);
+		inner->Add(new wxStaticText(box, -1, _("Email:")), lay.valign);
+		inner->Add(new wxStaticText(box, XRCID("ID_EMAIL"), wxString()), lay.valign);
+		inner->Add(new wxStaticText(box, -1, _("Scale factor:")), lay.valign);
+		auto scale = new wxSpinCtrlDoubleEx(box, XRCID("ID_SCALE"));
 		scale->SetRange(0.5, 4);
 		scale->SetIncrement(0.25);
 		scale->SetValue(1.25);
 		scale->SetDigits(2);
-		sizer->Add(scale, wxSizerFlags().Align(wxALIGN_CENTER_VERTICAL));
-		sizer->Layout();
-		GetSizer()->Layout();
-		GetSizer()->Fit(this);
-
+		scale->SetMaxLength(10);
 		scale->Connect(wxEVT_SPINCTRLDOUBLE, wxCommandEventHandler(COptionsPageThemes::OnThemeChange), 0, this);
+		inner->Add(scale, lay.valign);
 	}
 
-	return success;
+	{
+		auto [box, inner] = lay.createStatBox(main, _("Preview"), 1);
+		inner->AddGrowableCol(0);
+		inner->AddGrowableRow(0);
+		inner->Add(new CIconPreview(box, XRCID("ID_PREVIEW")), 1, wxGROW);
+	}
+
+	GetSizer()->Layout();
+	GetSizer()->Fit(this);
+	
+	return true;
 }
 
 bool COptionsPageThemes::LoadPage()
@@ -271,5 +281,12 @@ bool COptionsPageThemes::OnDisplayedFirstTime()
 
 	pTheme->GetContainingSizer()->Layout();
 
+#ifdef __WXMAC__
+	if (!failure) {
+		CallAfter([this]{
+			xrc_call(*this, "ID_PREVIEW", &CIconPreview::Refresh, true, nullptr);
+		});
+	}
+#endif
 	return !failure;
 }

@@ -17,26 +17,27 @@ struct t_protocolInfo
 };
 
 static const t_protocolInfo protocolInfos[] = {
-	{ FTP,          L"ftp",      false, 21, true,  fztranslate_mark("FTP - File Transfer Protocol with optional encryption"), L"" },
-	{ SFTP,         L"sftp",     true,  22, false, "SFTP - SSH File Transfer Protocol",                                       L"" },
-	{ HTTP,         L"http",     true,  80, false, "HTTP - Hypertext Transfer Protocol",                                      L"" },
-	{ HTTPS,        L"https",    true, 443, true,  fztranslate_mark("HTTPS - HTTP over TLS"),                                 L"" },
-	{ FTPS,         L"ftps",     true, 990, true,  fztranslate_mark("FTPS - FTP over implicit TLS"),                          L"" },
-	{ FTPES,        L"ftpes",    true,  21, true,  fztranslate_mark("FTPES - FTP over explicit TLS"),                         L"" },
-	{ INSECURE_FTP, L"ftp",      false, 21, true,  fztranslate_mark("FTP - Insecure File Transfer Protocol"),                 L"" },
-	{ S3,           L"s3",       true, 443, false, "S3 - Amazon Simple Storage Service",                                      L"" },
-	{ STORJ,        L"storj",    true, 443, true,  fztranslate_mark("Tardigrade - Decentralized Cloud Storage"),                   L"" },
-	{ WEBDAV,       L"webdav",   true, 443, true,  "WebDAV",                                                                  L"https" },
-	{ AZURE_FILE,   L"azfile",   true, 443, false, "Microsoft Azure File Storage Service",                                    L"https" },
-	{ AZURE_BLOB,   L"azblob",   true, 443, false, "Microsoft Azure Blob Storage Service",                                    L"https" },
-	{ SWIFT,        L"swift",    true, 443, false, "OpenStack Swift",                                                         L"https" },
-	{ GOOGLE_CLOUD, L"google",   true, 443, false, "Google Cloud Storage",                                                    L"https" },
-	{ GOOGLE_DRIVE, L"gdrive",   true, 443, false, "Google Drive",                                                            L"https" },
-	{ DROPBOX,      L"dropbox",  true, 443, false, "Dropbox",                                                                 L"https" },
-	{ ONEDRIVE,     L"onedrive", true, 443, false, "Microsoft OneDrive",                                                      L"https" },
-	{ B2,           L"b2",       true, 443, false, "Backblaze B2",                                                            L"https" },
-	{ BOX,          L"box",      true, 443, false, "Box",                                                                     L"https" },
-	{ UNKNOWN,      L"",         false, 21, false, "", L"" }
+	{ FTP,             L"ftp",      false, 21, true,  fztranslate_mark("FTP - File Transfer Protocol with optional encryption"), L"" },
+	{ SFTP,            L"sftp",     true,  22, false, "SFTP - SSH File Transfer Protocol",                                       L"" },
+	{ HTTP,            L"http",     true,  80, false, "HTTP - Hypertext Transfer Protocol",                                      L"" },
+	{ HTTPS,           L"https",    true, 443, true,  fztranslate_mark("HTTPS - HTTP over TLS"),                                 L"" },
+	{ FTPS,            L"ftps",     true, 990, true,  fztranslate_mark("FTPS - FTP over implicit TLS"),                          L"" },
+	{ FTPES,           L"ftpes",    true,  21, true,  fztranslate_mark("FTPES - FTP over explicit TLS"),                         L"" },
+	{ INSECURE_FTP,    L"ftp",      false, 21, true,  fztranslate_mark("FTP - Insecure File Transfer Protocol"),                 L"" },
+	{ S3,              L"s3",       true, 443, false, "S3 - Amazon Simple Storage Service",                                      L"" },
+	{ STORJ,           L"storj",    true, 443, true,  fztranslate_mark("Tardigrade - Decentralized Cloud Storage"),                   L"" },
+	{ WEBDAV,          L"webdav",   true, 443, true,  fztranslate_mark("WebDAV using HTTPS"),                                    L"https" },
+	{ AZURE_FILE,      L"azfile",   true, 443, false, "Microsoft Azure File Storage Service",                                    L"https" },
+	{ AZURE_BLOB,      L"azblob",   true, 443, false, "Microsoft Azure Blob Storage Service",                                    L"https" },
+	{ SWIFT,           L"swift",    true, 443, false, "OpenStack Swift",                                                         L"https" },
+	{ GOOGLE_CLOUD,    L"google",   true, 443, false, "Google Cloud Storage",                                                    L"https" },
+	{ GOOGLE_DRIVE,    L"gdrive",   true, 443, false, "Google Drive",                                                            L"https" },
+	{ DROPBOX,         L"dropbox",  true, 443, false, "Dropbox",                                                                 L"https" },
+	{ ONEDRIVE,        L"onedrive", true, 443, false, "Microsoft OneDrive",                                                      L"https" },
+	{ B2,              L"b2",       true, 443, false, "Backblaze B2",                                                            L"https" },
+	{ BOX,             L"box",      true, 443, false, "Box",                                                                     L"https" },
+	{ INSECURE_WEBDAV, L"webdav",   true,  80, true,  fztranslate_mark("WebDAV using HTTP (insecure)"),                          L"http" },
+	{ UNKNOWN,         L"",         false, 21, false, "",                                                                        L"" }
 };
 
 static std::vector<ServerProtocol> const defaultProtocols = {
@@ -98,26 +99,6 @@ unsigned int CServer::GetPort() const
 std::wstring CServer::GetUser() const
 {
 	return m_user;
-}
-
-CServer& CServer::operator=(const CServer &op)
-{
-	m_protocol = op.m_protocol;
-	m_type = op.m_type;
-	m_host = op.m_host;
-	m_port = op.m_port;
-	m_user = op.m_user;
-	m_timezoneOffset = op.m_timezoneOffset;
-	m_pasvMode = op.m_pasvMode;
-	m_maximumMultipleConnections = op.m_maximumMultipleConnections;
-	m_encodingType = op.m_encodingType;
-	m_customEncoding = op.m_customEncoding;
-	m_postLoginCommands = op.m_postLoginCommands;
-	m_bypassProxy = op.m_bypassProxy;
-	m_name = op.m_name;
-	extraParameters_ = op.extraParameters_;
-
-	return *this;
 }
 
 bool CServer::operator==(const CServer &op) const
@@ -267,7 +248,7 @@ CServer::CServer(ServerProtocol protocol, ServerType type, std::wstring const& h
 		m_port = port;
 	}
 	else {
-		port = GetDefaultPort(protocol);
+		m_port = GetDefaultPort(protocol);
 	}
 }
 
@@ -287,7 +268,7 @@ void CServer::SetProtocol(ServerProtocol serverProtocol)
 	m_protocol = serverProtocol;
 
 	// Clear out parameters not supported by the current protocol
-	std::map<std::string, std::wstring> oldParams;
+	std::map<std::string, std::wstring, std::less<>> oldParams;
 	std::swap(extraParameters_, oldParams);
 	for (auto const& param : oldParams) {
 		SetExtraParameter(param.first, param.second);
@@ -400,7 +381,7 @@ std::wstring CServer::Format(ServerFormat formatType, Credentials const& credent
 					server = user + L":" + pass + L"@" + server;
 				}
 			}
-			else if (formatType != ServerFormat::with_prefix_and_optional_port) {
+			else {
 				server = fz::percent_encode_w(user) + L"@" + server;
 			}
 		}
@@ -431,18 +412,6 @@ bool CServer::SetEncodingType(CharsetEncoding type, std::wstring const& encoding
 	}
 
 	m_encodingType = type;
-	m_customEncoding = encoding;
-
-	return true;
-}
-
-bool CServer::SetCustomEncoding(std::wstring const& encoding)
-{
-	if (encoding.empty()) {
-		return false;
-	}
-
-	m_encodingType = ENCODING_CUSTOM;
 	m_customEncoding = encoding;
 
 	return true;
@@ -598,6 +567,7 @@ bool CServer::ProtocolHasFeature(ServerProtocol const protocol, ProtocolFeature 
 		break;
 	case ProtocolFeature::PreserveTimestamp:
 	case ProtocolFeature::ServerType:
+	case ProtocolFeature::UnixChmod:
 		if (protocol == FTP || protocol == FTPS || protocol == FTPES || protocol == INSECURE_FTP ||
 			protocol == SFTP) {
 			return true;
@@ -614,7 +584,7 @@ bool CServer::ProtocolHasFeature(ServerProtocol const protocol, ProtocolFeature 
 		}
 		break;
 	case ProtocolFeature::RecursiveDelete:
-		if (protocol == GOOGLE_DRIVE || protocol == DROPBOX || protocol == ONEDRIVE) {
+		if (protocol == GOOGLE_DRIVE || protocol == DROPBOX || protocol == ONEDRIVE || protocol == B2) {
 			return true;
 		}
 		break;
@@ -633,6 +603,9 @@ bool CServer::ProtocolHasFeature(ServerProtocol const protocol, ProtocolFeature 
 		if (protocol == S3) {
 			return true;
 		}
+		break;
+	case ProtocolFeature::Security:
+		return protocol != HTTP && protocol != INSECURE_FTP && protocol != INSECURE_WEBDAV;
 	}
 	return false;
 }
@@ -660,7 +633,7 @@ void CServer::ClearExtraParameters()
 	extraParameters_.clear();
 }
 
-std::wstring CServer::GetExtraParameter(std::string const& name) const
+std::wstring CServer::GetExtraParameter(std::string_view const& name) const
 {
 	auto it = extraParameters_.find(name);
 	if (it != extraParameters_.cend()) {
@@ -669,19 +642,27 @@ std::wstring CServer::GetExtraParameter(std::string const& name) const
 	return std::wstring();
 }
 
-std::map<std::string, std::wstring> const& CServer::GetExtraParameters() const
+std::map<std::string, std::wstring, std::less<>> const& CServer::GetExtraParameters() const
 {
 	return extraParameters_;
 }
 
-void CServer::SetExtraParameter(std::string const& name, std::wstring const& value)
+bool CServer::HasExtraParameter(std::string_view const& name) const
 {
+	return extraParameters_.find(name) != extraParameters_.cend();
+}
+
+void CServer::SetExtraParameter(std::string_view const& name, std::wstring const& value)
+{
+	auto it = extraParameters_.find(name);
 	if (value.empty()) {
-		extraParameters_.erase(name);
+		if (it != extraParameters_.cend()) {
+			extraParameters_.erase(it);
+		}
 	}
 	else {
 		bool found = false;
-		auto const& traits  = ExtraServerParameterTraits(m_protocol);
+		auto const& traits = ExtraServerParameterTraits(m_protocol);
 		for (auto const& trait : traits) {
 			if (trait.section_ != ParameterSection::credentials && name == trait.name_) {
 				found = true;
@@ -690,14 +671,22 @@ void CServer::SetExtraParameter(std::string const& name, std::wstring const& val
 		}
 
 		if (found) {
-			extraParameters_[name] = value;
+			if (it == extraParameters_.cend()) {
+				extraParameters_.emplace(name, value);
+			}
+			else {
+				it->second = value;
+			}
 		}
 	}
 }
 
-void CServer::ClearExtraParameter(const std::string &name)
+void CServer::ClearExtraParameter(std::string_view const& name)
 {
-	extraParameters_.erase(name);
+	auto it = extraParameters_.find(name);
+	if (it != extraParameters_.cend()) {
+		extraParameters_.erase(it);
+	}
 }
 
 LogonType GetLogonTypeFromName(std::wstring const& name)
@@ -765,7 +754,7 @@ void Credentials::ClearExtraParameters()
 	extraParameters_.clear();
 }
 
-std::wstring Credentials::GetExtraParameter(std::string const& name) const
+std::wstring Credentials::GetExtraParameter(std::string_view const& name) const
 {
 	auto it = extraParameters_.find(name);
 	if (it != extraParameters_.cend()) {
@@ -774,24 +763,42 @@ std::wstring Credentials::GetExtraParameter(std::string const& name) const
 	return std::wstring();
 }
 
-std::map<std::string, std::wstring> const& Credentials::GetExtraParameters() const
+std::map<std::string, std::wstring, std::less<>> const& Credentials::GetExtraParameters() const
 {
 	return extraParameters_;
 }
 
-void Credentials::SetExtraParameter(ServerProtocol protocol, std::string const& name, std::wstring const& value)
+bool Credentials::HasExtraParameter(std::string_view const& name) const
 {
-	bool found = false;
-	auto const& traits = ExtraServerParameterTraits(protocol);
-	for (auto const& trait : traits) {
-		if (trait.section_ != ParameterSection::credentials && name == trait.name_) {
-			found = true;
-			break;
+	return extraParameters_.find(name) != extraParameters_.cend();
+}
+
+void Credentials::SetExtraParameter(ServerProtocol protocol, std::string_view const& name, std::wstring const& value)
+{
+	auto it = extraParameters_.find(name);
+	if (value.empty()) {
+		if (it != extraParameters_.cend()) {
+			extraParameters_.erase(it);
 		}
 	}
+	else {
+		bool found = false;
+		auto const& traits = ExtraServerParameterTraits(protocol);
+		for (auto const& trait : traits) {
+			if (trait.section_ != ParameterSection::credentials && name == trait.name_) {
+				found = true;
+				break;
+			}
+		}
 
-	if (found) {
-		extraParameters_[name] = value;
+		if (found) {
+			if (it == extraParameters_.cend()) {
+				extraParameters_.emplace(name, value);
+			}
+			else {
+				it->second = value;
+			}
+		}
 	}
 }
 
@@ -817,6 +824,7 @@ std::vector<LogonType> GetSupportedLogonTypes(ServerProtocol protocol)
 	case B2:
 		return {LogonType::normal, LogonType::ask};
 	case WEBDAV:
+	case INSECURE_WEBDAV:
 		return {LogonType::anonymous, LogonType::normal, LogonType::ask};
 	case GOOGLE_CLOUD:
 	case GOOGLE_DRIVE:
@@ -839,7 +847,8 @@ std::vector<ParameterTraits> const& ExtraServerParameterTraits(ServerProtocol pr
 		{
 			static std::vector<ParameterTraits> ret = []() {
 				std::vector<ParameterTraits> ret;
-				ret.emplace_back(ParameterTraits{"email", ParameterSection::user, ParameterTraits::optional, std::wstring(), std::wstring()});
+				ret.emplace_back(ParameterTraits{"login_hint", ParameterSection::user, ParameterTraits::optional, std::wstring(), _("Name or email address")});
+				ret.emplace_back(ParameterTraits{"oauth_identity", ParameterSection::custom, ParameterTraits::optional, std::wstring(), std::wstring()});
 				return ret;
 			}();
 			return ret;
@@ -865,6 +874,27 @@ std::vector<ParameterTraits> const& ExtraServerParameterTraits(ServerProtocol pr
 			}();
 			return ret;
 		}
+	case GOOGLE_DRIVE:
+	case ONEDRIVE:
+	{
+		static std::vector<ParameterTraits> ret = []() {
+			std::vector<ParameterTraits> ret;
+			ret.emplace_back(ParameterTraits{"login_hint", ParameterSection::user, ParameterTraits::optional, std::wstring(), _("Name or email address")});
+			ret.emplace_back(ParameterTraits{"oauth_identity", ParameterSection::custom, ParameterTraits::optional, std::wstring(), std::wstring()});
+			return ret;
+		}();
+		return ret;
+	}
+	case DROPBOX:
+	case BOX:
+	{
+		static std::vector<ParameterTraits> ret = []() {
+			std::vector<ParameterTraits> ret;
+			ret.emplace_back(ParameterTraits{"oauth_identity", ParameterSection::custom, ParameterTraits::optional, std::wstring(), std::wstring()});
+			return ret;
+		}();
+		return ret;
+	}
 	default:
 		break;
 	}
@@ -904,7 +934,7 @@ std::tuple<std::wstring, std::wstring> GetDefaultHost(ServerProtocol protocol)
 
 bool ProtocolHasUser(ServerProtocol protocol)
 {
-	return protocol != DROPBOX && protocol != ONEDRIVE && protocol != BOX;
+	return protocol != DROPBOX && protocol != ONEDRIVE && protocol != BOX && protocol != GOOGLE_DRIVE;
 }
 
 bool CServer::SameResource(CServer const& other) const
@@ -928,4 +958,23 @@ bool CServer::SameContent(CServer const& other) const
 	auto r = std::tie(other.m_timezoneOffset, other.m_encodingType, other.m_customEncoding);
 
 	return l == r;
+}
+
+CaseSensitivity GetCaseSensitivity(ServerProtocol protocol)
+{
+	switch (protocol) {
+	case B2:
+	case GOOGLE_DRIVE:
+		return CaseSensitivity::yes;
+	case BOX:
+	case ONEDRIVE:
+		return CaseSensitivity::no;
+	default:
+		return CaseSensitivity::unspecified;
+	}
+}
+
+CaseSensitivity CServer::GetCaseSensitivity() const
+{
+	return ::GetCaseSensitivity(m_protocol);
 }

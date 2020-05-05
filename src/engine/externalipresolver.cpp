@@ -347,6 +347,10 @@ void CExternalIPResolver::OnData(unsigned char* buffer, size_t len)
 		}
 
 		if (i == len) {
+			if (len >= 4096) {
+				// Too long line
+				Close(false);
+			}
 			return;
 		}
 	}

@@ -9,6 +9,11 @@
 #include <algorithm>
 #include "filelist_statusbar.h"
 #include "themeprovider.h"
+
+#ifndef __WXMSW__
+#include <wx/mimetype.h>
+#endif
+
 #if defined(__WXGTK__) && !defined(__WXGTK3__)
 #include <gtk/gtk.h>
 #endif
@@ -928,9 +933,9 @@ template<class CFileData> void CFileListCtrl<CFileData>::OnProcessFocusChange(wx
 		return;
 	}
 
-	if (old_focus != -1) {
+	if (old_focus >= 0) {
 		bool selected = GetItemState(old_focus, wxLIST_STATE_SELECTED) == wxLIST_STATE_SELECTED;
-		if (!selected && m_selections[old_focus]) {
+		if (!selected && old_focus < m_selections.size() && m_selections[old_focus]) {
 			// Need to deselect all
 			if (m_pFilelistStatusBar) {
 				m_pFilelistStatusBar->UnselectAll();
@@ -967,6 +972,15 @@ template<class CFileData> void CFileListCtrl<CFileData>::OnProcessFocusChange(wx
 
 template <class CFileData> void CFileListCtrl<CFileData>::UpdateSelections(int min, int max)
 {
+	if (min < 0 || min > max) {
+		return;
+	}
+
+	size_t smax = static_cast<size_t>(max);
+	if (m_selections.size() <= smax || m_indexMapping.size() <= smax || m_fileData.size() <= smax) {
+		return;
+	}
+
 	for (int i = min; i <= max; ++i) {
 		bool selected = GetItemState(i, wxLIST_STATE_SELECTED) == wxLIST_STATE_SELECTED;
 		if (selected == m_selections[i]) {

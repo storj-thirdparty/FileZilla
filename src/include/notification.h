@@ -19,8 +19,11 @@
 // requests have to be answered. Once processed, call
 // CFileZillaEngine::SetAsyncRequestReply to continue the current operation.
 
+#include "commands.h"
 #include "local_path.h"
 #include "server.h"
+
+#include <logging.h>
 
 #include <libfilezilla/time.hpp>
 #include <libfilezilla/tls_info.hpp>
@@ -40,13 +43,14 @@ enum NotificationId
 	nId_logmsg,				// notification about new messages for the message log
 	nId_operation,			// operation reply codes
 	nId_connection,			// connection information: connects, disconnects, timeouts etc..
-	nId_transferstatus,		// transfer information: bytes transferes, transfer speed and such
+	nId_transferstatus,		// transfer information: bytes transferred, transfer speed and such
 	nId_listing,			// directory listings
 	nId_asyncrequest,		// asynchronous request
 	nId_active,				// sent if data gets either received or sent
 	nId_data,				// for memory downloads, indicates that new data is available.
 	nId_sftp_encryption,	// information about key exchange, encryption algorithms and so on for SFTP
-	nId_local_dir_created	// local directory has been created
+	nId_local_dir_created,	// local directory has been created
+	nId_serverchange		// With some protocols, actual server identity isn't known until after logon
 };
 
 // Async request IDs
@@ -95,13 +99,15 @@ public:
 	{}
 
 	template<typename String>
-	CLogmsgNotification(logmsg::type t, String && m)
+	CLogmsgNotification(logmsg::type t, String && m, fz::datetime const& time)
 		: msg(std::forward<String>(m))
+		, time_(time)
 		, msgType(t)
 	{
 	}
 
 	std::wstring msg;
+	fz::datetime time_;
 	logmsg::type msgType{logmsg::status}; // Type of message, see logging.h for details
 };
 
@@ -370,6 +376,18 @@ public:
 
 	CServer const server_;
 	bool allow_{};
+};
+
+class ServerChangeNotification final : public CNotificationHelper<nId_serverchange>
+{
+public:
+	ServerChangeNotification() = default;
+
+	explicit ServerChangeNotification(CServer const& server)
+	    : newServer_(server)
+	{}
+
+	CServer newServer_;
 };
 
 #endif

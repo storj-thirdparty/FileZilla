@@ -3,6 +3,8 @@
 #include "queueview_failed.h"
 #include "edithandler.h"
 
+#include <wx/menu.h>
+
 BEGIN_EVENT_TABLE(CQueueViewFailed, CQueueViewBase)
 EVT_CONTEXT_MENU(CQueueViewFailed::OnContextMenu)
 EVT_MENU(XRCID("ID_REMOVEALL"), CQueueViewFailed::OnRemoveAll)
@@ -126,7 +128,7 @@ void CQueueViewFailed::OnRemoveSelected(wxCommandEvent&)
 			CFileItem* pFileItem = (CFileItem*)pItem;
 			if (pFileItem->m_edit == CEditHandler::remote && pEditHandler) {
 				if (pFileItem->m_edit == CEditHandler::local) {
-					wxString fullPath(pFileItem->GetLocalPath().GetPath() + pFileItem->GetLocalFile());
+					std::wstring fullPath(pFileItem->GetLocalPath().GetPath() + pFileItem->GetLocalFile());
 					CEditHandler::fileState state = pEditHandler->GetFileState(fullPath);
 					if (state == CEditHandler::upload_and_remove_failed) {
 						pEditHandler->Remove(fullPath);
@@ -181,12 +183,9 @@ bool CQueueViewFailed::RequeueFileItem(CFileItem* pFileItem, CServerItem* pServe
 		CEditHandler::fileState state = pEditHandler->GetFileState(pFileItem->GetRemoteFile(), pFileItem->GetRemotePath(), pServerItem->GetSite());
 		if (state == CEditHandler::unknown) {
 			wxASSERT(pFileItem->Download());
-			std::wstring file = pFileItem->GetRemoteFile();
-			if (!pEditHandler->AddFile(CEditHandler::remote, file, pFileItem->GetRemotePath(), pServerItem->GetSite())) {
-				delete pFileItem;
-				return false;
-			}
-			pFileItem->SetTargetFile(file);
+			pEditHandler->AddFile(CEditHandler::remote, pFileItem->GetLocalPath().GetPath() + pFileItem->GetLocalFile(), pFileItem->GetRemoteFile(), pFileItem->GetRemotePath(), pServerItem->GetSite(), pFileItem->GetSize());
+			delete pFileItem;
+			return true;
 		}
 		else if (state == CEditHandler::upload_and_remove_failed) {
 			wxASSERT(!pFileItem->Download());
@@ -230,11 +229,13 @@ bool CQueueViewFailed::RequeueServerItem(CServerItem* pServerItem)
 
 	std::vector<CServerItem*>::iterator iter;
 	for (iter = m_serverList.begin(); iter != m_serverList.end(); ++iter) {
-		if (*iter == pServerItem)
+		if (*iter == pServerItem) {
 			break;
+		}
 	}
-	if (iter != m_serverList.end())
+	if (iter != m_serverList.end()) {
 		m_serverList.erase(iter);
+	}
 
 	delete pServerItem;
 
@@ -250,8 +251,9 @@ void CQueueViewFailed::OnRequeueSelected(wxCommandEvent&)
 {
 #ifndef __WXMSW__
 	// GetNextItem is O(n) if nothing is selected, GetSelectedItemCount() is O(1)
-	if (!GetSelectedItemCount())
+	if (!GetSelectedItemCount()) {
 		return;
+	}
 #endif
 
 	bool failedToRequeueAll = false;
@@ -260,20 +262,24 @@ void CQueueViewFailed::OnRequeueSelected(wxCommandEvent&)
 	long skipTo = -1;
 	for (;;) {
 		item = GetNextItem(item, wxLIST_NEXT_ALL, wxLIST_STATE_SELECTED);
-		if (item == -1)
+		if (item == -1) {
 			break;
+		}
 		SetItemState(item, 0, wxLIST_STATE_SELECTED);
-		if (item < skipTo)
+		if (item < skipTo) {
 			continue;
+		}
 
 		CQueueItem* pItem = GetQueueItem(item);
-		if (pItem->GetType() == QueueItemType::Server)
+		if (pItem->GetType() == QueueItemType::Server) {
 			skipTo = item + pItem->GetChildrenCount(true) + 1;
+		}
 		selectedItems.push_back(GetQueueItem(item));
 	}
 
-	if (selectedItems.empty())
+	if (selectedItems.empty()) {
 		return;
+	}
 
 	CQueueView* pQueueView = m_pQueue->GetQueueView();
 
@@ -304,52 +310,59 @@ void CQueueViewFailed::OnRequeueSelected(wxCommandEvent&)
 
 	pQueueView->CommitChanges();
 
-	if (pQueueView->IsActive())
+	if (pQueueView->IsActive()) {
 		pQueueView->AdvanceQueue(false);
+	}
 
 	DisplayNumberQueuedFiles();
 	SaveSetItemCount(m_itemCount);
 	RefreshListOnly();
 
-	if (!m_itemCount && m_pQueue->GetQueueView()->GetItemCount())
+	if (!m_itemCount && m_pQueue->GetQueueView()->GetItemCount()) {
 		m_pQueue->SetSelection(0);
+	}
 
-	if (failedToRequeueAll)
+	if (failedToRequeueAll) {
 		wxMessageBoxEx(_("Not all items could be requeued for transfer."));
+	}
 }
 
 void CQueueViewFailed::OnRequeueAll(wxCommandEvent&)
 {
 	bool ret = true;
-	while (!m_serverList.empty())
+	while (!m_serverList.empty()) {
 		ret &= RequeueServerItem(m_serverList.front());
+	}
 
 	m_fileCountChanged = true;
 
 	CQueueView* pQueueView = m_pQueue->GetQueueView();
 	pQueueView->CommitChanges();
 
-	if (pQueueView->IsActive())
+	if (pQueueView->IsActive()) {
 		pQueueView->AdvanceQueue(false);
+	}
 
 	DisplayNumberQueuedFiles();
 	SaveSetItemCount(m_itemCount);
 	RefreshListOnly();
 
-	if (!m_itemCount && m_pQueue->GetQueueView()->GetItemCount())
+	if (!m_itemCount && m_pQueue->GetQueueView()->GetItemCount()) {
 		m_pQueue->SetSelection(0);
+	}
 
-	if (!ret)
+	if (!ret) {
 		wxMessageBoxEx(_("Not all items could be requeued for transfer."));
+	}
 }
 
 void CQueueViewFailed::OnChar(wxKeyEvent& event)
 {
-	if (event.GetKeyCode() == WXK_DELETE || event.GetKeyCode() == WXK_NUMPAD_DELETE)
-	{
+	if (event.GetKeyCode() == WXK_DELETE || event.GetKeyCode() == WXK_NUMPAD_DELETE) {
 		wxCommandEvent cmdEvt;
 		OnRemoveSelected(cmdEvt);
 	}
-	else
+	else {
 		event.Skip();
+	}
 }

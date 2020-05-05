@@ -25,7 +25,7 @@ public:
 		remove_handler();
 	}
 
-	virtual void operator()(fz::event_base const& ev)
+	virtual void operator()(fz::event_base const& ev) override
 	{
 		if (fz::dispatch<fz::certificate_verification_event>(ev, this, &CHttpInternalConnectOpData::OnVerifyCert)) {
 			return;

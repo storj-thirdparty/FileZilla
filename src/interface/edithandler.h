@@ -6,7 +6,16 @@
 
 #include <wx/timer.h>
 
+#include <list>
+#include <map>
+
 // Handles all aspects about remote file viewing/editing
+
+typedef std::map<std::wstring, std::vector<std::wstring>, std::less<>> Associations;
+
+Associations LoadAssociations();
+void SaveAssociations(Associations const& assocs);
+
 
 namespace edit_choices {
 enum type
@@ -47,8 +56,8 @@ public:
 	// If files are locked, they won't be removed though
 	void Release();
 
-	fileState GetFileState(wxString const& fileName) const; // Local files
-	fileState GetFileState(wxString const& fileName, CServerPath const& remotePath, Site const& site) const; // Remote files
+	fileState GetFileState(std::wstring const& fileName) const; // Local files
+	fileState GetFileState(std::wstring const& fileName, CServerPath const& remotePath, Site const& site) const; // Remote files
 
 	// Returns the number of files in given state
 	// pServer may be set only if state isn't unknown
@@ -70,38 +79,29 @@ public:
 	bool Edit(CEditHandler::fileType type, std::vector<FileData> const& data, CServerPath const& path, Site const& site, wxWindow* parent);
 
 	// Adds the file that doesn't exist yet. (Has to be in unknown state)
-	// The initial state will be download
-	bool AddFile(fileType type, std::wstring& fileName, CServerPath const& remotePath, Site const& site);
+	// The initial state will be download for remote files.
+	bool AddFile(CEditHandler::fileType type, std::wstring const& localFile, std::wstring const& remoteFile, CServerPath const& remotePath, Site const& site, int64_t size);
 
 	// Tries to unedit and remove file
-	bool Remove(wxString const& fileName); // Local files
-	bool Remove(wxString const& fileName, CServerPath const& remotePath, Site const& site); // Remote files
+	bool Remove(std::wstring const& fileName); // Local files
+	bool Remove(std::wstring const& fileName, CServerPath const& remotePath, Site const& site); // Remote files
 	bool RemoveAll(bool force);
 	bool RemoveAll(fileState state, Site const& site = Site());
 
-	void FinishTransfer(bool successful, wxString const& fileName);
-	void FinishTransfer(bool successful, wxString const& fileName, CServerPath const& remotePath, Site const& site);
+	void FinishTransfer(bool successful, std::wstring const& fileName);
+	void FinishTransfer(bool successful, std::wstring const& fileName, CServerPath const& remotePath, Site const& site);
 
 	void CheckForModifications(bool emitEvent = false);
 
 	void SetQueue(CQueueView* pQueue) { m_pQueue = pQueue; }
 
-	/* Checks if file can be opened. One of these conditions has to be true:
-	 * - Filetype association of system has to exist
-	 * - Custom association for that filetype
-	 * - Default editor set
-	 *
-	 * The dangerous argument will be set to true on some filetypes,
-	 * e.g. executables.
-	 */
-	wxString CanOpen(fileType type, wxString const& fileName, bool &dangerous, bool& program_exists);
-	bool StartEditing(wxString const& file);
-	bool StartEditing(wxString const& file, CServerPath const& remotePath, Site const& site);
+	bool LaunchEditor(std::wstring const& file);
+	bool LaunchEditor(std::wstring const& file, CServerPath const& remotePath, Site const& site);
 
 	struct t_fileData
 	{
-		std::wstring name; // The name of the file
-		std::wstring file; // The actual local filename
+		std::wstring remoteFile; // The name of the remote file
+		std::wstring localFile; // The full path to the local file
 		fileState state;
 		fz::datetime modificationTime;
 		CServerPath remotePath;
@@ -110,14 +110,20 @@ public:
 
 	const std::list<t_fileData>& GetFiles(fileType type) const { wxASSERT(type != none); return m_fileDataList[(type == local) ? 0 : 1]; }
 
-	bool UploadFile(wxString const& file, bool unedit);
-	bool UploadFile(wxString const& file, CServerPath const& remotePath, Site const& site, bool unedit);
+	bool UploadFile(std::wstring const& file, bool unedit);
+	bool UploadFile(std::wstring const& file, CServerPath const& remotePath, Site const& site, bool unedit);
 
-	// Returns command to open the file. If association is set but
-	// program does not exist, program_exists is set to false.
-	wxString GetOpenCommand(wxString const& file, bool& program_exists);
+	// Returns command to open the file.
+	std::vector<std::wstring> GetAssociation(std::wstring const& file);
 
 protected:
+	/* Checks if file can be opened. One of these conditions has to be true:
+	 * - Filetype association of system has to exist
+	 * - Custom association for that filetype
+	 * - Default editor set
+	 */
+	std::vector<std::wstring> CanOpen(std::wstring const& fileName, bool& program_exists);
+
 	bool DoEdit(CEditHandler::fileType type, FileData const& file, CServerPath const& path, Site const& site, wxWindow* parent, size_t fileCount, int & already_editing_action);
 
 	CEditHandler();
@@ -126,9 +132,9 @@ protected:
 
 	std::wstring m_localDir;
 
-	bool StartEditing(fileType type, t_fileData &data);
+	bool LaunchEditor(fileType type, t_fileData &data);
 
-	wxString GetCustomOpenCommand(wxString const& file, bool& program_exists);
+	std::vector<std::wstring> GetCustomAssociation(std::wstring_view const& file);
 
 	void SetTimerState();
 
@@ -136,24 +142,24 @@ protected:
 
 	std::list<t_fileData> m_fileDataList[2];
 
-	std::list<t_fileData>::iterator GetFile(wxString const& fileName);
-	std::list<t_fileData>::const_iterator GetFile(wxString const& fileName) const;
-	std::list<t_fileData>::iterator GetFile(wxString const& fileName, CServerPath const& remotePath, Site const& site);
-	std::list<t_fileData>::const_iterator GetFile(wxString const& fileName, CServerPath const& remotePath, Site const& site) const;
+	std::list<t_fileData>::iterator GetFile(std::wstring const& fileName);
+	std::list<t_fileData>::const_iterator GetFile(std::wstring const& fileName) const;
+	std::list<t_fileData>::iterator GetFile(std::wstring const& fileName, CServerPath const& remotePath, Site const& site);
+	std::list<t_fileData>::const_iterator GetFile(std::wstring const& fileName, CServerPath const& remotePath, Site const& site) const;
 
 	CQueueView* m_pQueue;
 
 	wxTimer m_timer;
 	wxTimer m_busyTimer;
 
-	void RemoveTemporaryFiles(wxString const& temp);
+	void RemoveTemporaryFiles(std::wstring const& temp);
 	void RemoveTemporaryFilesInSpecificDir(std::wstring const& temp);
 
 	std::wstring GetTemporaryFile(std::wstring name);
 	std::wstring TruncateFilename(std::wstring const& path, std::wstring const& name, size_t max);
-	bool FilenameExists(wxString const& file);
+	bool FilenameExists(std::wstring const& file);
 
-	int DisplayChangeNotification(fileType type, std::list<t_fileData>::const_iterator iter, bool& remove);
+	int DisplayChangeNotification(fileType type, t_fileData const& data, bool& remove);
 
 #ifdef __WXMSW__
 	HANDLE m_lockfile_handle;
@@ -180,33 +186,33 @@ protected:
 
 	CEditHandler::t_fileData* GetDataFromItem(int item, CEditHandler::fileType &type);
 
-	wxWindow* m_pParent;
+	struct impl;
+	std::unique_ptr<impl> impl_;
 
-	CWindowStateManager* m_pWindowStateManager;
-
-	DECLARE_EVENT_TABLE()
-	void OnSelectionChanged(wxListEvent& event);
-	void OnUnedit(wxCommandEvent& event);
-	void OnUpload(wxCommandEvent& event);
-	void OnEdit(wxCommandEvent& event);
+	void OnUnedit();
+	void OnUpload(bool uneditAfter);
+	void OnEdit();
 };
 
 class CNewAssociationDialog final : protected wxDialogEx
 {
 public:
 	CNewAssociationDialog(wxWindow* parent);
+	virtual ~CNewAssociationDialog();
 
-	bool Run(const wxString& file);
+	bool Run(std::wstring const& file);
 
 protected:
-	void SetCtrlState();
-	wxWindow* m_pParent;
-	wxString m_ext;
+	struct impl;
+	std::unique_ptr<impl> impl_;
 
-	DECLARE_EVENT_TABLE()
-	void OnRadioButton(wxCommandEvent& event);
-	void OnOK(wxCommandEvent& event);
-	void OnBrowseEditor(wxCommandEvent& event);
+	void SetCtrlState();
+	wxWindow* parent_{};
+	std::wstring file_;
+	std::wstring ext_;
+
+	void OnOK();
+	void OnBrowseEditor();
 };
 
 #endif

@@ -1,6 +1,6 @@
 #include <filezilla.h>
 #include "directorylistingparser.h"
-#include "ControlSocket.h"
+#include "controlsocket.h"
 
 #include <libfilezilla/format.hpp>
 
@@ -8,6 +8,7 @@
 #include <vector>
 #include <limits>
 
+#include <assert.h>
 #include <string.h>
 
 std::map<std::wstring, int> CDirectoryListingParser::m_MonthNamesMap;

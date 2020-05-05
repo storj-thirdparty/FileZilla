@@ -1,7 +1,9 @@
 #include <filezilla.h>
 
 #include <libfilezilla/event_loop.hpp>
+#include <libfilezilla/format.hpp>
 #include <libfilezilla/iputils.hpp>
+#include <libfilezilla/translate.hpp>
 #include <libfilezilla/util.hpp>
 #include "engine_context.h"
 #include "netconfwizard.h"
@@ -45,7 +47,6 @@ CNetConfWizard::~CNetConfWizard()
 
 	socket_.reset();
 	delete m_pIPResolver;
-	delete [] m_pSendBuffer;
 	listen_socket_.reset();
 	data_socket_.reset();
 }
@@ -58,7 +59,7 @@ bool CNetConfWizard::Load()
 
 	wxSize minPageSize = GetPageAreaSizer()->GetMinSize();
 
-	InitXrc();
+	InitXrc(L"netconfwizard.xrc");
 	for (int i = 1; i <= 7; ++i) {
 		wxWizardPageSimple* page = new wxWizardPageSimple();
 		bool res = wxXmlResource::Get()->LoadPanel(page, this, wxString::Format(_T("NETCONF_PANEL%d"), i));
@@ -76,8 +77,9 @@ bool CNetConfWizard::Load()
 	GetPageAreaSizer()->Add(m_pages[0]);
 
 	std::vector<wxWindow*> windows;
-	for (unsigned int i = 0; i < m_pages.size(); i++)
+	for (unsigned int i = 0; i < m_pages.size(); ++i) {
 		windows.push_back(m_pages[i]);
+	}
 	wxGetApp().GetWrapEngine()->WrapRecursive(windows, 1.7, "Netconf", wxSize(), minPageSize);
 
 	CenterOnParent();
@@ -150,14 +152,14 @@ void CNetConfWizard::OnPageChanging(wxWizardEvent& event)
 		int mode = XRCCTRL(*this, "ID_ACTIVEMODE1", wxRadioButton)->GetValue() ? 0 : (XRCCTRL(*this, "ID_ACTIVEMODE2", wxRadioButton)->GetValue() ? 1 : 2);
 		if (mode == 1) {
 			wxTextCtrl* control = XRCCTRL(*this, "ID_ACTIVEIP", wxTextCtrl);
-			wxString ip = control->GetValue();
+			std::wstring ip = control->GetValue().ToStdWstring();
 			if (ip.empty()) {
 				wxMessageBoxEx(_("Please enter your external IP address"));
 				control->SetFocus();
 				event.Veto();
 				return;
 			}
-			if (fz::get_address_type(ip.ToStdWstring()) != fz::address_type::ipv4) {
+			if (fz::get_address_type(ip) != fz::address_type::ipv4) {
 				wxMessageBoxEx(_("You have to enter a valid IPv4 address."));
 				control->SetFocus();
 				event.Veto();
@@ -201,8 +203,9 @@ void CNetConfWizard::OnPageChanging(wxWizardEvent& event)
 		}
 	}
 	else if (event.GetPage() == m_pages[5] && event.GetDirection()) {
-		if (m_testDidRun)
+		if (m_testDidRun) {
 			return;
+		}
 
 		m_testDidRun = true;
 
@@ -216,13 +219,13 @@ void CNetConfWizard::OnPageChanging(wxWizardEvent& event)
 		}
 		event.Veto();
 
-		PrintMessage(wxString::Format(_("Connecting to %s"), _T("probe.filezilla-project.org")), 0);
+		PrintMessage(fz::sprintf(fztranslate("Connecting to %s"), L"probe.filezilla-project.org"), 0);
 		socket_ = std::make_unique<fz::socket>(engine_context_.GetThreadPool(), static_cast<fz::event_handler*>(this));
 		m_recvBufferPos = 0;
 
 		int res = socket_->connect(fzT("probe.filezilla-project.org"), 21);
 		if (res) {
-			PrintMessage(wxString::Format(_("Connect failed: %s"), fz::socket_error_description(res)), 1);
+			PrintMessage(fz::sprintf(fztranslate("Connect failed: %s"), fz::socket_error_description(res)), 1);
 			CloseSocket();
 		}
 	}
@@ -273,7 +276,7 @@ void CNetConfWizard::DoOnSocketEvent(fz::socket_event_source* s, fz::socket_even
 	}
 	else if (s == listen_socket_.get()) {
 		if (error) {
-			PrintMessage(_("Listen socket closed"), 1);
+			PrintMessage(fztranslate("Listen socket closed"), 1);
 			CloseSocket();
 			return;
 		}
@@ -304,7 +307,7 @@ void CNetConfWizard::DoOnSocketEvent(fz::socket_event_source* s, fz::socket_even
 
 void CNetConfWizard::OnSend()
 {
-	if (!m_pSendBuffer) {
+	if (!sendBuffer_) {
 		return;
 	}
 
@@ -313,22 +316,15 @@ void CNetConfWizard::OnSend()
 	}
 
 	int error;
-	int const len = strlen(m_pSendBuffer);
-	int const written = socket_->write(m_pSendBuffer, len, error);
+	int const written = socket_->write(sendBuffer_.get(), static_cast<int>(sendBuffer_.size()), error);
 	if (written < 0) {
 		if (error != EAGAIN) {
-			PrintMessage(_("Failed to send command."), 1);
+			PrintMessage(fztranslate("Failed to send command."), 1);
 			CloseSocket();
 		}
 		return;
 	}
-	if (written == len) {
-		delete [] m_pSendBuffer;
-		m_pSendBuffer = 0;
-	}
-	else {
-		memmove(m_pSendBuffer, m_pSendBuffer + written, len - written + 1);
-	}
+	sendBuffer_.consume(static_cast<size_t>(written));
 }
 
 void CNetConfWizard::OnClose()
@@ -338,7 +334,7 @@ void CNetConfWizard::OnClose()
 
 void CNetConfWizard::OnConnect()
 {
-	PrintMessage(_("Connection established, waiting for welcome message."), 0);
+	PrintMessage(fztranslate("Connection established, waiting for welcome message."), 0);
 	m_connectSuccessful = true;
 }
 
@@ -349,35 +345,37 @@ void CNetConfWizard::OnReceive()
 		int const read = socket_->read(m_recvBuffer + m_recvBufferPos, NETCONFBUFFERSIZE - m_recvBufferPos, error);
 		if (read < 0) {
 			if (error != EAGAIN) {
-				PrintMessage(_("Could not receive data from server."), 1);
+				PrintMessage(fztranslate("Could not receive data from server."), 1);
 				CloseSocket();
 			}
 			return;
 		}
 		if (!read) {
-			PrintMessage(_("Connection lost"), 1);
+			PrintMessage(fztranslate("Connection lost"), 1);
 			CloseSocket();
 			return;
 		}
 
 		m_recvBufferPos += read;
 
-		if (m_recvBufferPos < 3)
+		if (m_recvBufferPos < 3) {
 			return;
+		}
 
 		for (int i = 0; i < m_recvBufferPos - 1; ++i) {
 			if (m_recvBuffer[i] == '\n') {
 				m_testResult = servererror;
-				PrintMessage(_("Invalid data received"), 1);
+				PrintMessage(fztranslate("Invalid data received"), 1);
 				CloseSocket();
 				return;
 			}
-			if (m_recvBuffer[i] != '\r')
+			if (m_recvBuffer[i] != '\r') {
 				continue;
+			}
 
 			if (m_recvBuffer[i + 1] != '\n') {
 				m_testResult = servererror;
-				PrintMessage(_("Invalid data received"), 1);
+				PrintMessage(fztranslate("Invalid data received"), 1);
 				CloseSocket();
 				return;
 			}
@@ -385,15 +383,16 @@ void CNetConfWizard::OnReceive()
 
 			if (!*m_recvBuffer) {
 				m_testResult = servererror;
-				PrintMessage(_("Invalid data received"), 1);
+				PrintMessage(fztranslate("Invalid data received"), 1);
 				CloseSocket();
 				return;
 			}
 
 			ParseResponse(m_recvBuffer);
 
-			if (!socket_)
+			if (!socket_) {
 				return;
+			}
 
 			memmove(m_recvBuffer, m_recvBuffer + i + 2, m_recvBufferPos - i - 2);
 			m_recvBufferPos -= i + 2;
@@ -402,7 +401,7 @@ void CNetConfWizard::OnReceive()
 
 		if (m_recvBufferPos == 200) {
 			m_testResult = servererror;
-			PrintMessage(_("Invalid data received"), 1);
+			PrintMessage(fztranslate("Invalid data received"), 1);
 			CloseSocket();
 			return;
 		}
@@ -411,120 +410,117 @@ void CNetConfWizard::OnReceive()
 
 void CNetConfWizard::ParseResponse(const char* line)
 {
-	if (m_timer.IsRunning())
+	if (m_timer.IsRunning()) {
 		m_timer.Stop();
+	}
 
-	const int len = strlen(line);
-	wxString msg(line, wxConvLocal);
-	wxString str = _("Response:");
-	str += _T(" ");
+	size_t len = strlen(line);
+	std::wstring msg = fz::to_wstring_from_utf8(line);
+	std::wstring str = fztranslate("Response:");
+	str += L" ";
 	str += msg;
 	PrintMessage(str, 3);
 
 	if (len < 3) {
 		m_testResult = servererror;
-		PrintMessage(_("Server sent unexpected reply."), 1);
+		PrintMessage(fztranslate("Server sent unexpected reply."), 1);
 		CloseSocket();
 		return;
 	}
 	if (line[3] && line[3] != ' ') {
 		m_testResult = servererror;
-		PrintMessage(_("Server sent unexpected reply."), 1);
+		PrintMessage(fztranslate("Server sent unexpected reply."), 1);
 		CloseSocket();
 		return;
 	}
 
-	if (line[0] == '1')
+	if (line[0] == '1') {
 		return;
+	}
 
 	switch (m_state)
 	{
 	case 3:
-		if (line[0] == '2')
+		if (line[0] == '2') {
 			break;
+		}
 
 		if (line[1] == '0' && line[2] == '1') {
-			PrintMessage(_("Communication tainted by router or firewall"), 1);
+			PrintMessage(fztranslate("Communication tainted by router or firewall"), 1);
 			m_testResult = tainted;
 			CloseSocket();
 			return;
 		}
 		else if (line[1] == '1' && line[2] == '0') {
-			PrintMessage(_("Wrong external IP address"), 1);
+			PrintMessage(fztranslate("Wrong external IP address"), 1);
 			m_testResult = mismatch;
 			CloseSocket();
 			return;
 		}
 		else if (line[1] == '1' && line[2] == '1') {
-			PrintMessage(_("Wrong external IP address"), 1);
-			PrintMessage(_("Communication tainted by router or firewall"), 1);
+			PrintMessage(fztranslate("Wrong external IP address"), 1);
+			PrintMessage(fztranslate("Communication tainted by router or firewall"), 1);
 			m_testResult = mismatchandtainted;
 			CloseSocket();
 			return;
 		}
 		else {
 			m_testResult = servererror;
-			PrintMessage(_("Server sent unexpected reply."), 1);
+			PrintMessage(fztranslate("Server sent unexpected reply."), 1);
 			CloseSocket();
 			return;
 		}
 		break;
 	case 4:
-		if (line[0] != '2')
-		{
+		if (line[0] != '2') {
 			m_testResult = servererror;
-			PrintMessage(_("Server sent unexpected reply."), 1);
+			PrintMessage(fztranslate("Server sent unexpected reply."), 1);
 			CloseSocket();
 			return;
 		}
-		else
-		{
+		else {
 			const char* p = line + len;
-			while (*(--p) != ' ')
-			{
-				if (*p < '0' || *p > '9')
-				{
+			while (*(--p) != ' ') {
+				if (*p < '0' || *p > '9') {
 					m_testResult = servererror;
-					PrintMessage(_("Server sent unexpected reply."), 1);
+					PrintMessage(fztranslate("Server sent unexpected reply."), 1);
 					CloseSocket();
 					return;
 				}
 			}
 			m_data = 0;
-			while (*++p)
+			while (*++p) {
 				m_data = m_data * 10 + *p - '0';
+			}
 		}
 		break;
 	case 5:
-		if (line[0] == '2')
+		if (line[0] == '2') {
 			break;
-
+		}
 
 		if (line[0] == '5' && line[1] == '0' && (line[2] == '1' || line[2] == '2')) {
 			m_testResult = tainted;
-			PrintMessage(_("PORT command tainted by router or firewall."), 1);
+			PrintMessage(fztranslate("PORT command tainted by router or firewall."), 1);
 			CloseSocket();
 			return;
 		}
 
 		m_testResult = servererror;
-		PrintMessage(_("Server sent unexpected reply."), 1);
+		PrintMessage(fztranslate("Server sent unexpected reply."), 1);
 		CloseSocket();
 		return;
 	case 6:
-		if (line[0] != '2' && line[0] != '3')
-		{
+		if (line[0] != '2' && line[0] != '3') {
 			m_testResult = servererror;
-			PrintMessage(_("Server sent unexpected reply."), 1);
+			PrintMessage(fztranslate("Server sent unexpected reply."), 1);
 			CloseSocket();
 			return;
 		}
-		if (data_socket_)
-		{
-			if (gotListReply)
-			{
+		if (data_socket_) {
+			if (gotListReply) {
 				m_testResult = servererror;
-				PrintMessage(_("Server sent unexpected reply."), 1);
+				PrintMessage(fztranslate("Server sent unexpected reply."), 1);
 				CloseSocket();
 			}
 			gotListReply = true;
@@ -532,32 +528,32 @@ void CNetConfWizard::ParseResponse(const char* line)
 		}
 		break;
 	default:
-		if (line[0] != '2' && line[0] != '3')
-		{
+		if (line[0] != '2' && line[0] != '3') {
 			m_testResult = servererror;
-			PrintMessage(_("Server sent unexpected reply."), 1);
+			PrintMessage(fztranslate("Server sent unexpected reply."), 1);
 			CloseSocket();
 			return;
 		}
 		break;
 	}
 
-	m_state++;
+	++m_state;
 
 	SendNextCommand();
 }
 
-void CNetConfWizard::PrintMessage(const wxString& msg, int)
+void CNetConfWizard::PrintMessage(std::wstring const& msg, int)
 {
-	XRCCTRL(*this, "ID_RESULTS", wxTextCtrl)->AppendText(msg + _T("\n"));
+	XRCCTRL(*this, "ID_RESULTS", wxTextCtrl)->AppendText(msg + L"\n");
 }
 
 void CNetConfWizard::CloseSocket()
 {
-	if (!socket_)
+	if (!socket_) {
 		return;
+	}
 
-	PrintMessage(_("Connection closed"), 0);
+	PrintMessage(fztranslate("Connection closed"), 0);
 
 	auto pNext = dynamic_cast<wxButton*>(FindWindow(wxID_FORWARD));
 	if (pNext) {
@@ -566,14 +562,12 @@ void CNetConfWizard::CloseSocket()
 	}
 
 	wxString text[5];
-	if (!m_connectSuccessful)
-	{
+	if (!m_connectSuccessful) {
 		text[0] = _("Connection with the test server failed.");
 		text[1] = _("Please check on https://filezilla-project.org/probe.php that the server is running and carefully check your settings again.");
 		text[2] = _("If the problem persists, some router and/or firewall keeps blocking FileZilla.");
 	}
-	else
-	{
+	else {
 		switch (m_testResult)
 		{
 		case unknown:
@@ -583,7 +577,7 @@ void CNetConfWizard::CloseSocket()
 			text[3] = _("See also: https://wiki.filezilla-project.org/Network_Configuration");
 			break;
 		case successful:
-			PrintMessage(_("Test finished successfully"), 0);
+			PrintMessage(fztranslate("Test finished successfully"), 0);
 			text[0] = _("Congratulations, your configuration seems to be working.");
 			text[1] = _("You should have no problems connecting to other servers, file transfers should work properly.");
 			text[2] = _("If you keep having problems with a specific server, the server itself or a remote router or firewall might be misconfigured. In this case try to toggle passive mode and contact the server administrator for help.");
@@ -601,8 +595,7 @@ void CNetConfWizard::CloseSocket()
 			text[1] = _("Please update your firewall and make sure your router is using the latest available firmware. Furthermore, your router has to be configured properly. You will have to use manual port forwarding. Don't run your router in the so called 'DMZ mode' or 'game mode'. Things like protocol inspection or protocol specific 'fixups' have to be disabled");
 			text[2] = _("If this problem stays, please contact your router manufacturer.");
 			text[3] = _("Unless this problem gets fixed, active mode FTP will not work and passive mode has to be used.");
-			if (XRCCTRL(*this, "ID_ACTIVE", wxRadioButton)->GetValue())
-			{
+			if (XRCCTRL(*this, "ID_ACTIVE", wxRadioButton)->GetValue()) {
 				XRCCTRL(*this, "ID_PASSIVE", wxRadioButton)->SetValue(true);
 				text[3] += _T(" ");
 				text[3] += _("Passive mode has been set as default transfer mode.");
@@ -614,8 +607,7 @@ void CNetConfWizard::CloseSocket()
 			text[2] = _("Please make sure your router is using the latest available firmware. Furthermore, your router has to be configured properly. You will have to use manual port forwarding. Don't run your router in the so called 'DMZ mode' or 'game mode'.");
 			text[3] = _("If your router keeps changing the IP address, please contact your router manufacturer.");
 			text[4] = _("Unless these problems get fixed, active mode FTP will not work and passive mode has to be used.");
-			if (XRCCTRL(*this, "ID_ACTIVE", wxRadioButton)->GetValue())
-			{
+			if (XRCCTRL(*this, "ID_ACTIVE", wxRadioButton)->GetValue()) {
 				XRCCTRL(*this, "ID_PASSIVE", wxRadioButton)->SetValue(true);
 				text[4] += _T(" ");
 				text[4] += _("Passive mode has been set as default transfer mode.");
@@ -625,8 +617,7 @@ void CNetConfWizard::CloseSocket()
 			text[0] = _("Active mode FTP test failed. FileZilla does not know the correct external IP address.");
 			text[1] = _("Please enter your external IP address on the active mode page of this wizard. In case you have a dynamic address or don't know your external address, use the external resolver option.");
 			text[2] = _("Unless these problems get fixed, active mode FTP will not work and passive mode has to be used.");
-			if (XRCCTRL(*this, "ID_ACTIVE", wxRadioButton)->GetValue())
-			{
+			if (XRCCTRL(*this, "ID_ACTIVE", wxRadioButton)->GetValue()) {
 				XRCCTRL(*this, "ID_PASSIVE", wxRadioButton)->SetValue(true);
 				text[2] += _T(" ");
 				text[2] += _("Passive mode has been set as default transfer mode.");
@@ -662,8 +653,7 @@ void CNetConfWizard::CloseSocket()
 
 	socket_.reset();
 
-	delete [] m_pSendBuffer;
-	m_pSendBuffer = 0;
+	sendBuffer_.clear();
 
 	listen_socket_.reset();
 	data_socket_.reset();
@@ -673,9 +663,9 @@ void CNetConfWizard::CloseSocket()
 	}
 }
 
-bool CNetConfWizard::Send(wxString cmd)
+bool CNetConfWizard::Send(std::wstring const& cmd)
 {
-	wxASSERT(!m_pSendBuffer);
+	wxASSERT(!sendBuffer_);
 
 	if (!socket_) {
 		return false;
@@ -683,11 +673,8 @@ bool CNetConfWizard::Send(wxString cmd)
 
 	PrintMessage(cmd, 2);
 
-	cmd += _T("\r\n");
-	wxCharBuffer buffer = cmd.mb_str();
-	unsigned int len = strlen(buffer);
-	m_pSendBuffer = new char[len + 1];
-	memcpy(m_pSendBuffer, buffer, len + 1);
+	sendBuffer_.append(fz::to_utf8(cmd));
+	sendBuffer_.append("\r\n");
 
 	m_timer.Start(15000, true);
 	OnSend();
@@ -695,42 +682,42 @@ bool CNetConfWizard::Send(wxString cmd)
 	return socket_ != 0;
 }
 
-wxString CNetConfWizard::GetExternalIPAddress()
+std::wstring CNetConfWizard::GetExternalIPAddress()
 {
-	wxString ret;
+	std::wstring ret;
 
 	wxASSERT(socket_);
 
 	int mode = XRCCTRL(*this, "ID_ACTIVEMODE1", wxRadioButton)->GetValue() ? 0 : (XRCCTRL(*this, "ID_ACTIVEMODE2", wxRadioButton)->GetValue() ? 1 : 2);
 	if (!mode) {
-		ret = socket_->local_ip();
+		ret = fz::to_wstring_from_utf8(socket_->local_ip());
 		if (ret.empty()) {
-			PrintMessage(_("Failed to retrieve local IP address, aborting."), 1);
+			PrintMessage(fztranslate("Failed to retrieve local IP address, aborting."), 1);
 			CloseSocket();
 		}
 	}
 	else if (mode == 1) {
 		wxTextCtrl* control = XRCCTRL(*this, "ID_ACTIVEIP", wxTextCtrl);
-		ret = control->GetValue();
+		ret = control->GetValue().ToStdWstring();
 	}
 	else if (mode == 2) {
 		if (!m_pIPResolver) {
 			wxTextCtrl* pResolver = XRCCTRL(*this, "ID_ACTIVERESOLVER", wxTextCtrl);
 			std::wstring address = pResolver->GetValue().ToStdWstring();
 
-			PrintMessage(wxString::Format(_("Retrieving external IP address from %s"), address), 0);
+			PrintMessage(fz::sprintf(fztranslate("Retrieving external IP address from %s"), address), 0);
 
 			m_pIPResolver = new CExternalIPResolver(engine_context_.GetThreadPool(), *this);
 			m_pIPResolver->GetExternalIP(address, fz::address_type::ipv4, true);
 			if (!m_pIPResolver->Done()) {
-				return wxString();
+				return ret;
 			}
 		}
 		if (m_pIPResolver->Successful()) {
-			ret = m_pIPResolver->GetIP();
+			ret = fz::to_wstring_from_utf8(m_pIPResolver->GetIP());
 		}
 		else {
-			PrintMessage(_("Failed to retrieve external IP address, aborting."), 1);
+			PrintMessage(fztranslate("Failed to retrieve external IP address, aborting."), 1);
 
 			m_testResult = externalfailed;
 			CloseSocket();
@@ -764,68 +751,71 @@ void CNetConfWizard::SendNextCommand()
 	switch (m_state)
 	{
 	case 1:
-		if (!Send(_T("USER ") + wxString(PACKAGE_NAME, wxConvLocal)))
+		if (!Send(L"USER " + fz::to_wstring_from_utf8(PACKAGE_NAME))) {
 			return;
+		}
 		break;
 	case 2:
-		if (!Send(_T("PASS ") + wxString(PACKAGE_VERSION, wxConvLocal)))
+		if (!Send(L"PASS " + fz::to_wstring_from_utf8(PACKAGE_VERSION))) {
 			return;
+		}
 		break;
 	case 3:
 		{
-			PrintMessage(_("Checking for correct external IP address"), 0);
-			wxString ip = GetExternalIPAddress();
+			PrintMessage(fztranslate("Checking for correct external IP address"), 0);
+			std::wstring ip = GetExternalIPAddress();
 			if (ip.empty()) {
 				return;
 			}
-			if (!fz::get_ipv6_long_form(ip.ToStdWstring()).empty()) {
-				PrintMessage(_("You appear to be using an IPv6-only host. This wizard does not support this environment."), 1);
+			if (!fz::get_ipv6_long_form(ip).empty()) {
+				PrintMessage(fztranslate("You appear to be using an IPv6-only host. This wizard does not support this environment."), 1);
 				CloseSocket();
 				return;
 			}
 			m_externalIP = ip;
 
-			wxString hexIP = ip;
-			for (unsigned int i = 0; i < hexIP.Length(); i++) {
-				wxChar c = hexIP[i];
-				if (c == '.')
+			std::wstring hexIP = ip;
+			for (unsigned int i = 0; i < hexIP.size(); ++i) {
+				wchar_t & c = hexIP[i];
+				if (c == '.') {
 					c = '-';
-				else
+				}
+				else {
 					c = c - '0' + 'a';
-				hexIP.SetChar(i, c);
+				}
 			}
 
-			if (!Send(_T("IP ") + ip + _T(" ") + hexIP))
+			if (!Send(L"IP " + ip + L" " + hexIP)) {
 				return;
+			}
 
 		}
 		break;
 	case 4:
 		{
 			int port = CreateListenSocket();
-			if (!port)
-			{
-				PrintMessage(wxString::Format(_("Failed to create listen socket on port %d, aborting."), port), 1);
+			if (!port) {
+				PrintMessage(fz::sprintf(fztranslate("Failed to create listen socket on port %d, aborting."), port), 1);
 				CloseSocket();
 				return;
 			}
 			m_listenPort = port;
-			Send(wxString::Format(_T("PREP %d"), port));
+			Send(fz::sprintf(L"PREP %d", port));
 			break;
 		}
 	case 5:
 		{
-			wxString cmd = wxString::Format(_T("PORT %s,%d,%d"), m_externalIP, m_listenPort / 256, m_listenPort % 256);
-			cmd.Replace(_T("."), _T(","));
+			std::wstring cmd = fz::sprintf(L"PORT %s,%d,%d", m_externalIP, m_listenPort / 256, m_listenPort % 256);
+			fz::replace_substrings(cmd, L".", L",");
 			Send(cmd);
 		}
 		break;
 	case 6:
-		Send(_T("LIST"));
+		Send(L"LIST");
 		break;
 	case 7:
 		m_testResult = successful;
-		Send(_T("QUIT"));
+		Send(L"QUIT");
 		break;
 	case 8:
 		CloseSocket();
@@ -853,15 +843,17 @@ void CNetConfWizard::ResetTest()
 	m_recvBufferPos = 0;
 	gotListReply = false;
 
-	if (!m_pages.empty())
+	if (!m_pages.empty()) {
 		XRCCTRL(*this, "ID_RESULTS", wxTextCtrl)->SetLabel(_T(""));
+	}
 }
 
 void CNetConfWizard::OnFinish(wxWizardEvent&)
 {
 	if (m_testResult != successful) {
-		if (wxMessageBoxEx(_("The test did not succeed. Do you really want to save the settings?"), _("Save settings?"), wxYES_NO | wxICON_QUESTION) != wxYES)
+		if (wxMessageBoxEx(_("The test did not succeed. Do you really want to save the settings?"), _("Save settings?"), wxYES_NO | wxICON_QUESTION) != wxYES) {
 			return;
+		}
 	}
 
 	m_pOptions->SetOption(OPTION_USEPASV, XRCCTRL(*this, "ID_PASSIVE", wxRadioButton)->GetValue() ? 1 : 0);
@@ -869,10 +861,12 @@ void CNetConfWizard::OnFinish(wxWizardEvent&)
 
 	m_pOptions->SetOption(OPTION_PASVREPLYFALLBACKMODE, XRCCTRL(*this, "ID_PASSIVE_FALLBACK1", wxRadioButton)->GetValue() ? 0 : 1);
 
-	if (XRCCTRL(*this, "ID_ACTIVEMODE1", wxRadioButton)->GetValue())
+	if (XRCCTRL(*this, "ID_ACTIVEMODE1", wxRadioButton)->GetValue()) {
 		m_pOptions->SetOption(OPTION_EXTERNALIPMODE, 0);
-	else
+	}
+	else {
 		m_pOptions->SetOption(OPTION_EXTERNALIPMODE, XRCCTRL(*this, "ID_ACTIVEMODE2", wxRadioButton)->GetValue() ? 1 : 2);
+	}
 
 	m_pOptions->SetOption(OPTION_LIMITPORTS, XRCCTRL(*this, "ID_ACTIVE_PORTMODE1", wxRadioButton)->GetValue() ? 0 : 1);
 
@@ -939,7 +933,7 @@ int CNetConfWizard::CreateListenSocket(unsigned int port)
 		listen_socket_.reset();
 		return 0;
 	}
-	return static_cast<unsigned int>(port);
+	return res;
 }
 
 void CNetConfWizard::OnAccept()
@@ -962,19 +956,19 @@ void CNetConfWizard::OnAccept()
 	std::string dataPeerAddr = data_socket_->peer_ip();
 	if (peerAddr.empty()) {
 		data_socket_.reset();
-		PrintMessage(_("Failed to get peer address of control connection, connection closed."), 1);
+		PrintMessage(fztranslate("Failed to get peer address of control connection, connection closed."), 1);
 		CloseSocket();
 		return;
 	}
 	if (dataPeerAddr.empty()) {
 		data_socket_.reset();
-		PrintMessage(_("Failed to get peer address of data connection, connection closed."), 1);
+		PrintMessage(fztranslate("Failed to get peer address of data connection, connection closed."), 1);
 		CloseSocket();
 		return;
 	}
 	if (peerAddr != dataPeerAddr) {
 		data_socket_.reset();
-		PrintMessage(_("Warning, ignoring data connection from wrong IP."), 0);
+		PrintMessage(fztranslate("Warning, ignoring data connection from wrong IP."), 0);
 		return;
 	}
 	listen_socket_.reset();
@@ -986,13 +980,13 @@ void CNetConfWizard::OnDataReceive()
 	int error;
 	int const read = data_socket_->read(buffer, 99, error);
 	if (!read) {
-		PrintMessage(_("Data socket closed too early."), 1);
+		PrintMessage(fztranslate("Data socket closed too early."), 1);
 		CloseSocket();
 		return;
 	}
 	if (read < 0) {
 		if (error != EAGAIN) {
-			PrintMessage(_("Could not read from data socket."), 1);
+			PrintMessage(fztranslate("Could not read from data socket."), 1);
 			CloseSocket();
 		}
 		return;
@@ -1004,7 +998,7 @@ void CNetConfWizard::OnDataReceive()
 	while (*p && *p != ' ') {
 		if (*p < '0' || *p > '9') {
 			m_testResult = datatainted;
-			PrintMessage(_("Received data tainted"), 1);
+			PrintMessage(fztranslate("Received data tainted"), 1);
 			CloseSocket();
 			return;
 		}
@@ -1012,28 +1006,31 @@ void CNetConfWizard::OnDataReceive()
 	}
 	if (data != m_data) {
 		m_testResult = datatainted;
-		PrintMessage(_("Received data tainted"), 1);
+		PrintMessage(fztranslate("Received data tainted"), 1);
 		CloseSocket();
 		return;
 	}
-	p++;
+	++p;
 	if (p - buffer != read - 4) {
-		PrintMessage(_("Failed to receive data"), 1);
+		PrintMessage(fztranslate("Failed to receive data"), 1);
 		CloseSocket();
 		return;
 	}
 
-	wxUint32 ip = 0;
-	for (const wxChar* q = m_externalIP.c_str(); *q; ++q) {
-		if (*q == '.')
+	uint32_t ip = 0;
+	for (auto const& c : m_externalIP) {
+		if (c == '.') {
 			ip *= 256;
-		else
-			ip = ip - (ip % 256) + (ip % 256) * 10 + *q - '0';
+		}
+		else {
+			ip = ip - (ip % 256) + (ip % 256) * 10 + c - '0';
+		}
 	}
+
 	ip = wxUINT32_SWAP_ON_LE(ip);
 	if (memcmp(&ip, p, 4)) {
 		m_testResult = datatainted;
-		PrintMessage(_("Received data tainted"), 1);
+		PrintMessage(fztranslate("Received data tainted"), 1);
 		CloseSocket();
 		return;
 	}
@@ -1041,7 +1038,7 @@ void CNetConfWizard::OnDataReceive()
 	data_socket_.reset();
 
 	if (gotListReply) {
-		m_state++;
+		++m_state;
 		SendNextCommand();
 	}
 }
@@ -1050,24 +1047,25 @@ void CNetConfWizard::OnDataClose()
 {
 	OnDataReceive();
 	if (data_socket_) {
-		PrintMessage(_("Data socket closed too early."), 0);
+		PrintMessage(fztranslate("Data socket closed too early."), 0);
 		CloseSocket();
 		return;
 	}
 	data_socket_.reset();
 
 	if (gotListReply) {
-		m_state++;
+		++m_state;
 		SendNextCommand();
 	}
 }
 
 void CNetConfWizard::OnTimer(wxTimerEvent& event)
 {
-	if (event.GetId() != m_timer.GetId())
+	if (event.GetId() != m_timer.GetId()) {
 		return;
+	}
 
-	PrintMessage(_("Connection timed out."), 0);
+	PrintMessage(fztranslate("Connection timed out."), 0);
 	CloseSocket();
 }
 

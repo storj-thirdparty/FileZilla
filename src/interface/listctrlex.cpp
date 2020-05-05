@@ -1,7 +1,10 @@
 #include <filezilla.h>
 #include "listctrlex.h"
 #include "filezillaapp.h"
+
 #include <wx/renderer.h>
+#include <wx/statbox.h>
+
 #include "Options.h"
 #include "dialogex.h"
 #ifdef __WXMSW__
@@ -245,8 +248,8 @@ void wxListCtrlEx::OnKeyDown(wxKeyEvent& event)
 		return;
 	}
 
-	if (event.AltDown() && !event.ControlDown()) // Alt but not AltGr
-	{
+	if (event.AltDown() && !event.ControlDown()) {
+		// Alt but not AltGr
 		event.Skip();
 		return;
 	}
@@ -283,10 +286,8 @@ void wxListCtrlEx::OnKeyDown(wxKeyEvent& event)
 		key = 0;
 		break;
 	}
-	if (key)
-	{
-		if (event.GetModifiers())
-		{
+	if (key) {
+		if (event.GetModifiers()) {
 			// Numpad keys can not have modifiers
 			event.Skip();
 		}
@@ -688,32 +689,81 @@ void wxListCtrlEx::CreateVisibleColumnMapping()
 	}
 }
 
-class CColumnEditDialog : public wxDialogEx
+class CColumnEditDialog final : public wxDialogEx
 {
 public:
-	int *m_order;
-	DECLARE_EVENT_TABLE()
+	std::vector<int> order_;
+	wxCheckListBox * list_box_{};
+
+	bool Create(wxWindow* parent)
+	{
+		if (!wxDialogEx::Create(parent, -1, _("Column setup"))) {
+			return false;
+		}
+
+		auto& lay = layout();
+		auto main = lay.createMain(this, 1);
+
+		{
+			auto [box, inner] = lay.createStatBox(main, _("Visible columns"), 1);
+			inner->AddGrowableCol(0);
+			inner->Add(new wxStaticText(box, -1, _("&Select the columns that should be displayed:")));
+
+			auto row = lay.createFlex(2);
+			row->AddGrowableCol(0);
+			inner->Add(row, lay.grow);
+			list_box_ = new wxCheckListBox(box, -1);
+			list_box_->Bind(wxEVT_LISTBOX, &CColumnEditDialog::OnSelChanged, this);
+			list_box_->Bind(wxEVT_CHECKLISTBOX, &CColumnEditDialog::OnCheck, this);
+			row->Add(list_box_, lay.grow);
+
+			auto col = lay.createFlex(1);
+			col->AddGrowableCol(0);
+			row->Add(col);
+			up_ = new wxButton(box, -1, _("Move &up"));
+			up_->Bind(wxEVT_BUTTON, &CColumnEditDialog::OnUp, this);
+			up_->Disable();
+			col->Add(up_, lay.grow);
+			down_ = new wxButton(box, -1, _("Move &down"));
+			down_->Bind(wxEVT_BUTTON, &CColumnEditDialog::OnDown, this);
+			down_->Disable();
+			col->Add(down_, lay.grow);
+		}
+
+		auto buttons = lay.createButtonSizer(this, main, true);
+		auto ok = new wxButton(this, wxID_OK, _("OK"));
+		ok->SetDefault();
+		buttons->AddButton(ok);
+		auto cancel = new wxButton(this, wxID_CANCEL, _("Cancel"));
+		buttons->AddButton(cancel);
+		buttons->Realize();
+
+		Layout();
+		GetSizer()->Fit(this);
+
+		return true;
+	}
 
 protected:
+
+	wxButton* up_{};
+	wxButton* down_{};
+
 	void OnUp(wxCommandEvent&)
 	{
-		wxCheckListBox* pListBox = XRCCTRL(*this, "ID_ACTIVE", wxCheckListBox);
-		int sel = pListBox->GetSelection();
+		int sel = list_box_->GetSelection();
 		if (sel < 2) {
 			return;
 		}
 
-		int tmp;
-		tmp = m_order[sel - 1];
-		m_order[sel - 1] = m_order[sel];
-		m_order[sel] = tmp;
+		std::swap(order_[sel], order_[sel - 1]);
 
-		wxString name = pListBox->GetString(sel);
-		bool checked = pListBox->IsChecked(sel);
-		pListBox->Delete(sel);
-		pListBox->Insert(name, sel - 1);
-		pListBox->Check(sel - 1, checked);
-		pListBox->SetSelection(sel - 1);
+		wxString name = list_box_->GetString(sel);
+		bool checked = list_box_->IsChecked(sel);
+		list_box_->Delete(sel);
+		list_box_->Insert(name, sel - 1);
+		list_box_->Check(sel - 1, checked);
+		list_box_->SetSelection(sel - 1);
 
 		wxCommandEvent evt;
 		OnSelChanged(evt);
@@ -721,26 +771,22 @@ protected:
 
 	void OnDown(wxCommandEvent&)
 	{
-		wxCheckListBox* pListBox = XRCCTRL(*this, "ID_ACTIVE", wxCheckListBox);
-		int sel = pListBox->GetSelection();
+		int sel = list_box_->GetSelection();
 		if (sel < 1) {
 			return;
 		}
-		if (sel >= (int)pListBox->GetCount() - 1) {
+		if (sel >= (int)list_box_->GetCount() - 1) {
 			return;
 		}
 
-		int tmp;
-		tmp = m_order[sel + 1];
-		m_order[sel + 1] = m_order[sel];
-		m_order[sel] = tmp;
+		std::swap(order_[sel], order_[sel + 1]);
 
-		wxString name = pListBox->GetString(sel);
-		bool checked = pListBox->IsChecked(sel);
-		pListBox->Delete(sel);
-		pListBox->Insert(name, sel + 1);
-		pListBox->Check(sel + 1, checked);
-		pListBox->SetSelection(sel + 1);
+		wxString name = list_box_->GetString(sel);
+		bool checked = list_box_->IsChecked(sel);
+		list_box_->Delete(sel);
+		list_box_->Insert(name, sel + 1);
+		list_box_->Check(sel + 1, checked);
+		list_box_->SetSelection(sel + 1);
 
 		wxCommandEvent evt;
 		OnSelChanged(evt);
@@ -748,65 +794,52 @@ protected:
 
 	void OnSelChanged(wxCommandEvent&)
 	{
-		wxCheckListBox* pListBox = XRCCTRL(*this, "ID_ACTIVE", wxCheckListBox);
-		int sel = pListBox->GetSelection();
-		XRCCTRL(*this, "ID_UP", wxButton)->Enable(sel > 1);
-		XRCCTRL(*this, "ID_DOWN", wxButton)->Enable(sel > 0 && sel < (int)pListBox->GetCount() - 1);
+		int sel = list_box_->GetSelection();
+		up_->Enable(sel > 1);
+		down_->Enable(sel > 0 && sel < (int)list_box_->GetCount() - 1);
 	}
 
 	void OnCheck(wxCommandEvent& event)
 	{
 		if (!event.GetSelection() && !event.IsChecked()) {
-			wxCheckListBox* pListBox = XRCCTRL(*this, "ID_ACTIVE", wxCheckListBox);
-			pListBox->Check(0);
+			list_box_->Check(0);
 			wxMessageBoxEx(_("The filename column can neither be hidden nor moved."), _("Column properties"));
 		}
 	}
 };
 
-BEGIN_EVENT_TABLE(CColumnEditDialog, wxDialogEx)
-EVT_BUTTON(XRCID("ID_UP"), CColumnEditDialog::OnUp)
-EVT_BUTTON(XRCID("ID_DOWN"), CColumnEditDialog::OnDown)
-EVT_LISTBOX(wxID_ANY, CColumnEditDialog::OnSelChanged)
-EVT_CHECKLISTBOX(wxID_ANY, CColumnEditDialog::OnCheck)
-END_EVENT_TABLE()
-
 void wxListCtrlEx::ShowColumnEditor()
 {
 	CColumnEditDialog dlg;
 
-	if (!dlg.Load(this, _T("ID_COLUMN_SETUP"))) {
-		wxBell();
+	if (!dlg.Create(this)) {
 		return;
 	}
-
-	wxCheckListBox* pListBox = XRCCTRL(dlg, "ID_ACTIVE", wxCheckListBox);
-
-	dlg.m_order = new int[m_columnInfo.size()];
-	for (unsigned int j = 0; j < m_columnInfo.size(); ++j) {
-		for (unsigned int i = 0; i < m_columnInfo.size(); ++i) {
+	
+	dlg.order_.resize(m_columnInfo.size());
+	for (size_t j = 0; j < m_columnInfo.size(); ++j) {
+		for (size_t i = 0; i < m_columnInfo.size(); ++i) {
 			if (m_columnInfo[i].order != j) {
 				continue;
 			}
-			dlg.m_order[j] = i;
-			pListBox->Append(m_columnInfo[i].name);
+			dlg.order_[j] = i;
+			dlg.list_box_->Append(m_columnInfo[i].name);
 			if (m_columnInfo[i].shown) {
-				pListBox->Check(j);
+				dlg.list_box_->Check(j);
 			}
 		}
 	}
-	wxASSERT(pListBox->GetCount() == m_columnInfo.size());
+	wxASSERT(dlg.list_box_->GetCount() == m_columnInfo.size());
 
 	dlg.GetSizer()->Fit(&dlg);
 
 	if (dlg.ShowModal() != wxID_OK) {
-		delete [] dlg.m_order;
 		return;
 	}
 
-	for (unsigned int i = 0; i < m_columnInfo.size(); ++i) {
-		int col = dlg.m_order[i];
-		bool isChecked = pListBox->IsChecked(i);
+	for (size_t i = 0; i < m_columnInfo.size(); ++i) {
+		int col = dlg.order_[i];
+		bool isChecked = dlg.list_box_->IsChecked(i);
 		if (!isChecked && !col) {
 			isChecked = true;
 			wxMessageBoxEx(_("The filename column cannot be hidden."));
@@ -816,8 +849,6 @@ void wxListCtrlEx::ShowColumnEditor()
 			ShowColumn(col, isChecked);
 		}
 	}
-
-	delete [] dlg.m_order;
 
 	// Generic wxListCtrl needs manual refresh
 	Refresh();

@@ -3,6 +3,7 @@
 
 #include "serverpath.h"
 
+#include <libfilezilla/event.hpp>
 #include <libfilezilla/mutex.hpp>
 
 #include <memory>
@@ -32,8 +33,8 @@ public:
 	OpLock(OpLock const&) = delete;
 	OpLock& operator=(OpLock const&) = delete;
 
-	OpLock(OpLock && op);
-	OpLock& operator=(OpLock && op);
+	OpLock(OpLock && op) noexcept;
+	OpLock& operator=(OpLock && op) noexcept;
 
 	explicit operator bool() const {
 		return mgr_ != nullptr;

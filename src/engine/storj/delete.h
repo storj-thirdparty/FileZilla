@@ -6,7 +6,7 @@
 class CStorjDeleteOpData final : public COpData, public CStorjOpData
 {
 public:
-	CStorjDeleteOpData(CStorjControlSocket & controlSocket, CServerPath const& path, std::deque<std::wstring> && files)
+	CStorjDeleteOpData(CStorjControlSocket & controlSocket, CServerPath const& path, std::vector<std::wstring> && files)
 		: COpData(Command::del, L"CStorjDeleteOpData")
 		, CStorjOpData(controlSocket)
 		, path_(path)
@@ -19,8 +19,8 @@ public:
 	virtual int SubcommandResult(int prevResult, COpData const& previousOperation) override;
 
 	CServerPath path_;
-	std::deque<std::wstring> files_;
-	std::deque<std::wstring> fileIds_;
+	std::vector<std::wstring> files_;
+	std::vector<std::wstring> fileIds_;
 
 	// Set to fz::datetime::Now initially and after
 	// sending an updated listing to the UI.

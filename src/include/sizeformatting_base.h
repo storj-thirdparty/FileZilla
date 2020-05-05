@@ -1,6 +1,8 @@
 #ifndef FILEZILLA_ENGINE_SIZEFORMATTING_BASE_HEADER
 #define FILEZILLA_ENGINE_SIZEFORMATTING_BASE_HEADER
 
+#include <string>
+
 class COptionsBase;
 class CSizeFormatBase
 {

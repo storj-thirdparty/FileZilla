@@ -14,6 +14,8 @@ int CStorjConnectOpData::Send()
 	{
 	case connect_init:
 		{
+			log(logmsg::status, _("Connecting to %s..."), currentServer_.Format(ServerFormat::with_optional_port, controlSocket_.credentials_));
+
 			auto executable = fz::to_native(engine_.GetOptions().GetOption(OPTION_FZSTORJ_EXECUTABLE));
 			if (executable.empty()) {
 				executable = fzT("fzstorj");
@@ -21,16 +23,17 @@ int CStorjConnectOpData::Send()
 			log(logmsg::debug_verbose, L"Going to execute %s", executable);
 
 			std::vector<fz::native_string> args;
+			controlSocket_.process_ = std::make_unique<fz::process>();
 			if (!controlSocket_.process_->spawn(executable, args)) {
 				log(logmsg::debug_warning, L"Could not create process");
-				return FZ_REPLY_ERROR | FZ_REPLY_DISCONNECTED;;
+				return FZ_REPLY_ERROR | FZ_REPLY_DISCONNECTED;
 			}
 
 			controlSocket_.input_thread_ = std::make_unique<CStorjInputThread>(controlSocket_, *controlSocket_.process_);
 			if (!controlSocket_.input_thread_->spawn(engine_.GetThreadPool())) {
 				log(logmsg::debug_warning, L"Thread creation failed");
 				controlSocket_.input_thread_.reset();
-				return FZ_REPLY_ERROR | FZ_REPLY_DISCONNECTED;;
+				return FZ_REPLY_ERROR | FZ_REPLY_DISCONNECTED;
 			}
 		}
 		return FZ_REPLY_WOULDBLOCK;
@@ -71,11 +74,11 @@ int CStorjConnectOpData::Send()
 	case connect_host:
 		return controlSocket_.SendCommand(fz::sprintf(L"host %s", currentServer_.Format(ServerFormat::with_optional_port)));
 	case connect_user:
-		return (credentials_.logonType_ == LogonType::anonymous) ? FZ_REPLY_OK : controlSocket_.SendCommand(fz::sprintf(L"user %s", currentServer_.GetUser()));
+		return (controlSocket_.credentials_.logonType_ == LogonType::anonymous) ? FZ_REPLY_OK : controlSocket_.SendCommand(fz::sprintf(L"user %s", currentServer_.GetUser()));
 	case connect_pass:
 		{
-			if(credentials_.logonType_ != LogonType::anonymous) {
-				std::wstring pass = credentials_.GetPass();
+			if(controlSocket_.credentials_.logonType_ != LogonType::anonymous) {
+				std::wstring pass = controlSocket_.credentials_.GetPass();
 				size_t pos = pass.rfind('|');
 				if (pos == std::wstring::npos) {
 					log(logmsg::error, _("Password or encryption key is not set"));
@@ -87,8 +90,8 @@ int CStorjConnectOpData::Send()
 		}
 	case connect_key:
 		{
-			if(credentials_.logonType_ != LogonType::anonymous) {
-				std::wstring key = credentials_.GetPass();
+			if(controlSocket_.credentials_.logonType_ != LogonType::anonymous) {
+				std::wstring key = controlSocket_.credentials_.GetPass();
 				size_t pos = key.rfind('|');
 				if (pos == std::wstring::npos) {
 					log(logmsg::error, _("Password or encryption key is not set"));

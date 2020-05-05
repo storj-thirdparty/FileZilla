@@ -1,12 +1,13 @@
 #include <filezilla.h>
 #include "engineprivate.h"
 #include "proxy.h"
-#include "ControlSocket.h"
+#include "controlsocket.h"
 
 #include <libfilezilla/iputils.hpp>
 
 #include <algorithm>
 
+#include <assert.h>
 #include <string.h>
 
 enum handshake_state
@@ -36,6 +37,7 @@ CProxySocket::CProxySocket(fz::event_handler* pEvtHandler, fz::socket_interface 
 CProxySocket::~CProxySocket()
 {
 	remove_handler();
+	next_layer_.set_event_handler(nullptr);
 }
 
 std::wstring CProxySocket::Name(ProxyType t)

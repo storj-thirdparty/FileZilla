@@ -1,6 +1,8 @@
 #ifndef FILEZILLA_ENGINE_DIRECTORYLISTING_HEADER
 #define FILEZILLA_ENGINE_DIRECTORYLISTING_HEADER
 
+#include "serverpath.h"
+
 #include <libfilezilla/optional.hpp>
 #include <libfilezilla/shared.hpp>
 #include <libfilezilla/time.hpp>
@@ -11,9 +13,15 @@ class CDirentry
 {
 public:
 	std::wstring name;
-	int64_t size;
+	int64_t size{-1};
 	fz::shared_value<std::wstring> permissions;
 	fz::shared_value<std::wstring> ownerGroup;
+
+	explicit operator bool() const {
+		return !name.empty();
+	}
+
+	void clear();
 
 	enum _flags
 	{
@@ -21,7 +29,7 @@ public:
 		flag_link = 2,
 		flag_unsure = 4 // May be set on cached items if any changes were made to the file
 	};
-	int flags;
+	int flags{};
 
 	inline bool is_dir() const
 	{
@@ -87,6 +95,8 @@ public:
 	size_t FindFile_CmpNoCase(std::wstring const& name) const;
 
 	void ClearFindMap();
+
+	explicit operator bool() const { return !path.empty(); }
 
 	CServerPath path;
 	fz::monotonic_clock m_firstListTime;

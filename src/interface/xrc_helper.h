@@ -43,7 +43,7 @@ F xrc_call(wxWindow const& parent, S&& name, F(Control::* ptr)(Args...) const, A
 {
 	F ret{};
 	Control* c = dynamic_cast<Control*>(parent.FindWindow(XRCID(name)));
-	wxASSERT(c);
+//	wxASSERT(c);
 	if (c) {
 		ret = (c->*ptr)(std::forward<Args2>(args)...);
 	}
@@ -62,7 +62,7 @@ void xrc_call(wxWindow const& parent, S&& name, void (Control::* ptr)(Args...) c
 }
 
 // Init the handlers for the global XRC and loads the resource files
-void InitXrc();
+void InitXrc(std::wstring const& file = std::wstring());
 
 void InitHandlers(wxXmlResource& res);
 

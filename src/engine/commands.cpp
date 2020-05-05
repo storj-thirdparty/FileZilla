@@ -94,8 +94,8 @@ std::wstring CRawCommand::GetCommand() const
 	return m_command;
 }
 
-CDeleteCommand::CDeleteCommand(const CServerPath& path, std::deque<std::wstring>&& files)
-	: m_path(path), m_files(files)
+CDeleteCommand::CDeleteCommand(const CServerPath& path, std::vector<std::wstring>&& files)
+	: m_path(path), files_(files)
 {
 }
 

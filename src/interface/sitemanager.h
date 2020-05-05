@@ -33,7 +33,7 @@ public:
 	static std::pair<std::unique_ptr<Site>, Bookmark> GetSiteByPath(std::wstring const& sitePath, bool printErrors = true);
 
 	static std::wstring AddServer(Site site);
-	static bool AddBookmark(std::wstring sitePath, const wxString& name, const wxString &local_dir, const CServerPath &remote_dir, bool sync, bool comparison);
+	static bool AddBookmark(std::wstring sitePath, wxString const& name, wxString const& local_dir, CServerPath const& remote_dir, bool sync, bool comparison);
 	static bool ClearBookmarks(std::wstring sitePath);
 
 	static void Rewrite(CLoginManager & loginManager, bool on_failure_set_to_ask);

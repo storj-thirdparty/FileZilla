@@ -33,7 +33,7 @@ private:
 class CStorjResolveManyOpData final : public COpData, public CStorjOpData
 {
 public:
-	CStorjResolveManyOpData(CStorjControlSocket & controlSocket, CServerPath const& path, std::deque<std::wstring> const& files, std::wstring & bucket, std::deque<std::wstring> & fileIds)
+	CStorjResolveManyOpData(CStorjControlSocket & controlSocket, CServerPath const& path, std::vector<std::wstring> const& files, std::wstring & bucket, std::vector<std::wstring> & fileIds)
 		: COpData(PrivCommand::resolve, L"CStorjResolveManyOpData")
 		, CStorjOpData(controlSocket)
 		, path_(path)
@@ -49,10 +49,10 @@ public:
 
 private:
 	CServerPath const path_;
-	std::deque<std::wstring> const files_;
+	std::vector<std::wstring> const files_;
 
 	std::wstring & bucket_;
-	std::deque<std::wstring> & fileIds_;
+	std::vector<std::wstring> & fileIds_;
 };
 
 

@@ -2,6 +2,7 @@
 #define FILEZILLA_ENGINE_IOTHREAD_HEADER
 
 #include <libfilezilla/event.hpp>
+#include <libfilezilla/event_handler.hpp>
 #include <libfilezilla/thread_pool.hpp>
 
 #define BUFFERCOUNT 8

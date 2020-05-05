@@ -11,6 +11,9 @@
 
 #include <libfilezilla/local_filesys.hpp>
 
+#include <wx/statline.h>
+#include <wx/statbox.h>
+
 #include <array>
 
 bool CFilterManager::m_loaded = false;
@@ -120,24 +123,87 @@ bool CFilterDialog::Create(CMainFrame* parent)
 {
 	m_pMainFrame = parent;
 
-	if (!Load(parent, _T("ID_FILTER"))) {
-		return false;
+	wxDialogEx::Create(parent, -1, _("Directory listing filters"));
+
+	auto & lay = layout();
+
+	auto main = lay.createMain(this, 1);
+	main->AddGrowableCol(0);
+
+	{
+		auto row = lay.createFlex(0, 1);
+		main->Add(row);
+
+		row->Add(new wxStaticText(this, -1, _("&Filter sets:")), lay.valign);
+		auto choice = new wxChoice(this, XRCID("ID_SETS"));
+		choice->SetFocus();
+		row->Add(choice, lay.valign);
+		row->Add(new wxButton(this, XRCID("ID_SAVESET"), _("&Save as...")), lay.valign);
+		row->Add(new wxButton(this, XRCID("ID_RENAMESET"), _("&Rename...")), lay.valign);
+		row->Add(new wxButton(this, XRCID("ID_DELETESET"), _("&Delete...")), lay.valign);
+
+		wxString name = _("Custom filter set");
+		choice->Append(_T("<") + name + _T(">"));
+		for (size_t i = 1; i < m_filterSets.size(); ++i) {
+			choice->Append(m_filterSets[i].name);
+		}
+		choice->SetSelection(m_currentFilterSet);
 	}
 
-	XRCCTRL(*this, "ID_LOCALFILTERS", wxCheckListBox)->Connect(wxID_ANY, wxEVT_LEFT_DOWN, wxMouseEventHandler(CFilterDialog::OnMouseEvent), 0, this);
-	XRCCTRL(*this, "ID_LOCALFILTERS", wxCheckListBox)->Connect(wxID_ANY, wxEVT_KEY_DOWN, wxKeyEventHandler(CFilterDialog::OnKeyEvent), 0, this);
-	XRCCTRL(*this, "ID_REMOTEFILTERS", wxCheckListBox)->Connect(wxID_ANY, wxEVT_LEFT_DOWN, wxMouseEventHandler(CFilterDialog::OnMouseEvent), 0, this);
-	XRCCTRL(*this, "ID_REMOTEFILTERS", wxCheckListBox)->Connect(wxID_ANY, wxEVT_KEY_DOWN, wxKeyEventHandler(CFilterDialog::OnKeyEvent), 0, this);
+	auto sides = lay.createGrid(2);
+	main->Add(sides, lay.grow);
 
+	{
+		auto [box, inner] = lay.createStatBox(sides, _("Local filters:"), 1);
+		inner->AddGrowableCol(0);
+		auto filters = new wxCheckListBox(box, XRCID("ID_LOCALFILTERS"), wxDefaultPosition, wxSize(-1, lay.dlgUnits(100)));
+		inner->Add(filters, 1, wxGROW);
+		auto row = lay.createFlex(0, 1);
+		inner->Add(row, 0, wxALIGN_CENTER_HORIZONTAL);
+		row->Add(new wxButton(box, XRCID("ID_LOCAL_ENABLEALL"), _("E&nable all")), lay.valign);
+		row->Add(new wxButton(box, XRCID("ID_LOCAL_DISABLEALL"), _("D&isable all")), lay.valign);
+
+		filters->Connect(wxID_ANY, wxEVT_LEFT_DOWN, wxMouseEventHandler(CFilterDialog::OnMouseEvent), 0, this);
+		filters->Connect(wxID_ANY, wxEVT_KEY_DOWN, wxKeyEventHandler(CFilterDialog::OnKeyEvent), 0, this);
+
+	}
+	{
+		auto [box, inner] = lay.createStatBox(sides, _("Remote filters:"), 1);
+		inner->AddGrowableCol(0);
+		auto filters = new wxCheckListBox(box, XRCID("ID_REMOTEFILTERS"), wxDefaultPosition, wxSize(-1, lay.dlgUnits(100)));
+		inner->Add(filters, 1, wxGROW);
+		auto row = lay.createFlex(0, 1);
+		inner->Add(row, 0, wxALIGN_CENTER_HORIZONTAL);
+		row->Add(new wxButton(box, XRCID("ID_REMOTE_ENABLEALL"), _("En&able all")), lay.valign);
+		row->Add(new wxButton(box, XRCID("ID_REMOTE_DISABLEALL"), _("Disa&ble all")), lay.valign);
+
+		filters->Connect(wxID_ANY, wxEVT_LEFT_DOWN, wxMouseEventHandler(CFilterDialog::OnMouseEvent), 0, this);
+		filters->Connect(wxID_ANY, wxEVT_KEY_DOWN, wxKeyEventHandler(CFilterDialog::OnKeyEvent), 0, this);
+	}
+
+
+	main->Add(new wxStaticText(this, -1, _("Hold the shift key to toggle the filter state on both sides simultaneously.")));
+
+	main->Add(new wxStaticLine(this), lay.grow);
+
+	{
+		auto row = lay.createFlex(0, 1);
+		row->AddGrowableCol(0);
+		main->Add(row, lay.grow);
+		row->Add(new wxButton(this, XRCID("ID_EDIT"), _("&Edit filter rules...")), lay.valign);
+		row->AddStretchSpacer();
+
+		auto buttons = lay.createGrid(0, 1);
+		row->Add(buttons, lay.valign);
+		auto ok = new wxButton(this, wxID_OK, _("OK"));
+		ok->SetDefault();
+		buttons->Add(ok, lay.valigng);
+		buttons->Add(new wxButton(this, wxID_CANCEL, _("Cancel")), lay.valigng);
+		buttons->Add(new wxButton(this, wxID_APPLY, _("Apply")), lay.valigng);
+	}
+	
 	DisplayFilters();
 
-	wxChoice* pChoice = XRCCTRL(*this, "ID_SETS", wxChoice);
-	wxString name = _("Custom filter set");
-	pChoice->Append(_T("<") + name + _T(">"));
-	for (size_t i = 1; i < m_filterSets.size(); ++i) {
-		pChoice->Append(m_filterSets[i].name);
-	}
-	pChoice->SetSelection(m_currentFilterSet);
 	SetCtrlState();
 
 	GetSizer()->Fit(this);
@@ -842,7 +908,9 @@ bool CFilterManager::LoadFilter(pugi::xml_node& element, CFilter& filter)
 			continue;
 		}
 
-		filter.filters.push_back(condition);
+		if (filter.filters.size() < 1000) {
+			filter.filters.push_back(condition);
+		}
 	}
 
 	if (filter.filters.empty()) {

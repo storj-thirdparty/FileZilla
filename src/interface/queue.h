@@ -83,19 +83,19 @@ class CServerItem final : public CQueueItem
 public:
 	CServerItem(Site const& site);
 	virtual ~CServerItem();
-	virtual QueueItemType GetType() const { return QueueItemType::Server; }
+	virtual QueueItemType GetType() const override { return QueueItemType::Server; }
 
 	Site const& GetSite() const { return site_; }
 	ProtectedCredentials& GetCredentials() {return site_.credentials; }
 	wxString GetName() const;
 
-	virtual void AddChild(CQueueItem* pItem);
-	virtual unsigned int GetChildrenCount(bool recursive) const;
-	virtual CQueueItem* GetChild(unsigned int item, bool recursive = true);
+	virtual void AddChild(CQueueItem* pItem) override;
+	virtual unsigned int GetChildrenCount(bool recursive) const override;
+	virtual CQueueItem* GetChild(unsigned int item, bool recursive = true) override;
 
 	CFileItem* GetIdleChild(bool immadiateOnly, TransferDirection direction);
 
-	virtual bool RemoveChild(CQueueItem* pItem, bool destroy = true, bool forward = true); // Removes a child item with is somewhere in the tree of children
+	virtual bool RemoveChild(CQueueItem* pItem, bool destroy = true, bool forward = true) override; // Removes a child item with is somewhere in the tree of children
 	virtual bool TryRemoveAll() override;
 
 	int64_t GetTotalSize(int& filesWithUnknownSize, int& queuedFiles) const;
@@ -103,13 +103,13 @@ public:
 	void QueueImmediateFiles();
 	void QueueImmediateFile(CFileItem* pItem);
 
-	virtual void SaveItem(pugi::xml_node& element) const;
+	virtual void SaveItem(pugi::xml_node& element) const override;
 
 	void SetDefaultFileExistsAction(CFileExistsNotification::OverwriteAction action, const TransferDirection direction);
 
 	void DetachChildren();
 
-	virtual void SetPriority(QueuePriority priority);
+	virtual void SetPriority(QueuePriority priority) override;
 
 	void SetChildPriority(CFileItem* pItem, QueuePriority oldPriority, QueuePriority newPriority);
 
@@ -154,7 +154,7 @@ public:
 
 	virtual ~CFileItem();
 
-	virtual void SetPriority(QueuePriority priority);
+	virtual void SetPriority(QueuePriority priority) override;
 	void SetPriorityRaw(QueuePriority priority);
 	QueuePriority GetPriority() const;
 
@@ -190,12 +190,12 @@ public:
 		}
 	}
 
-	virtual QueueItemType GetType() const { return QueueItemType::File; }
+	virtual QueueItemType GetType() const override { return QueueItemType::File; }
 
 	bool IsActive() const { return (flags & flag_active) != 0; }
 	virtual void SetActive(bool active);
 
-	virtual void SaveItem(pugi::xml_node& element) const;
+	virtual void SaveItem(pugi::xml_node& element) const override;
 
 	// Removes inactive children, queues active children for removal.
 	// Returns true if item can be removed itself
@@ -283,11 +283,11 @@ public:
 	CFolderItem(CServerItem* parent, bool queued, CLocalPath const& localPath);
 	CFolderItem(CServerItem* parent, bool queued, CServerPath const& remotePath, std::wstring const& remoteFile);
 
-	virtual QueueItemType GetType() const { return QueueItemType::Folder; }
+	virtual QueueItemType GetType() const override { return QueueItemType::Folder; }
 
-	virtual void SaveItem(pugi::xml_node& element) const;
+	virtual void SaveItem(pugi::xml_node& element) const override;
 
-	virtual void SetActive(bool active);
+	virtual void SetActive(bool active) override;
 };
 
 class CStatusItem final : public CQueueItem
@@ -296,7 +296,7 @@ public:
 	CStatusItem() = default;
 	virtual ~CStatusItem() = default;
 
-	virtual QueueItemType GetType() const { return QueueItemType::Status; }
+	virtual QueueItemType GetType() const override { return QueueItemType::Status; }
 
 	virtual bool TryRemoveAll() override { return true; }
 };

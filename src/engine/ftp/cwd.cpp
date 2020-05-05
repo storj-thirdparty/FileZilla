@@ -168,7 +168,7 @@ int CFtpChangeDirOpData::ParseResponse()
 				opState = cwd_cwd_subdir;
 			}
 		}
-		else if (controlSocket_.ParsePwdReply(response, false, path_)) {
+		else if (controlSocket_.ParsePwdReply(response, path_)) {
 			if (target_.empty()) {
 				engine_.GetPathCache().Store(currentServer_, currentPath_, path_);
 			}
@@ -232,7 +232,7 @@ int CFtpChangeDirOpData::ParseResponse()
 					error = true;
 				}
 			}
-			else if (controlSocket_.ParsePwdReply(response, false, assumedPath)) {
+			else if (controlSocket_.ParsePwdReply(response, assumedPath)) {
 				if (target_.empty()) {
 					engine_.GetPathCache().Store(currentServer_, currentPath_, path_, subDir_);
 				}

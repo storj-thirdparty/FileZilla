@@ -4,6 +4,7 @@
 #include <assert.h>
 
 std::map<CServer, CCapabilities> CServerCapabilities::m_serverMap;
+fz::mutex CServerCapabilities::m_(false);
 
 capabilities CCapabilities::GetCapability(capabilityNames name, std::wstring* pOption) const
 {
@@ -34,6 +35,7 @@ capabilities CCapabilities::GetCapability(capabilityNames name, int* pOption) co
 void CCapabilities::SetCapability(capabilityNames name, capabilities cap, std::wstring const& option)
 {
 	assert(cap == yes || option.empty());
+
 	CCapabilities::t_cap tcap;
 	tcap.cap = cap;
 	tcap.option = option;
@@ -45,6 +47,7 @@ void CCapabilities::SetCapability(capabilityNames name, capabilities cap, std::w
 void CCapabilities::SetCapability(capabilityNames name, capabilities cap, int option)
 {
 	assert(cap == yes || option == 0);
+
 	CCapabilities::t_cap tcap;
 	tcap.cap = cap;
 	tcap.number = option;
@@ -54,6 +57,8 @@ void CCapabilities::SetCapability(capabilityNames name, capabilities cap, int op
 
 capabilities CServerCapabilities::GetCapability(const CServer& server, capabilityNames name, std::wstring* pOption)
 {
+	fz::scoped_lock l(m_);
+
 	const std::map<CServer, CCapabilities>::const_iterator iter = m_serverMap.find(server);
 	if (iter == m_serverMap.end()) {
 		return unknown;
@@ -64,6 +69,8 @@ capabilities CServerCapabilities::GetCapability(const CServer& server, capabilit
 
 capabilities CServerCapabilities::GetCapability(const CServer& server, capabilityNames name, int* pOption)
 {
+	fz::scoped_lock l(m_);
+
 	const std::map<CServer, CCapabilities>::const_iterator iter = m_serverMap.find(server);
 	if (iter == m_serverMap.end()) {
 		return unknown;
@@ -74,6 +81,8 @@ capabilities CServerCapabilities::GetCapability(const CServer& server, capabilit
 
 void CServerCapabilities::SetCapability(const CServer& server, capabilityNames name, capabilities cap, std::wstring const& option)
 {
+	fz::scoped_lock l(m_);
+
 	const std::map<CServer, CCapabilities>::iterator iter = m_serverMap.find(server);
 	if (iter == m_serverMap.end()) {
 		CCapabilities capabilities;
@@ -87,6 +96,8 @@ void CServerCapabilities::SetCapability(const CServer& server, capabilityNames n
 
 void CServerCapabilities::SetCapability(const CServer& server, capabilityNames name, capabilities cap, int option)
 {
+	fz::scoped_lock l(m_);
+
 	const std::map<CServer, CCapabilities>::iterator iter = m_serverMap.find(server);
 	if (iter == m_serverMap.end()) {
 		CCapabilities capabilities;

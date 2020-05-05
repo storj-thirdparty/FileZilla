@@ -12,6 +12,7 @@
 #include "filezillaapp.h"
 #include "filter.h"
 #include "graphics.h"
+#include "infotext.h"
 #include "inputdialog.h"
 #include "Options.h"
 #include "queue.h"
@@ -21,7 +22,7 @@
 #include "timeformatting.h"
 
 #include <wx/clipbrd.h>
-#include <wx/dcclient.h>
+#include <wx/menu.h>
 
 #include <algorithm>
 
@@ -293,67 +294,6 @@ protected:
 	CRemoteListView *m_pRemoteListView{};
 };
 
-class CInfoText final : public wxWindow
-{
-public:
-	CInfoText(wxWindow* parent)
-		: m_tinter(*this)
-	{
-		Hide();
-		Create(parent, wxID_ANY, wxPoint(0, 60), wxDefaultSize);
-
-		SetForegroundColour(parent->GetForegroundColour());
-		SetBackgroundColour(parent->GetBackgroundColour());
-		GetTextExtent(m_text, &m_textSize.x, &m_textSize.y);
-
-#ifdef __WXMSW__
-		if (GetLayoutDirection() != wxLayout_RightToLeft)
-			SetDoubleBuffered(true);
-#endif
-	}
-
-	void SetText(wxString const& text)
-	{
-		if (text == m_text) {
-			return;
-		}
-
-		m_text = text;
-		GetTextExtent(m_text, &m_textSize.x, &m_textSize.y);
-	}
-
-	wxSize GetTextSize() const { return m_textSize; }
-
-	bool AcceptsFocus() const { return false; }
-
-	void SetBackgroundTint(wxColour const& colour) {
-		m_tinter.SetBackgroundTint(colour);
-	}
-
-protected:
-	wxString m_text;
-
-	void OnPaint(wxPaintEvent&)
-	{
-		wxPaintDC paintDc(this);
-
-		paintDc.SetFont(GetFont());
-		paintDc.SetTextForeground(GetForegroundColour());
-
-		paintDc.DrawText(m_text, 0, 0);
-	};
-
-	wxSize m_textSize;
-
-	CWindowTinter m_tinter;
-
-	DECLARE_EVENT_TABLE()
-};
-
-BEGIN_EVENT_TABLE(CInfoText, wxWindow)
-EVT_PAINT(CInfoText::OnPaint)
-END_EVENT_TABLE()
-
 BEGIN_EVENT_TABLE(CRemoteListView, CFileListCtrl<CGenericFileData>)
 	EVT_LIST_ITEM_ACTIVATED(wxID_ANY, CRemoteListView::OnItemActivated)
 	EVT_CONTEXT_MENU(CRemoteListView::OnContextMenu)
@@ -362,8 +302,6 @@ BEGIN_EVENT_TABLE(CRemoteListView, CFileListCtrl<CGenericFileData>)
 	EVT_MENU(XRCID("ID_ADDTOQUEUE"), CRemoteListView::OnMenuDownload)
 	EVT_MENU(XRCID("ID_MKDIR"), CRemoteListView::OnMenuMkdir)
 	EVT_MENU(XRCID("ID_MKDIR_CHGDIR"), CRemoteListView::OnMenuMkdirChgDir)
-	EVT_MENU(XRCID("ID_MKPATH"), CRemoteListView::OnMenuMkdir)
-	EVT_MENU(XRCID("ID_MKPATH_CHGPATH"), CRemoteListView::OnMenuMkdirChgDir)
 	EVT_MENU(XRCID("ID_NEW_FILE"), CRemoteListView::OnMenuNewfile)
 	EVT_MENU(XRCID("ID_DELETE"), CRemoteListView::OnMenuDelete)
 	EVT_MENU(XRCID("ID_RENAME"), CRemoteListView::OnMenuRename)
@@ -373,7 +311,6 @@ BEGIN_EVENT_TABLE(CRemoteListView, CFileListCtrl<CGenericFileData>)
 	EVT_LIST_BEGIN_DRAG(wxID_ANY, CRemoteListView::OnBeginDrag)
 	EVT_MENU(XRCID("ID_EDIT"), CRemoteListView::OnMenuEdit)
 	EVT_MENU(XRCID("ID_ENTER"), CRemoteListView::OnMenuEnter)
-	EVT_MENU(XRCID("ID_ENTERPATH"), CRemoteListView::OnMenuEnter)
 	EVT_MENU(XRCID("ID_GETURL"), CRemoteListView::OnMenuGeturl)
 	EVT_MENU(XRCID("ID_GETURL_PASSWORD"), CRemoteListView::OnMenuGeturl)
 	EVT_MENU(XRCID("ID_CONTEXT_REFRESH"), CRemoteListView::OnMenuRefresh)
@@ -391,11 +328,11 @@ CRemoteListView::CRemoteListView(CView* pParent, CState& state, CQueueView* pQue
 
 	m_dropTarget = -1;
 
-	m_pInfoText = new CInfoText(this);
+	m_pInfoText = new CInfoText(*this);
 
-	m_pDirectoryListing = 0;
+	m_pDirectoryListing = nullptr;
 
-	const unsigned long widths[6] = { 80, 75, 80, 100, 80, 80 };
+	const unsigned long widths[6] = { 150, 75, 80, 100, 80, 85 };
 
 	AddColumn(_("Filename"), wxLIST_FORMAT_LEFT, widths[0], true);
 	AddColumn(_("Filesize"), wxLIST_FORMAT_RIGHT, widths[1]);
@@ -412,7 +349,7 @@ CRemoteListView::CRemoteListView(CView* pParent, CState& state, CQueueView* pQue
 
 	InitSort(OPTION_REMOTEFILELIST_SORTORDER);
 
-	SetDirectoryListing(0);
+	SetDirectoryListing(nullptr);
 
 	SetDropTarget(new CRemoteListViewDropTarget(this));
 
@@ -1131,27 +1068,26 @@ void CRemoteListView::OnContextMenu(wxContextMenuEvent& event)
 	
 	Site const& site = m_state.GetSite();
 	auto protocol = site.server.GetProtocol();
-	//
+	
 	if (protocol == STORJ) {
 		menu.Append(XRCID("ID_ENTER"), _("E&nter bucket"), _("Enter selected bucket"));
 		menu.Append(XRCID("ID_ENTERPATH"), _("E&nter path"), _("Enter selected path"));
 	} else {
 		menu.Append(XRCID("ID_ENTER"), _("E&nter directory"), _("Enter selected directory"));
-	}
+	}	
 	menu.Append(XRCID("ID_EDIT"), _("&View/Edit"));
 
 	menu.AppendSeparator();
 	
+	
 	if (protocol == STORJ) {
 		menu.Append(XRCID("ID_MKDIR"), _("&Create bucket"), _("Create a new bucket in the current project"));
 		menu.Append(XRCID("ID_MKDIR_CHGDIR"), _("Create &bucket and enter it"), _("Create a new bucket in the current project and change into it"));
-		//
-		menu.Append(XRCID("ID_MKPATH"), _("&Create path"), _("Create a new path in the current bucket/path"));
-		menu.Append(XRCID("ID_MKPATH_CHGPATH"), _("Create &path and enter it"), _("Create a new path in the current bucket/path and change into it"));
 	} else {
 		menu.Append(XRCID("ID_MKDIR"), _("&Create directory"), _("Create a new subdirectory in the current directory"));
 		menu.Append(XRCID("ID_MKDIR_CHGDIR"), _("Create director&y and enter it"), _("Create a new subdirectory in the current directory and change into it"));
 	}
+
 	menu.Append(XRCID("ID_NEW_FILE"), _("Crea&te new file"), _("Create a new, empty file in the current directory"));
 	menu.Append(XRCID("ID_CONTEXT_REFRESH"), _("Re&fresh"));
 
@@ -1188,8 +1124,6 @@ void CRemoteListView::OnContextMenu(wxContextMenuEvent& event)
 		menu.Enable(XRCID("ID_ADDTOQUEUE"), false);
 		menu.Enable(XRCID("ID_MKDIR"), false);
 		menu.Enable(XRCID("ID_MKDIR_CHGDIR"), false);
-		menu.Delete(XRCID("ID_MKPATH"));
-		menu.Delete(XRCID("ID_MKPATH_CHGPATH"));
 		menu.Enable(XRCID("ID_DELETE"), false);
 		menu.Enable(XRCID("ID_RENAME"), false);
 		menu.Enable(XRCID("ID_CHMOD"), false);
@@ -1200,9 +1134,7 @@ void CRemoteListView::OnContextMenu(wxContextMenuEvent& event)
 		menu.Enable(XRCID("ID_NEW_FILE"), false);
 	}
 	else if (GetNextItem(-1, wxLIST_NEXT_ALL, wxLIST_STATE_SELECTED) == -1) {
-		// right-clicked in the empty space
 		menu.Delete(XRCID("ID_ENTER"));
-		menu.Delete(XRCID("ID_ENTERPATH"));
 		menu.Enable(XRCID("ID_DOWNLOAD"), false);
 		menu.Enable(XRCID("ID_ADDTOQUEUE"), false);
 		menu.Enable(XRCID("ID_DELETE"), false);
@@ -1218,17 +1150,13 @@ void CRemoteListView::OnContextMenu(wxContextMenuEvent& event)
 				// within a bucket or an upload path
 				menu.Delete(XRCID("ID_MKDIR"));
 				menu.Delete(XRCID("ID_MKDIR_CHGDIR"));
-				menu.Enable(XRCID("ID_MKPATH"), true);
-				menu.Enable(XRCID("ID_MKPATH_CHGPATH"), true);
 			} else {
 				// in a project
 				menu.Enable(XRCID("ID_MKDIR"), true);
 				menu.Enable(XRCID("ID_MKDIR_CHGDIR"), true);
-				menu.Delete(XRCID("ID_MKPATH"));
-				menu.Delete(XRCID("ID_MKPATH_CHGPATH"));
 				menu.Enable(XRCID("ID_NEW_FILE"), false);
 			}
-		}
+		}		
 	}
 	else {
 		if ((GetItemCount() && GetItemState(0, wxLIST_STATE_SELECTED))) {
@@ -1264,16 +1192,12 @@ void CRemoteListView::OnContextMenu(wxContextMenuEvent& event)
 			}
 		}
 		if (!count || fillCount == count) {
-			// .. previous path
 			menu.Delete(XRCID("ID_ENTER"));
 			menu.Delete(XRCID("ID_MKDIR"));
 			menu.Delete(XRCID("ID_MKDIR_CHGDIR"));
 			menu.Enable(XRCID("ID_NEW_FILE"), false);
-			if (protocol == STORJ) {
+			if (protocol == STORJ)
 				menu.Delete(XRCID("ID_ENTERPATH"));
-				menu.Delete(XRCID("ID_MKPATH"));
-				menu.Delete(XRCID("ID_MKPATH_CHGPATH"));
-			}
 			menu.Enable(XRCID("ID_DOWNLOAD"), false);
 			menu.Enable(XRCID("ID_ADDTOQUEUE"), false);
 			menu.Enable(XRCID("ID_DELETE"), false);
@@ -1285,7 +1209,6 @@ void CRemoteListView::OnContextMenu(wxContextMenuEvent& event)
 		}
 		else {
 			if (selectedDir) {
-				// a directory is selected
 				menu.Enable(XRCID("ID_EDIT"), false);
 				if (protocol == STORJ) {
 					// Bucket list context menu 
@@ -1299,17 +1222,13 @@ void CRemoteListView::OnContextMenu(wxContextMenuEvent& event)
 						menu.Delete(XRCID("ID_ENTER"));
 						menu.Delete(XRCID("ID_MKDIR"));
 						menu.Delete(XRCID("ID_MKDIR_CHGDIR"));
-						menu.Enable(XRCID("ID_MKPATH"), false);
-						menu.Enable(XRCID("ID_MKPATH_CHGPATH"), false);
 					} else {
 						// inside a project
 						menu.Delete(XRCID("ID_ENTERPATH"));
 						menu.Enable(XRCID("ID_MKDIR"), false);
 						menu.Enable(XRCID("ID_MKDIR_CHGDIR"), false);
-						menu.Delete(XRCID("ID_MKPATH"));
-						menu.Delete(XRCID("ID_MKPATH_CHGPATH"));
 					}
-				}
+				}								
 				if (!CServer::ProtocolHasFeature(m_state.GetSite().server.GetProtocol(), ProtocolFeature::DirectoryRename)) {
 					menu.Enable(XRCID("ID_RENAME"), false);
 				}
@@ -1320,13 +1239,11 @@ void CRemoteListView::OnContextMenu(wxContextMenuEvent& event)
 					menu.Delete(XRCID("ID_ENTERPATH"));
 					menu.Delete(XRCID("ID_MKDIR"));
 					menu.Delete(XRCID("ID_MKDIR_CHGDIR"));
-					menu.Enable(XRCID("ID_MKPATH"), false);
-					menu.Enable(XRCID("ID_MKPATH_CHGPATH"), false);
 					menu.Enable(XRCID("ID_NEW_FILE"), false);
 					menu.Enable(XRCID("ID_RENAME"), false);
 					menu.Enable(XRCID("ID_GETURL"), false);
 					menu.Enable(XRCID("ID_CHMOD"), false);
-				}
+				}				
 				menu.Delete(XRCID("ID_ENTER"));
 			}
 			if (count > 1) {
@@ -1601,7 +1518,8 @@ void CRemoteListView::OnMenuDelete(wxCommandEvent&)
 
 	CFilterManager filter;
 	if (CServer::ProtocolHasFeature(m_state.GetSite().server.GetProtocol(), ProtocolFeature::RecursiveDelete) && !filter.HasActiveRemoteFilters()) {
-		std::deque<std::wstring> filesToDelete;
+		std::vector<std::wstring> filesToDelete;
+		filesToDelete.reserve(count_files);
 
 		for (item = -1; ;) {
 			item = GetNextItem(item, wxLIST_NEXT_ALL, wxLIST_STATE_SELECTED);
@@ -1639,7 +1557,8 @@ void CRemoteListView::OnMenuDelete(wxCommandEvent&)
 		CRemoteRecursiveOperation* pRecursiveOperation = m_state.GetRemoteRecursiveOperation();
 		wxASSERT(pRecursiveOperation);
 
-		std::deque<std::wstring> filesToDelete;
+		std::vector<std::wstring> filesToDelete;
+		filesToDelete.reserve(count_files);
 
 		recursion_root root(m_pDirectoryListing->path, false);
 		for (item = -1; ;) {
@@ -2252,40 +2171,9 @@ void CRemoteListView::ReselectItems(std::vector<std::wstring>& selectedNames, st
 void CRemoteListView::OnSize(wxSizeEvent& event)
 {
 	event.Skip();
-	RepositionInfoText();
-}
-
-void CRemoteListView::RepositionInfoText()
-{
-	if (!m_pInfoText) {
-		return;
+	if (m_pInfoText) {
+		m_pInfoText->Reposition();
 	}
-
-	wxRect rect = GetClientRect();
-	wxSize size = m_pInfoText->GetTextSize();
-
-	if (!GetItemCount()) {
-		rect.y = 60;
-	}
-	else {
-		wxRect itemRect;
-		GetItemRect(0, itemRect);
-		rect.y = wxMax(60, itemRect.GetBottom() + 1);
-	}
-	rect.x = rect.x + (rect.width - size.x) / 2;
-	rect.width = size.x;
-	rect.height = size.y;
-
-	m_pInfoText->SetSize(rect);
-#ifdef __WXMSW__
-	if (GetLayoutDirection() != wxLayout_RightToLeft) {
-		m_pInfoText->Refresh(true);
-		m_pInfoText->Update();
-	}
-	else
-#endif
-		m_pInfoText->Refresh(false);
-
 }
 
 void CRemoteListView::OnStateChange(t_statechange_notifications notification, std::wstring const& data, const void* data2)
@@ -2298,8 +2186,12 @@ void CRemoteListView::OnStateChange(t_statechange_notifications notification, st
 		LinkIsNotDir(*(CServerPath*)data2, data);
 	}
 	else if (notification == STATECHANGE_SERVER) {
-		m_windowTinter->SetBackgroundTint(m_state.GetSite().m_colour);
-		m_pInfoText->SetBackgroundTint(m_state.GetSite().m_colour);
+		if (m_windowTinter) {
+			m_windowTinter->SetBackgroundTint(m_state.GetSite().m_colour);
+		}
+		if (m_pInfoText) {
+			m_pInfoText->SetBackgroundTint(m_state.GetSite().m_colour);
+		}
 	}
 	else {
 		wxASSERT(notification == STATECHANGE_APPLYFILTER);
@@ -2309,6 +2201,10 @@ void CRemoteListView::OnStateChange(t_statechange_notifications notification, st
 
 void CRemoteListView::SetInfoText()
 {
+	if (!m_pInfoText) {
+		return;
+	}
+
 	wxString text;
 	if (!IsComparing()) {
 		if (!m_pDirectoryListing) {
@@ -2328,7 +2224,7 @@ void CRemoteListView::SetInfoText()
 	}
 	else {
 		m_pInfoText->SetText(text);
-		RepositionInfoText();
+		m_pInfoText->Reposition();
 		m_pInfoText->Show();
 	}
 }
@@ -2601,7 +2497,7 @@ void CRemoteListView::StartComparison()
 	}
 }
 
-bool CRemoteListView::get_next_file(std::wstring & name, bool& dir, int64_t& size, fz::datetime& date)
+bool CRemoteListView::get_next_file(std::wstring_view & name, std::wstring & path, bool& dir, int64_t& size, fz::datetime& date)
 {
 	if (++m_comparisonIndex >= (int)m_originalIndexMapping.size()) {
 		return false;

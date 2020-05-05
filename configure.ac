@@ -1,4 +1,4 @@
-AC_INIT([FileZilla],[3.43.0],[tim.kosse@filezilla-project.org],[],[https://filezilla-project.org/])
+AC_INIT([FileZilla],[3.48.0],[tim.kosse@filezilla-project.org],[],[https://filezilla-project.org/])
 AC_CONFIG_HEADERS([src/include/config.h])
 AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_AUX_DIR(config)
@@ -149,7 +149,7 @@ if test "$buildmain" = "yes"; then
 
   # Find libfilezilla
   # -----------------
-  PKG_CHECK_MODULES(LIBFILEZILLA, [libfilezilla >= 0.17.1],, [
+  PKG_CHECK_MODULES(LIBFILEZILLA, [libfilezilla >= 0.21.0],, [
 	AC_MSG_ERROR([libfilezilla not found: $LIBFILEZILLA_PKG_ERRORS. You can download it from https://lib.filezilla-project.org/])
   ])
   AC_SUBST(LIBFILEZILLA_CFLAGS)
@@ -186,6 +186,9 @@ if test "$buildmain" = "yes"; then
   # --universal=no doesn't work correctly, it still accepts universal builds. Reject it manually here.
   if echo "$WX_CPPFLAGS" | grep __WXUNIVERSAL__ > /dev/null; then
     AC_MSG_ERROR([wxUniversal is not acceptable as flavour of wxWidgets. Please recompile wxWidgets with --disable-universal])
+  fi
+  if echo "$WX_CPPFLAGS" | grep __WXMOTIF__ > /dev/null; then
+    AC_MSG_ERROR([wxMotif is not acceptable as flavour of wxWidgets. Please recompile wxWidgets with the GTK flavour])
   fi
 
   AC_LANG_PUSH(C++)
@@ -753,8 +756,6 @@ src/interface/resources/opencrystal/Makefile
 src/interface/resources/sun/Makefile
 src/interface/resources/tango/Makefile
 src/putty/Makefile
-src/putty/unix/Makefile
-src/putty/windows/Makefile
 src/storj/Makefile
 tests/Makefile
 src/interface/resources/version.rc

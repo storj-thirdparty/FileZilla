@@ -9,6 +9,7 @@ struct DialogLayout final
 public:
 	int gap{};
 	int border{};
+	int indent{};
 
 	int dlgUnits(int num) const;
 
@@ -16,11 +17,15 @@ public:
 	static wxSizerFlags const halign;
 	static wxSizerFlags const valign;
 	static wxSizerFlags const valigng;
+	static wxSizerFlags const ralign;
 
 	wxFlexGridSizer* createMain(wxWindow* parent, int cols, int rows = 0) const;
 	wxFlexGridSizer* createFlex(int cols, int rows = 0) const;
+	wxGridSizer* createGrid(int cols, int rows = 0) const;
 	wxGridBagSizer* createGridBag(int cols, int rows = 0) const;
 	wxStdDialogButtonSizer* createButtonSizer(wxWindow* parent, wxSizer * sizer, bool hline) const;
+
+	std::tuple<wxStaticBox*, wxFlexGridSizer*> createStatBox(wxSizer* parent, wxString const& title, int cols, int rows = 0) const;
 
 	DialogLayout(wxTopLevelWindow * parent);
 
@@ -36,7 +41,9 @@ protected:
 class wxDialogEx : public wxDialog, public CWrapEngine
 {
 public:
-	bool Load(wxWindow *pParent, const wxString& name);
+	bool Create(wxWindow * parent, int id, wxString const& title, wxPoint const& pos = wxDefaultPosition, wxSize const& size = wxDefaultSize, long style = wxDEFAULT_DIALOG_STYLE);
+
+	bool Load(wxWindow *pParent, wxString const& name, std::wstring const& file = std::wstring());
 
 	bool SetChildLabel(int id, const wxString& label, unsigned long maxLength = 0);
 	bool SetChildLabel(char const* id, const wxString& label, unsigned long maxLength = 0);
@@ -46,9 +53,13 @@ public:
 
 	bool ReplaceControl(wxWindow* old, wxWindow* wnd);
 
-	static bool CanShowPopupDialog();
+	static bool CanShowPopupDialog(wxTopLevelWindow * parent = 0);
 
 	DialogLayout const& layout();
+
+	void EndDialog(int rc) {
+		wxDialog::EndDialog(rc);
+	}
 
 protected:
 	virtual void InitDialog();
@@ -59,13 +70,21 @@ protected:
 
 #ifdef __WXMAC__
 	virtual bool ProcessEvent(wxEvent& event);
+
+	static std::vector<void*> shown_dialogs_creation_events_;
 #endif
 
-	static int m_shown_dialogs;
+	static std::vector<wxDialogEx*> shown_dialogs_;
 
 	std::unique_ptr<DialogLayout> layout_;
+
+	std::vector<wxAcceleratorEntry> acceleratorTable_;
 };
 
 std::wstring LabelEscape(std::wstring const& label);
+
+#ifdef __WXMAC__
+void FixPasswordPaste(std::vector<wxAcceleratorEntry> & entries);
+#endif
 
 #endif

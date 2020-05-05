@@ -6,6 +6,7 @@
 #ifdef __WXMSW__
 #include "shlobj.h"
 #else
+#include <wx/mimetype.h>
 #include "graphics.h"
 #endif
 
@@ -166,7 +167,7 @@ int CSystemImageList::GetIconIndex(iconType type, std::wstring const& fileName, 
 	}
 
 	std::wstring ext = GetExtension(fileName);
-	if (ext.empty()) {
+	if (ext.empty() || ext == L".") {
 		return icon;
 	}
 

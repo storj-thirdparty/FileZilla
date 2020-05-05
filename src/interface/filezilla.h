@@ -46,18 +46,10 @@
 #include <wx/dcmemory.h>
 #include <wx/dialog.h>
 #include <wx/dir.h>
-#include <wx/dirdlg.h>
-#include <wx/file.h>
-#include <wx/filedlg.h>
-#include <wx/filefn.h>
 #include <wx/frame.h>
-#include <wx/list.h>
-#include <wx/listctrl.h>
 #include <wx/image.h>
 #include <wx/imaglist.h>
 #include <wx/log.h>
-#include <wx/menu.h>
-#include <wx/mimetype.h>
 #include <wx/msgdlg.h>
 #include <wx/notebook.h>
 #include <wx/radiobut.h>
@@ -70,10 +62,8 @@
 #include <wx/statusbr.h>
 #include <wx/sysopt.h>
 #include <wx/textdlg.h>
-#include <wx/toolbar.h>
 #include <wx/treectrl.h>
 #include <wx/xrc/xmlres.h>
-#include <wx/xml/xml.h>
 
 #include <libfilezilla/glue/wx.hpp>
 

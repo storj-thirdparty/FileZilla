@@ -6,6 +6,7 @@
 #include <libfilezilla/util.hpp>
 
 #include <wx/dcclient.h>
+#include <wx/menu.h>
 
 #define MAX_LINECOUNT 1000
 #define LINECOUNT_REMOVAL 10
@@ -127,12 +128,12 @@ void CStatusView::OnSize(wxSizeEvent &)
 	}
 }
 
-void CStatusView::AddToLog(CLogmsgNotification const& notification)
+void CStatusView::AddToLog(CLogmsgNotification && notification)
 {
-	AddToLog(notification.msgType, notification.msg, fz::datetime::now());
+	AddToLog(notification.msgType, std::move(notification.msg), std::move(notification.time_));
 }
 
-void CStatusView::AddToLog(logmsg::type messagetype, std::wstring const& message, fz::datetime const& time)
+void CStatusView::AddToLog(logmsg::type messagetype, std::wstring && message, fz::datetime const& time)
 {
 	if (!m_shown) {
 		if (m_hiddenLines.size() >= MAX_LINECOUNT) {
@@ -465,13 +466,15 @@ void CStatusView::OnClear(wxCommandEvent&)
 
 void CStatusView::OnCopy(wxCommandEvent&)
 {
-	if (!m_pTextCtrl)
+	if (!m_pTextCtrl) {
 		return;
+	}
 
 	long from, to;
 	m_pTextCtrl->GetSelection(&from, &to);
-	if (from != to)
+	if (from != to) {
 		m_pTextCtrl->Copy();
+	}
 	else {
 		m_pTextCtrl->Freeze();
 		m_pTextCtrl->SetSelection(-1, -1);
@@ -486,7 +489,7 @@ void CStatusView::SetFocus()
 	m_pTextCtrl->SetFocus();
 }
 
-bool CStatusView::Show(bool show /*=true*/)
+bool CStatusView::Show(bool show)
 {
 	m_shown = show;
 
@@ -497,8 +500,8 @@ bool CStatusView::Show(bool show /*=true*/)
 			m_unusedLineLengths.splice(m_unusedLineLengths.end(), m_lineLengths, m_lineLengths.begin(), m_lineLengths.end());
 		}
 
-		for (auto const& line : m_hiddenLines) {
-			AddToLog(line.messagetype, line.message, line.time);
+		for (auto & line : m_hiddenLines) {
+			AddToLog(line.messagetype, std::move(line.message), line.time);
 		}
 		m_hiddenLines.clear();
 	}

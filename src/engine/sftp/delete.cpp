@@ -1,11 +1,11 @@
 #include <filezilla.h>
 
 #include "delete.h"
-#include "directorycache.h"
+#include "../directorycache.h"
 
 int CSftpDeleteOpData::Send()
 {
-	std::wstring const& file = files_.front();
+	std::wstring const& file = files_.back();
 	if (file.empty()) {
 		log(logmsg::debug_info, L"Empty filename");
 		return FZ_REPLY_INTERNALERROR;
@@ -23,7 +23,7 @@ int CSftpDeleteOpData::Send()
 
 	engine_.GetDirectoryCache().InvalidateFile(currentServer_, path_, file);
 
-	return controlSocket_.SendCommand(L"rm " + controlSocket_.WildcardEscape(controlSocket_.QuoteFilename(filename)), L"rm " + controlSocket_.QuoteFilename(filename));
+	return controlSocket_.SendCommand(L"rm " + controlSocket_.QuoteFilename(filename));
 }
 
 int CSftpDeleteOpData::ParseResponse()
@@ -32,7 +32,7 @@ int CSftpDeleteOpData::ParseResponse()
 		deleteFailed_ = true;
 	}
 	else {
-		std::wstring const& file = files_.front();
+		std::wstring const& file = files_.back();
 
 		engine_.GetDirectoryCache().RemoveFile(currentServer_, path_, file);
 
@@ -47,7 +47,7 @@ int CSftpDeleteOpData::ParseResponse()
 		}
 	}
 
-	files_.pop_front();
+	files_.pop_back();
 
 	if (!files_.empty()) {
 		return FZ_REPLY_CONTINUE;

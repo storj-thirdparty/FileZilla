@@ -114,6 +114,106 @@ bool CDirectoryCache::DoesExist(CServer const& server, CServerPath const& path, 
 	return false;
 }
 
+std::tuple<LookupResults, CDirentry> CDirectoryCache::LookupFile(CServer const& server, CServerPath const& path, std::wstring const& filename, LookupFlags flags)
+{
+	LookupResults results{};
+	CDirentry entry;
+
+	fz::scoped_lock lock(mutex_);
+
+	tServerIter sit = GetServerEntry(server);
+	if (sit == m_serverList.end()) {
+		return {results, entry};
+	}
+
+	tCacheIter iter;
+	bool outdated{};
+	if (!Lookup(iter, sit, path, true, outdated)) {
+		return {results, entry};
+	}
+
+	if (outdated) {
+		results |= LookupResults::outdated;
+		if (!(flags & LookupFlags::allow_outdated)) {
+			return {results, entry};
+		}
+	}
+
+	results |= LookupResults::direxists;
+
+	CCacheEntry const& cacheEntry = *iter;
+	CDirectoryListing const& listing = cacheEntry.listing;
+
+	size_t i = listing.FindFile_CmpCase(filename);
+	if (i != std::string::npos) {
+		entry = listing[i];
+		results |= LookupResults::found | LookupResults::matchedcase;
+	}
+	else if (server.GetCaseSensitivity() != CaseSensitivity::yes || (flags & LookupFlags::force_caseinsensitive)) {
+		i = listing.FindFile_CmpNoCase(filename);
+		if (i != std::string::npos) {
+			entry = listing[i];
+			results |= LookupResults::found;
+		}
+	}
+
+	return {results, entry};
+}
+
+std::vector<std::tuple<LookupResults, CDirentry>> CDirectoryCache::LookupFiles(CServer const& server, CServerPath const& path, std::vector<std::wstring> const& filenames, LookupFlags flags)
+{
+	std::vector<std::tuple<LookupResults, CDirentry>> ret;
+
+	fz::scoped_lock lock(mutex_);
+
+	tServerIter sit = GetServerEntry(server);
+	if (sit == m_serverList.end()) {
+		return ret;
+	}
+
+	tCacheIter iter;
+	bool outdated{};
+	if (!Lookup(iter, sit, path, true, outdated)) {
+		return ret;
+	}
+
+	LookupResults results{};
+	if (outdated) {
+		results |= LookupResults::outdated;
+		if (!(flags & LookupFlags::allow_outdated)) {
+			ret.insert(ret.begin(), filenames.size(), {results, CDirentry()});
+			return ret;
+		}
+	}
+
+	results |= LookupResults::direxists;
+
+	CCacheEntry const& cacheEntry = *iter;
+	CDirectoryListing const& listing = cacheEntry.listing;
+
+	ret.reserve(filenames.size());
+
+	for (auto const& filename : filenames) {
+		CDirentry entry;
+		LookupResults fileresults = results;
+		size_t i = listing.FindFile_CmpCase(filename);
+		if (i != std::string::npos) {
+			entry = listing[i];
+			fileresults |= LookupResults::found | LookupResults::matchedcase;
+		}
+		else if (server.GetCaseSensitivity() != CaseSensitivity::yes || (flags & LookupFlags::force_caseinsensitive)) {
+			i = listing.FindFile_CmpNoCase(filename);
+			if (i != std::string::npos) {
+				entry = listing[i];
+				fileresults |= LookupResults::found;
+			}
+		}
+		ret.emplace_back(fileresults, entry);
+	}
+
+	return ret;
+}
+
 bool CDirectoryCache::LookupFile(CDirentry &entry, CServer const& server, CServerPath const& path, std::wstring const& filename, bool &dirDidExist, bool &matchedCase)
 {
 	fz::scoped_lock lock(mutex_);
@@ -151,7 +251,7 @@ bool CDirectoryCache::LookupFile(CDirentry &entry, CServer const& server, CServe
 	return false;
 }
 
-bool CDirectoryCache::InvalidateFile(CServer const& server, CServerPath const& path, std::wstring const& filename, bool *wasDir)
+bool CDirectoryCache::InvalidateFile(CServer const& server, CServerPath const& path, std::wstring const& filename)
 {
 	fz::scoped_lock lock(mutex_);
 
@@ -160,24 +260,56 @@ bool CDirectoryCache::InvalidateFile(CServer const& server, CServerPath const& p
 		return false;
 	}
 
+	bool const cmpCase = server.GetCaseSensitivity() == CaseSensitivity::yes;
+	bool dir{};
+
+	auto const now = fz::monotonic_clock::now();
 	for (tCacheIter iter = sit->cacheList.begin(); iter != sit->cacheList.end(); ++iter) {
 		auto & entry = const_cast<CCacheEntry&>(*iter);
-		if (path.CmpNoCase(entry.listing.path)) {
-			continue;
+
+		if (cmpCase) {
+			if (path != entry.listing.path) {
+				continue;
+			}
+		}
+		else {
+			if (path.CmpNoCase(entry.listing.path)) {
+				continue;
+			}
 		}
 
 		UpdateLru(sit, iter);
 
 		for (unsigned int i = 0; i < entry.listing.size(); i++) {
-			if (!fz::stricmp(filename, entry.listing[i].name)) {
-				if (wasDir) {
-					*wasDir = entry.listing[i].is_dir();
+			bool same;
+			if (cmpCase) {
+				same = filename == entry.listing[i].name;
+			}
+			else {
+				same = !fz::stricmp(filename, entry.listing[i].name);
+			}
+			if (same) {
+				if (entry.listing[i].is_dir()) {
+					dir = true;
 				}
 				entry.listing.get(i).flags |= CDirentry::flag_unsure;
 			}
 		}
 		entry.listing.m_flags |= CDirectoryListing::unsure_unknown;
-		entry.modificationTime = fz::monotonic_clock::now();
+		entry.modificationTime = now;
+	}
+
+	if (dir) {
+		CServerPath child = path;
+		if (child.ChangePath(filename)) {
+			for (tCacheIter iter = sit->cacheList.begin(); iter != sit->cacheList.end(); ++iter) {
+				auto & entry = const_cast<CCacheEntry&>(*iter);
+				if (path.IsParentOf(entry.listing.path, !cmpCase, true)) {
+					entry.listing.m_flags |= CDirectoryListing::unsure_unknown;
+					entry.modificationTime = now;
+				}
+			}
+		}
 	}
 
 	return true;
@@ -457,6 +589,40 @@ void CDirectoryCache::Rename(CServer const& server, CServerPath const& pathFrom,
 	InvalidateServer(server);
 }
 
+void CDirectoryCache::UpdateOwnerGroup(CServer const& server, CServerPath const& path, std::wstring const& filename, std::wstring& ownerGroup)
+{
+	fz::scoped_lock lock(mutex_);
+
+	tServerIter sit = GetServerEntry(server);
+	if (sit == m_serverList.end()) {
+		return;
+	}
+
+	tCacheIter iter;
+	bool is_outdated = false;
+	bool found = Lookup(iter, sit, path, true, is_outdated);
+	if (found) {
+		auto & listing = const_cast<CDirectoryListing&>(iter->listing);
+		size_t i;
+		for (i = 0; i < listing.size(); ++i) {
+			if (listing[i].name == filename) {
+				break;
+			}
+		}
+		if (i != listing.size()) {
+			if (!listing[i].is_dir()) {
+				listing.get(i).ownerGroup.get() = ownerGroup;
+				listing.ClearFindMap();
+			}
+			return;
+		}
+	}
+
+	// We know nothing, be on the safe side and invalidate everything.
+	InvalidateServer(server);
+}
+
+
 CDirectoryCache::tServerIter CDirectoryCache::CreateServerEntry(CServer const& server)
 {
 	for (tServerIter iter = m_serverList.begin(); iter != m_serverList.end(); ++iter) {
@@ -517,6 +683,8 @@ void CDirectoryCache::Prune()
 
 void CDirectoryCache::SetTtl(fz::duration const& ttl)
 {
+	fz::scoped_lock lock(mutex_);
+
 	if (ttl < fz::duration::from_seconds(30)) {
 		ttl_ = fz::duration::from_seconds(30);
 	}

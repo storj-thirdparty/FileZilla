@@ -3,6 +3,8 @@
 
 #include "commands.h"
 
+#include <notification.h>
+
 class CAsyncRequestNotification;
 class CFileZillaEngineContext;
 class CFileZillaEnginePrivate;
@@ -39,7 +41,7 @@ public:
 	static bool IsActive(_direction direction);
 
 	// Returns the next pending notification.
-	// It is mandatory to call this function until it returns 0 each time you
+	// It is mandatory to call this function until it returns a nullptr each time you
 	// get the pending notifications event, or you'll either lose notifications
 	// or your memory will fill with pending notifications.
 	// See notification.h for details.

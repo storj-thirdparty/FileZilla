@@ -3,11 +3,24 @@
 
 #include <libfilezilla/recursive_remove.hpp>
 
-bool UnquoteCommand(wxString& command, wxString& arguments, bool is_dde = false);
-bool ProgramExists(const wxString& editor);
-bool PathExpand(wxString& cmd);
+#include <optional>
 
-wxString GetSystemOpenCommand(wxString file, bool &program_exists);
+// Quotation rules:
+// - Args containing spaces double-quotes need to be quotes by enclosing in double-quotes.
+// - If an arg is quoted, contained double-quotes are doubled
+//
+// - Example: "foo""bar" is the quoted representation of foo"bar
+std::wstring QuoteCommand(std::vector<std::wstring> const& cmd_with_args);
+std::vector<std::wstring> UnquoteCommand(std::wstring_view command);
+
+std::optional<std::wstring> UnquoteFirst(std::wstring_view & command);
+
+// Returns the association for a file based on its extension
+std::vector<std::wstring> GetSystemAssociation(std::wstring const& file);
+
+std::vector<fz::native_string> AssociationToCommand(std::vector<std::wstring> const& association, std::wstring_view const& file);
+
+bool ProgramExists(std::wstring const& editor);
 
 // Returns a file:// URL
 std::wstring GetAsURL(std::wstring const& dir);
@@ -19,7 +32,7 @@ bool RenameFile(wxWindow* pWnd, wxString dir, wxString from, wxString to);
 
 CLocalPath GetDownloadDir();
 
-std::wstring GetExtension(std::wstring const& file);
+std::wstring GetExtension(std::wstring_view file);
 
 class gui_recursive_remove final : public fz::recursive_remove
 {
@@ -53,5 +66,7 @@ public:
 private:
 	wxWindow* parent_;
 };
+
+bool IsInvalidChar(wchar_t c, bool includeQuotesAndBreaks = false);
 
 #endif

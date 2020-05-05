@@ -3,8 +3,9 @@
 #include "settingsdialog.h"
 #include "optionspage_passwords.h"
 #include "../loginmanager.h"
-#include "../state.h"
 #include "../recentserverlist.h"
+#include "../state.h"
+#include "../textctrlex.h"
 #include "../xrc_helper.h"
 #include <libfilezilla/util.hpp>
 
@@ -131,7 +132,7 @@ bool COptionsPagePasswords::SavePage()
 		state->SetLastSite(site, path);
 	}
 
-	COptions::Get()->RequireCleanup();
+	m_pOptions->RequireCleanup();
 
 	CSiteManager::Rewrite(loginManager, true);
 
@@ -180,10 +181,10 @@ bool COptionsPagePasswords::CreateControls(wxWindow* parent)
 	auto changeSizer = layout.createFlex(2);
 	changeSizer->AddGrowableCol(1);
 	changeSizer->Add(new wxStaticText(box, -1, _("Master password:")), layout.valign);
-	auto pw = new wxTextCtrl(box, XRCID("ID_MASTERPASSWORD"), wxString(), wxDefaultPosition, wxDefaultSize, wxTE_PASSWORD);
+	auto pw = new wxTextCtrlEx(box, XRCID("ID_MASTERPASSWORD"), wxString(), wxDefaultPosition, wxDefaultSize, wxTE_PASSWORD);
 	changeSizer->Add(pw, layout.valigng);
 	changeSizer->Add(new wxStaticText(box, -1, _("Repeat password:")), layout.valign);
-	changeSizer->Add(new wxTextCtrl(box, XRCID("ID_MASTERPASSWORD_REPEAT"), wxString(), wxDefaultPosition, wxDefaultSize, wxTE_PASSWORD), layout.valigng);
+	changeSizer->Add(new wxTextCtrlEx(box, XRCID("ID_MASTERPASSWORD_REPEAT"), wxString(), wxDefaultPosition, wxDefaultSize, wxTE_PASSWORD), layout.valigng);
 
 	sizer->Add(changeSizer, 0, wxGROW | wxLEFT, layout.dlgUnits(10));
 	sizer->Add(new wxStaticText(box, -1, _("A lost master password cannot be recovered! Please thoroughly memorize your password.")), 0, wxLEFT, layout.dlgUnits(10));

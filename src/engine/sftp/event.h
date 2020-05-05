@@ -1,7 +1,7 @@
 #ifndef FILEZILLA_ENGINE_SFTP_EVENT_HEADER
 #define FILEZILLA_ENGINE_SFTP_EVENT_HEADER
 
-#define FZSFTP_PROTOCOL_VERSION 8
+#define FZSFTP_PROTOCOL_VERSION 9
 
 enum class sftpEvent {
 	Unknown = -1,
@@ -38,7 +38,7 @@ enum class sftpEvent {
 struct sftp_message
 {
 	sftpEvent type;
-	mutable std::wstring text[2];
+	std::wstring text[2];
 };
 
 struct sftp_event_type;

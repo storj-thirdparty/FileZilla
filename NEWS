@@ -3,12 +3,115 @@ This file only lists a short summary of the changes between FileZilla versions. 
 Legend:
   ! Security related bugfix or otherwise critical bugfix
   + New feature or important bugfix
-  - Bugfixes
+  - Bugfixes and other changes
 
   Platform prefixes:
     MSW: Microsoft Windows
     *nix: Unix (e.g BSD) and Unix-like systems (e.g. Linux)
     macOS/OS X: Apple macOS
+
+3.48.0 (2020-04-27)
+
+! Custom associations for file extensions containing spaces were not saved correctly
+
+3.48.0-rc1 (2020-04-20)
+
++ Overhaul of file associations for editing files. The setting to inherit system associations has been removed. When first editing a type of file with no default editor set, a dialog is shown asking which editor to use. The system associatio, if it exists, is a choice in this dialog.
+- SFTP: Re-added support for AES-GCM which was accidentally removed in 3.46.1
+- Fixes for comparative search leaving the program in an inconsistent state when closing the dialog during an ongoing search
+- Building and running FileZilla now depends on libfilezilla >= 0.20.0 (https://lib.filezilla-project.org/)
+
+3.47.2 (2020-03-10)
+
+- macOS: Potential fix for clipped text labels on a few systems
+- SFTP: Backported selected fixes from developement versions of PuTTY
+- Fixed value range for directional transfer limits
+- Fixed layout issues if changing to/from comparative search
+
+3.47.1 (2020-02-24)
+
+- Fixed regression loading advanced site parameters
+
+3.47.0 (2020-02-24)
+
+- Fix visual glitched adding/removing filter rows
+- MSW: Limit amount of text that can be entered in spin controls
+
+3.47.0-rc1 (2020-02-16)
+
++ Added new search mode: Comparative search
++ Pressing F7 now switches focus between local and remote panes
+- MSW: Work around a linker bug breaking ASLR
+- macOS: Avoid spurious button events consuming keyboard shortcuts
+- Increased minimum width of text field in generic input dialogs
+- Refactored Site Manager controls to increase modularity and fixed some minor GUI inconsistencies
+- Refactored engine connection logic
+- Building and running FileZilla now depends on libfilezilla >= 0.19.1 (https://lib.filezilla-project.org/)
+
+3.46.3 (2019-12-23)
+
+- SFTP: Fixed handle leak on Windows
+- SFTP: Remote paths were not fully resolved on all operations
+
+3.46.2 (2019-12-20)
+
+- SFTP: Fixed a regression connecting using a password-protected keyfile
+
+3.46.1 (2019-12-20)
+
+- Fixed a crash if an FTP server sends too long response lines
+- Building and running FileZilla now depends on libfilezilla >= 0.19.3 (https://lib.filezilla-project.org/), this fixes a few issues with the new speed limiting code
+- SFTP components have been updated and are now based on PuTTY 0.73
+
+3.46.0 (2019-11-25)
+
+- Fixed a rare crash if closing FileZilla the very same moment a connection or transfer requests user attention
+
+3.46.0-rc1 (2019-11-15)
+
++ Show an error message in the local directory listing if the user lacks permission to show the directory
+- Local filelist status bar is now reset if accessing a local directory fails
+- macOS: Work around an a bug in macOS 10.15 (Catalina) where closing a dialog shown from a timer can result in temporary freezes
+- Refactored speed-limiting code
+- Building and running FileZilla now depends on libfilezilla >= 0.19.1 (https://lib.filezilla-project.org/)
+
+3.45.1 (2019-09-25)
+
+- Fixed sorting issues in the directory trees
+
+3.45.0 (2019-09-23)
+
+- Updated translations
+
+3.45.0-rc1 (2019-09-16)
+
++ If checking for updates cannot be performed for a prolonged time, users are warned about using an outdated version
+- Performance improvements if expanding or refreshing a directory with thousands of direct subdirectories in the directory trees
+- Fixed prefix search in Site Manager
+- macOS: Fix password pasting using Cmd+V
+- Minor performance improvements deleting many thousands of files
+
+3.44.2 (2019-08-15)
+
+- MSW: Fixed a crash if using predefined sites through fzdefaults.xml
+- Fixes to protocol selection glitches in the Site Manager
+- Increase maximum length of response lines when using FTP
+
+3.44.1 (2019-08-09)
+
+- Fixed a regression introduced in 3.44.0-rc1 breaking support for insecure servers
+
+3.44.0 (2019-08-08)
+
+- Fixed export in context menu of Site Manager to handle multiple selected items
+
+3.44.0-rc1 (2019-08-02)
+
++ Multiple items can now be selected in the Site Manager
++ Pressing F3 in the Site Manager opens a search dialog
++ Add a reminder to the message log to switch to FTP over TLS each time a plain FTP connection is used
+- Fix loading of confirmed, known insecure hosts
+- Building and running FileZilla now depends on libfilezilla >= 0.18.0 (https://lib.filezilla-project.org/)
 
 3.43.0 (2019-06-27)
 

@@ -1,4 +1,3 @@
-#include <cassert>
 #include "libfilezilla_engine.h"
 
 #include <libfilezilla/translate.hpp>

@@ -35,7 +35,6 @@ CFilterControls::CFilterControls()
 }
 
 BEGIN_EVENT_TABLE(CFilterConditionsDialog, wxDialogEx)
-EVT_BUTTON(wxID_ANY, CFilterConditionsDialog::OnButton)
 EVT_CHOICE(wxID_ANY, CFilterConditionsDialog::OnFilterTypeChange)
 EVT_LISTBOX(wxID_ANY, CFilterConditionsDialog::OnConditionSelectionChange)
 END_EVENT_TABLE()
@@ -182,6 +181,10 @@ void CFilterConditionsDialog::SetSelectionFromType(wxChoice* pChoice, t_filterTy
 
 void CFilterConditionsDialog::OnMore()
 {
+	if (m_filterControls.size() > 1000) {
+		return;
+	}
+
 	CFilterCondition cond;
 	m_currentFilter.filters.push_back(cond);
 
@@ -287,6 +290,7 @@ void CFilterConditionsDialog::MakeControls(CFilterCondition const& condition, si
 
 	if (!controls.pRemove) {
 		controls.pRemove = std::make_unique<wxButton>(m_pListCtrl, wxID_ANY, _T("-"), wxDefaultPosition, m_button_size, wxBU_EXACTFIT);
+		controls.pRemove->Bind(wxEVT_BUTTON, [this](wxEvent const& ev) { OnButton(ev.GetId()); });
 		if (m_button_size.x <= 0) {
 			m_button_size.x = wxMax(m_choiceBoxHeight, controls.pRemove->GetSize().x);
 			m_button_size.y = m_choiceBoxHeight;
@@ -346,6 +350,7 @@ void CFilterConditionsDialog::DestroyControls()
 
 void CFilterConditionsDialog::EditFilter(CFilter const& filter)
 {
+	Freeze();
 	DestroyControls();
 
 	// Create new controls
@@ -365,6 +370,7 @@ void CFilterConditionsDialog::EditFilter(CFilter const& filter)
 
 	CFilterControls & controls = m_filterControls.back();
 	controls.pRemove = std::make_unique<wxButton>(m_pListCtrl, wxID_ANY, _T("+"), wxDefaultPosition, m_button_size);
+	controls.pRemove->Bind(wxEVT_BUTTON, [this](wxEvent const& ev) { OnButton(ev.GetId()); });
 	controls.sizer->AddStretchSpacer();
 	controls.sizer->Add(controls.pRemove.get(), 0, wxALIGN_CENTER_VERTICAL|wxFIXED_MINSIZE|wxRIGHT, 5);
 
@@ -373,6 +379,7 @@ void CFilterConditionsDialog::EditFilter(CFilter const& filter)
 	XRCCTRL(*this, "ID_MATCHTYPE", wxChoice)->SetSelection(filter.matchType);
 
 	SetFilterCtrlState(false);
+	Thaw();
 }
 
 CFilter CFilterConditionsDialog::GetFilter(bool matchCase)
@@ -534,18 +541,19 @@ void CFilterConditionsDialog::OnConditionSelectionChange(wxCommandEvent& event)
 	}
 }
 
-void CFilterConditionsDialog::OnButton(wxCommandEvent& event)
+void CFilterConditionsDialog::OnButton(int id)
 {
 	for (size_t i = 0; i < m_filterControls.size(); ++i) {
-		if (m_filterControls[i].pRemove->GetId() == event.GetId()) {
+		if (m_filterControls[i].pRemove->GetId() == id) {
+			Freeze();
 			if (i + 1 == m_filterControls.size()) {
 				OnMore();
 			}
 			else {
 				OnRemove(i);
 			}
+			Thaw();
 			return;
 		}
 	}
-	event.Skip();
 }

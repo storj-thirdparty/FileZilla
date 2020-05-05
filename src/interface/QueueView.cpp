@@ -6,31 +6,35 @@
 #include "statuslinectrl.h"
 #include "xmlfunctions.h"
 #include "filezillaapp.h"
+#include "file_utils.h"
 #include "ipcmutex.h"
 #include "local_recursive_operation.h"
 #include "state.h"
 #include "asyncrequestqueue.h"
 #include "defaultfileexistsdlg.h"
-#include <wx/dnd.h>
 #include "dndobjects.h"
 #include "loginmanager.h"
 #include "aui_notebook_ex.h"
 #include "queueview_failed.h"
 #include "queueview_successful.h"
 #include "commandqueue.h"
-#include <wx/utils.h>
-#include <wx/progdlg.h>
-#include <wx/sound.h>
 #include "statusbar.h"
 #include "remote_recursive_operation.h"
 #include "auto_ascii_files.h"
 #include "dragdropmanager.h"
 #include "drop_target_ex.h"
+
 #if WITH_LIBDBUS
 #include "../dbus/desktop_notification.h"
 #elif defined(__WXGTK__) || defined(__WXMSW__)
 #include <wx/notifmsg.h>
 #endif
+
+#include <wx/dnd.h>
+#include <wx/menu.h>
+#include <wx/progdlg.h>
+#include <wx/sound.h>
+#include <wx/utils.h>
 
 #ifdef __WXMSW__
 #include <powrprof.h>
@@ -250,9 +254,9 @@ CQueueView::~CQueueView()
 	m_resize_timer.Stop();
 }
 
-bool CQueueView::QueueFile(const bool queueOnly, const bool download,
+bool CQueueView::QueueFile(bool const queueOnly, bool const download,
 						   std::wstring const& sourceFile, std::wstring const& targetFile,
-						   const CLocalPath& localPath, const CServerPath& remotePath,
+						   CLocalPath const& localPath, CServerPath const& remotePath,
 						   Site const& site, int64_t size, CEditHandler::fileType edit,
 						   QueuePriority priority)
 {
@@ -421,7 +425,7 @@ void CQueueView::ProcessNotification(t_EngineData* pEngineData, std::unique_ptr<
 	switch (pNotification->GetID())
 	{
 	case nId_logmsg:
-		m_pMainFrame->GetStatusView()->AddToLog(static_cast<CLogmsgNotification&>(*pNotification.get()));
+		m_pMainFrame->GetStatusView()->AddToLog(std::move(static_cast<CLogmsgNotification&>(*pNotification.get())));
 		if (COptions::Get()->GetOptionVal(OPTION_MESSAGELOG_POSITION) == 2) {
 			m_pQueue->Highlight(3);
 		}
@@ -758,12 +762,6 @@ bool CQueueView::TryStartNextTransfer()
 
 void CQueueView::ProcessReply(t_EngineData* pEngineData, COperationNotification const& notification)
 {
-	if (notification.nReplyCode & FZ_REPLY_DISCONNECTED &&
-		notification.commandId == ::Command::none)
-	{
-		// Queue is not interested in disconnect notifications
-		return;
-	}
 	wxASSERT(notification.commandId != ::Command::none);
 
 	// Cancel pending requests
@@ -790,6 +788,9 @@ void CQueueView::ProcessReply(t_EngineData* pEngineData, COperationNotification 
 		}
 		else {
 			reason = ResetReason::reset;
+		}
+		if (pEngineData->state == t_EngineData::connect) {
+			SetActive(false);
 		}
 		ResetEngine(*pEngineData, reason);
 		return;
@@ -853,10 +854,6 @@ void CQueueView::ProcessReply(t_EngineData* pEngineData, COperationNotification 
 					return;
 				}
 			}
-
-			if (!pEngineData->transient) {
-				SwitchEngine(&pEngineData);
-			}
 		}
 		break;
 	case t_EngineData::transfer:
@@ -911,11 +908,6 @@ void CQueueView::ProcessReply(t_EngineData* pEngineData, COperationNotification 
 				return;
 			}
 		}
-		if (replyCode & FZ_REPLY_DISCONNECTED) {
-			if (!SwitchEngine(&pEngineData)) {
-				pEngineData->state = t_EngineData::connect;
-			}
-		}
 		break;
 	case t_EngineData::mkdir:
 		if (replyCode == FZ_REPLY_OK) {
@@ -925,15 +917,6 @@ void CQueueView::ProcessReply(t_EngineData* pEngineData, COperationNotification 
 		if (replyCode & FZ_REPLY_DISCONNECTED) {
 			if (!IncreaseErrorCount(*pEngineData)) {
 				return;
-			}
-
-			if (pEngineData->transient) {
-				ResetEngine(*pEngineData, ResetReason::retry);
-				return;
-			}
-
-			if (!SwitchEngine(&pEngineData)) {
-				pEngineData->state = t_EngineData::connect;
 			}
 		}
 		else {
@@ -1269,16 +1252,6 @@ void CQueueView::SendNextCommand(t_EngineData& engineData)
 				return;
 			}
 
-			if (res == FZ_REPLY_NOTCONNECTED) {
-				if (engineData.transient) {
-					ResetEngine(engineData, ResetReason::retry);
-					return;
-				}
-
-				engineData.state = t_EngineData::connect;
-				continue;
-			}
-
 			if (res == FZ_REPLY_OK) {
 				ResetEngine(engineData, ResetReason::success);
 				return;
@@ -1303,23 +1276,20 @@ void CQueueView::SendNextCommand(t_EngineData& engineData)
 				return;
 			}
 
-			if (res == FZ_REPLY_NOTCONNECTED) {
-				if (engineData.transient) {
-					ResetEngine(engineData, ResetReason::retry);
-					return;
-				}
-
-				engineData.state = t_EngineData::connect;
-				continue;
-			}
-
 			if (res == FZ_REPLY_OK) {
 				ResetEngine(engineData, ResetReason::success);
 				return;
 			}
 
-			// Pointless to retry
-			ResetEngine(engineData, ResetReason::failure);
+			if (res & FZ_REPLY_DISCONNECTED) {
+				if (IncreaseErrorCount(engineData)) {
+					continue;
+				}
+			}
+			else {
+				// Pointless to retry
+				ResetEngine(engineData, ResetReason::failure);
+			}
 			return;
 		}
 	}
@@ -2556,6 +2526,9 @@ void CQueueView::OnTimer(wxTimerEvent& event)
 void CQueueView::DeleteEngines()
 {
 	for (auto & engineData : m_engineData) {
+		if (m_pAsyncRequestQueue) {
+			m_pAsyncRequestQueue->ClearPending(engineData->pEngine);
+		}
 		delete engineData;
 	}
 	m_engineData.clear();
@@ -2565,38 +2538,48 @@ void CQueueView::OnSetPriority(wxCommandEvent& event)
 {
 #ifndef __WXMSW__
 	// GetNextItem is O(n) if nothing is selected, GetSelectedItemCount() is O(1)
-	if (!GetSelectedItemCount())
+	if (!GetSelectedItemCount()) {
 		return;
+	}
 #endif
 
 	QueuePriority priority;
 
 	const int id = event.GetId();
-	if (id == XRCID("ID_PRIORITY_LOWEST"))
+	if (id == XRCID("ID_PRIORITY_LOWEST")) {
 		priority = QueuePriority::lowest;
-	else if (id == XRCID("ID_PRIORITY_LOW"))
+	}
+	else if (id == XRCID("ID_PRIORITY_LOW")) {
 		priority = QueuePriority::low;
-	else if (id == XRCID("ID_PRIORITY_HIGH"))
+	}
+	else if (id == XRCID("ID_PRIORITY_HIGH")) {
 		priority = QueuePriority::high;
-	else if (id == XRCID("ID_PRIORITY_HIGHEST"))
+	}
+	else if (id == XRCID("ID_PRIORITY_HIGHEST")) {
 		priority = QueuePriority::highest;
-	else
+	}
+	else {
 		priority = QueuePriority::normal;
+	}
 
 
 	CQueueItem* pSkip = 0;
 	long item = -1;
 	while (-1 != (item = GetNextItem(item, wxLIST_NEXT_ALL, wxLIST_STATE_SELECTED))) {
 		CQueueItem* pItem = GetQueueItem(item);
-		if (!pItem)
+		if (!pItem) {
 			continue;
+		}
 
-		if (pItem->GetType() == QueueItemType::Server)
+		if (pItem->GetType() == QueueItemType::Server) {
 			pSkip = pItem;
-		else if (pItem->GetTopLevelItem() == pSkip)
+		}
+		else if (pItem->GetTopLevelItem() == pSkip) {
 			continue;
-		else
+		}
+		else {
 			pSkip = 0;
+		}
 
 		pItem->SetPriority(priority);
 	}
@@ -2871,72 +2854,6 @@ void CQueueView::OnActionAfterTimerTick()
 }
 #endif
 
-bool CQueueView::SwitchEngine(t_EngineData** ppEngineData)
-{
-	if (m_engineData.size() < 2) {
-		return false;
-	}
-
-	t_EngineData* pEngineData = *ppEngineData;
-	for (auto & pNewEngineData : m_engineData) {
-		if (pNewEngineData == pEngineData) {
-			continue;
-		}
-
-		if (pNewEngineData->active || pNewEngineData->transient) {
-			continue;
-		}
-
-		if (pNewEngineData->lastSite != pEngineData->lastSite) {
-			continue;
-		}
-
-		if (!pNewEngineData->pEngine->IsConnected()) {
-			continue;
-		}
-
-		wxASSERT(!pNewEngineData->pItem);
-		pNewEngineData->pItem = pEngineData->pItem;
-		pNewEngineData->pItem->m_pEngineData = pNewEngineData;
-		pEngineData->pItem = 0;
-
-		pNewEngineData->active = true;
-		pEngineData->active = false;
-
-		delete pNewEngineData->m_idleDisconnectTimer;
-		pNewEngineData->m_idleDisconnectTimer = 0;
-
-		// Swap status line
-		CStatusLineCtrl* pOldStatusLineCtrl = pNewEngineData->pStatusLineCtrl;
-		pNewEngineData->pStatusLineCtrl = pEngineData->pStatusLineCtrl;
-		if (pNewEngineData->pStatusLineCtrl) {
-			pNewEngineData->pStatusLineCtrl->SetEngineData(pNewEngineData);
-		}
-		if (pOldStatusLineCtrl) {
-			pEngineData->pStatusLineCtrl = pOldStatusLineCtrl;
-			pEngineData->pStatusLineCtrl->SetEngineData(pEngineData);
-		}
-
-		// Set new state
-		if (pNewEngineData->pItem->GetType() == QueueItemType::File) {
-			pNewEngineData->state = t_EngineData::transfer;
-		}
-		else {
-			pNewEngineData->state = t_EngineData::mkdir;
-		}
-		if (pNewEngineData->pStatusLineCtrl) {
-			pNewEngineData->pStatusLineCtrl->ClearTransferStatus();
-		}
-
-		pEngineData->state = t_EngineData::none;
-
-		*ppEngineData = pNewEngineData;
-		return true;
-	}
-
-	return false;
-}
-
 bool CQueueView::IsOtherEngineConnected(t_EngineData* pEngineData)
 {
 	for (auto const* current : m_engineData) {
@@ -3028,54 +2945,21 @@ void CQueueView::RenameFileInTransfer(CFileZillaEngine *pEngine, const wxString&
 	RefreshItem(pFile);
 }
 
-std::wstring CQueueView::ReplaceInvalidCharacters(std::wstring const& filename)
+std::wstring CQueueView::ReplaceInvalidCharacters(std::wstring const& filename, bool includeQuotesAndBreaks)
 {
 	if (!COptions::Get()->GetOptionVal(OPTION_INVALID_CHAR_REPLACE_ENABLE)) {
 		return filename;
 	}
 
-	const wxChar replace = COptions::Get()->GetOption(OPTION_INVALID_CHAR_REPLACE)[0];
+	wchar_t const replace = COptions::Get()->GetOption(OPTION_INVALID_CHAR_REPLACE)[0];
 
-	wxString result;
-	{
-		wxStringBuffer start(result, filename.size() + 1);
-		wxChar* buf = start;
-
-		const wxChar* p = filename.c_str();
-		while (*p) {
-			const wxChar c = *p;
-			switch (c)
-			{
-			case '/':
-	#ifdef __WXMSW__
-			case '\\':
-			case ':':
-			case '*':
-			case '?':
-			case '"':
-			case '<':
-			case '>':
-			case '|':
-	#endif
-				if (replace)
-					*buf++ = replace;
-				break;
-			default:
-	#ifdef __WXMSW__
-				if (c < 0x20)
-					*buf++ = replace;
-				else
-	#endif
-				{
-					*buf++ = c;
-				}
-			}
-			p++;
+	std::wstring ret = filename;
+	for (auto & c : ret) {
+		if (IsInvalidChar(c, includeQuotesAndBreaks)) {
+			c = replace;
 		}
-		*buf = 0;
 	}
-
-	return result.ToStdWstring();
+	return ret;
 }
 
 wxFileOffset CQueueView::GetCurrentDownloadSpeed()

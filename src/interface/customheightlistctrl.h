@@ -50,8 +50,6 @@ protected:
 	size_t m_focusedLine{npos};
 
 	bool m_allow_selection{true};
-
-	DECLARE_DYNAMIC_CLASS(wxCustomHeightListCtrl)
 };
 
 #endif

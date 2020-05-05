@@ -8,9 +8,11 @@
 #include "Mainfrm.h"
 #include "asksavepassworddialog.h"
 #include "filezillaapp.h"
+#include "textctrlex.h"
 #include "themeprovider.h"
 
 #include <wx/bmpbuttn.h>
+#include <wx/menu.h>
 #include <wx/statline.h>
 
 BEGIN_EVENT_TABLE(CQuickconnectBar, wxPanel)
@@ -39,20 +41,23 @@ bool CQuickconnectBar::Create(CMainFrame* pParent)
 	sizer->Add(mainSizer, wxSizerFlags().Border(wxALL, ConvertDialogToPixels(wxPoint(2, 0)).x));
 
 	mainSizer->Add(new wxStaticText(this, -1, _("&Host:")), wxSizerFlags().Align(wxALIGN_CENTER_VERTICAL));
-	m_pHost = new wxTextCtrl(this, -1, wxString(), wxDefaultPosition, ConvertDialogToPixels(wxSize(63, -1)), wxTE_PROCESS_ENTER);
+	m_pHost = new wxTextCtrlEx(this, -1, wxString(), wxDefaultPosition, ConvertDialogToPixels(wxSize(63, -1)), wxTE_PROCESS_ENTER);
 	m_pHost->SetToolTip(_("Enter the address of the server. To specify the server protocol, prepend the host with the protocol identifier. If no protocol is specified, the default protocol (ftp://) will be used. You can also enter complete URLs in the form protocol://user:pass@host:port here, the values in the other fields will be overwritten then.\n\nSupported protocols are:\n- ftp:// for normal FTP with optional encryption\n- sftp:// for SSH file transfer protocol\n- ftps:// for FTP over TLS (implicit)\n- ftpes:// for FTP over TLS (explicit)"));
+	m_pHost->SetMaxLength(1000);
 	mainSizer->Add(m_pHost, wxSizerFlags().Align(wxALIGN_CENTER_VERTICAL).Border(wxRIGHT, 5));
 
 	mainSizer->Add(new wxStaticText(this, -1, _("&Username:")), wxSizerFlags().Align(wxALIGN_CENTER_VERTICAL));
-	m_pUser = new wxTextCtrl(this, -1, wxString(), wxDefaultPosition, wxDefaultSize, wxTE_PROCESS_ENTER);
+	m_pUser = new wxTextCtrlEx(this, -1, wxString(), wxDefaultPosition, wxDefaultSize, wxTE_PROCESS_ENTER);
+	m_pUser->SetMaxLength(1000);
 	mainSizer->Add(m_pUser, wxSizerFlags().Align(wxALIGN_CENTER_VERTICAL).Border(wxRIGHT, 5));
 
 	mainSizer->Add(new wxStaticText(this, -1, _("Pass&word:")), wxSizerFlags().Align(wxALIGN_CENTER_VERTICAL));
-	m_pPass = new wxTextCtrl(this, -1, wxString(), wxDefaultPosition, wxDefaultSize, wxTE_PROCESS_ENTER|wxTE_PASSWORD);
+	m_pPass = new wxTextCtrlEx(this, -1, wxString(), wxDefaultPosition, wxDefaultSize, wxTE_PROCESS_ENTER|wxTE_PASSWORD);
+	m_pPass->SetMaxLength(1000);
 	mainSizer->Add(m_pPass, wxSizerFlags().Align(wxALIGN_CENTER_VERTICAL).Border(wxRIGHT, 5));
 
 	mainSizer->Add(new wxStaticText(this, -1, _("&Port:")), wxSizerFlags().Align(wxALIGN_CENTER_VERTICAL));
-	m_pPort = new wxTextCtrl(this, -1, wxString(), wxDefaultPosition, ConvertDialogToPixels(wxSize(27, -1)), wxTE_PROCESS_ENTER);
+	m_pPort = new wxTextCtrlEx(this, -1, wxString(), wxDefaultPosition, ConvertDialogToPixels(wxSize(27, -1)), wxTE_PROCESS_ENTER);
 	m_pPort->SetToolTip(_("Enter the port on which the server listens. The default for FTP is 21, the default for SFTP is 22."));
 	m_pPort->SetMaxLength(5);
 	mainSizer->Add(m_pPort, wxSizerFlags().Align(wxALIGN_CENTER_VERTICAL).Border(wxRIGHT, 5));

@@ -6,6 +6,7 @@
 class COptions;
 class COptionsPage;
 class CMainFrame;
+class wxTreeCtrlEx;
 class CSettingsDialog final : public wxDialogEx
 {
 public:
@@ -26,9 +27,13 @@ protected:
 
 	COptions* m_pOptions;
 
+	wxPanel* pagePanel_{};
+
 	COptionsPage* m_activePanel{};
 
-	void AddPage( wxString const& name, COptionsPage* page, int nest );
+	wxTreeCtrlEx* tree_{};
+
+	void AddPage(wxString const& name, COptionsPage* page, int nest);
 
 	struct t_page
 	{

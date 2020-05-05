@@ -2,7 +2,7 @@
 #define FILEZILLA_ENGINE_FTP_FTPCONTROLSOCKET_HEADER
 
 #include "logging_private.h"
-#include "ControlSocket.h"
+#include "controlsocket.h"
 #include "externalipresolver.h"
 #include "rtt.h"
 
@@ -12,9 +12,6 @@ namespace PrivCommand {
 auto const cwd = Command::private1;
 auto const rawtransfer = Command::private2;
 }
-
-#define RECVBUFFERSIZE 4096
-#define MAXLINELEN 2000
 
 class CTransferSocket;
 class CFtpTransferOpData;
@@ -38,6 +35,8 @@ public:
 
 protected:
 
+	virtual void Push(std::unique_ptr<COpData> && pNewOpData) override;
+
 	virtual int ResetOperation(int nErrorCode) override;
 
 	// Implicit FZ_REPLY_CONTINUE
@@ -48,7 +47,7 @@ protected:
 							 std::wstring const& remoteFile, bool download,
 							 CFileTransferCommand::t_transferSettings const& transferSettings) override;
 	virtual void RawCommand(std::wstring const& command) override;
-	virtual void Delete(CServerPath const& path, std::deque<std::wstring>&& files) override;
+	virtual void Delete(CServerPath const& path, std::vector<std::wstring>&& files) override;
 	virtual void RemoveDir(CServerPath const& path, std::wstring const& subDir) override;
 	virtual void Mkdir(CServerPath const& path) override;
 	virtual void Rename(CRenameCommand const& command) override;
@@ -91,8 +90,7 @@ protected:
 	// So we always sent a REST 0 for a normal transfer following a restarted one
 	bool m_sentRestartOffset{};
 
-	char m_receiveBuffer[RECVBUFFERSIZE];
-	int m_bufferLen{};
+	fz::buffer receiveBuffer_;
 	int m_repliesToSkip{}; // Set to the amount of pending replies if cancelling an action
 
 	int m_pendingReplies{1};

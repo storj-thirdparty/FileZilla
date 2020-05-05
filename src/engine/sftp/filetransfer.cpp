@@ -1,9 +1,11 @@
 #include <filezilla.h>
 
-#include "directorycache.h"
+#include "../directorycache.h"
 #include "filetransfer.h"
 
 #include <libfilezilla/local_filesys.hpp>
+
+#include <assert.h>
 
 enum filetransferStates
 {
@@ -107,7 +109,7 @@ int CSftpFileTransferOpData::Send()
 	}
 	else if (opState == filetransfer_mtime) {
 		std::wstring quotedFilename = controlSocket_.QuoteFilename(remotePath_.FormatFilename(remoteFile_, !tryAbsolutePath_));
-		return controlSocket_.SendCommand(L"mtime " + controlSocket_.WildcardEscape(quotedFilename), L"mtime " + quotedFilename);
+		return controlSocket_.SendCommand(L"mtime " + quotedFilename);
 	}
 	else if (opState == filetransfer_chmtime) {
 		assert(!fileTime_.empty());
@@ -124,7 +126,7 @@ int CSftpFileTransferOpData::Send()
 		// Y2K38
 		time_t ticks = t.get_time_t();
 		std::wstring seconds = fz::sprintf(L"%d", ticks);
-		return controlSocket_.SendCommand(L"chmtime " + seconds + L" " + controlSocket_.WildcardEscape(quotedFilename), L"chmtime " + seconds + L" " + quotedFilename);
+		return controlSocket_.SendCommand(L"chmtime " + seconds + L" " + quotedFilename);
 	}
 
 	return FZ_REPLY_INTERNALERROR;

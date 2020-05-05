@@ -67,17 +67,12 @@ public:
 				return false;\
 		}
 
-	static int CmpCase(std::wstring const& str1, std::wstring const& str2)
+	static int CmpCase(std::wstring_view const& str1, std::wstring_view const& str2)
 	{
 		return str1.compare(str2);
 	}
 
-	static int CmpCase(wxString const& str1, wxString const& str2)
-	{
-		return str1.Cmp(str2);
-	}
-
-	static int CmpNoCase(std::wstring const& str1, std::wstring const& str2)
+	static int CmpNoCase(std::wstring_view const& str1, std::wstring_view const& str2)
 	{
 		int cmp = fz::stricmp(str1, str2);
 		if (cmp) {
@@ -86,31 +81,18 @@ public:
 		return str1.compare(str2);
 	}
 
-	static int CmpNoCase(wxString const& str1, wxString const& str2)
+	static int CmpNatural(std::wstring_view const& str1, std::wstring_view const& str2)
 	{
-		int cmp = str1.CmpNoCase(str2);
-		if (cmp) {
-			return cmp;
-		}
-		return str1.Cmp(str2);
-	}
+		wchar_t const* p1 = str1.data();
+		wchar_t const* p2 = str2.data();
 
-	static int CmpNatural(wxString const& str1, wxString const& str2)
-	{
-		return CmpNatural(static_cast<wxChar const*>(str1.c_str()), static_cast<wxChar const*>(str2.c_str()));
-	}
+		wchar_t const* const end1 = p1 + str1.size();
+		wchar_t const* const end2 = p2 + str2.size();
 
-	static int CmpNatural(std::wstring const& str1, std::wstring const& str2)
-	{
-		return CmpNatural(str1.c_str(), str2.c_str());
-	}
-
-	static int CmpNatural(wchar_t const* p1, wchar_t const* p2)
-	{
 		int res = 0;
 		int zeroCount = 0;
 		bool isNumber = false;
-		for (; *p1 && *p2; ++p1, ++p2) {
+		for (; p1 != end1 && p2 != end2; ++p1, ++p2) {
 			int diff = static_cast<int>(wxTolower(*p1)) - static_cast<int>(wxTolower(*p2));
 			if (isNumber) {
 				if (res == 0) {
@@ -129,10 +111,10 @@ public:
 			}
 			else if (wxIsdigit(*p1) && wxIsdigit(*p2)) {
 				zeroCount = 0;
-				for (; *p1 == '0' && *(p1 + 1) && wxIsdigit(*(p1 + 1)); ++p1) {
+				for (; *p1 == '0' && (p1 + 1) != end1 && wxIsdigit(*(p1 + 1)); ++p1) {
 					zeroCount++;
 				}
-				for (; *p2 == '0' && *(p2 + 1) && wxIsdigit(*(p2 + 1)); ++p2) {
+				for (; *p2 == '0' && (p2 + 1) != end2 && wxIsdigit(*(p2 + 1)); ++p2) {
 					zeroCount--;
 				}
 				res = *p1 - *p2;
@@ -147,22 +129,22 @@ public:
 			res = zeroCount;
 		}
 
-		if (!*p1 && !*p2) {
+		if (p1 == end1 && p2 == end2) {
 			return res;
 		}
 		if (!isNumber || res == 0) {
-			return !*p1 ? -1 : 1;
+			return (p1 == end1) ? -1 : 1;
 		}
-		if (*p1 && wxIsdigit(*p1)) {
+		if (p1 != end1 && wxIsdigit(*p1)) {
 			return 1;       //more digits
 		}
-		if (*p2 && wxIsdigit(*p2)) {
+		if (p2 != end2 && wxIsdigit(*p2)) {
 			return -1;      //fewer digits
 		}
-		return res;         //same length, compare first different digit in the sequence
+		return res;         //same length, compare first different digit in the sequence*/
 	}
 
-	typedef int (* CompareFunction)(std::wstring const&, std::wstring const&);
+	typedef int (* CompareFunction)(std::wstring_view const&, std::wstring_view const&);
 	static CompareFunction GetCmpFunction(NameSortMode mode)
 	{
 		switch (mode)

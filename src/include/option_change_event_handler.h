@@ -1,16 +1,15 @@
 #ifndef FILEZILLA_ENGINE_OPTION_CHANGE_EVENT_HANDLER_HEADER
 #define FILEZILLA_ENGINE_OPTION_CHANGE_EVENT_HANDLER_HEADER
 
+#include <libfilezilla/mutex.hpp>
+#include <libfilezilla/thread.hpp>
+
 #include <bitset>
 #include <vector>
 
 class COptions;
 
-enum {
-	changed_options_size = 64*3
-};
-
-typedef std::bitset<changed_options_size> changed_options_t;
+typedef std::bitset<64*3> changed_options_t;
 
 class COptionChangeEventHandler
 {

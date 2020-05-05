@@ -5,9 +5,11 @@
 #include "richedit.h"
 #endif
 
+#include "option_change_event_handler.h"
+
 #include <wx/timer.h>
 
-#include "option_change_event_handler.h"
+#include <list>
 
 class CFastTextCtrl;
 class CStatusView final : public wxNavigationEnabled<wxWindow>, private COptionChangeEventHandler
@@ -16,8 +18,8 @@ public:
 	CStatusView(wxWindow* parent, wxWindowID id);
 	virtual ~CStatusView();
 
-	void AddToLog(CLogmsgNotification const& pNotification);
-	void AddToLog(logmsg::type messagetype, std::wstring const& message, fz::datetime const& time);
+	void AddToLog(CLogmsgNotification && pNotification);
+	void AddToLog(logmsg::type messagetype, std::wstring && message, fz::datetime const& time);
 
 	void InitDefAttr();
 

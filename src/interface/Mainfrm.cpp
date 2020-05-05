@@ -307,7 +307,7 @@ CMainFrame::CMainFrame()
 	initial_size.y = wxMin(950, screen_size.GetHeight() - 50);
 
 	Create(NULL, -1, _T("FileZilla"), wxDefaultPosition, initial_size);
-	SetSizeHints(350, 300);
+	SetSizeHints(700, 500);
 
 #ifdef __WXMSW__
 	// In order for the --close commandline argument to work,
@@ -841,7 +841,6 @@ void CMainFrame::OnMenuHandler(wxCommandEvent &event)
 		dlg.Run(this, pState);
 	}
 	else if (event.GetId() == XRCID("ID_BOOKMARK_ADD") || event.GetId() == XRCID("ID_BOOKMARK_MANAGE")) {
-		CServer server;
 		CState* pState = CContextManager::Get()->GetCurrentContext();
 		if (!pState) {
 			return;
@@ -974,7 +973,7 @@ void CMainFrame::DoOnEngineEvent(CFileZillaEngine* engine)
 		{
 		case nId_logmsg:
 			if (m_pStatusView) {
-				m_pStatusView->AddToLog(static_cast<CLogmsgNotification&>(*pNotification.get()));
+				m_pStatusView->AddToLog(std::move(static_cast<CLogmsgNotification&>(*pNotification.get())));
 			}
 			if (COptions::Get()->GetOptionVal(OPTION_MESSAGELOG_POSITION) == 2 && m_pQueuePane) {
 				m_pQueuePane->Highlight(3);
@@ -1035,6 +1034,12 @@ void CMainFrame::DoOnEngineEvent(CFileZillaEngine* engine)
 			if (pState) {
 				auto const& localDirCreatedNotification = static_cast<CLocalDirCreatedNotification const&>(*pNotification.get());
 				pState->LocalDirCreated(localDirCreatedNotification.dir);
+			}
+			break;
+		case nId_serverchange:
+			if (pState) {
+				auto const& notification = static_cast<ServerChangeNotification const&>(*pNotification.get());
+				pState->ChangeServer(notification.newServer_);
 			}
 			break;
 		default:
@@ -1749,10 +1754,14 @@ void CMainFrame::OnFilter(wxCommandEvent& event)
 }
 
 #if FZ_MANUALUPDATECHECK
-void CMainFrame::OnCheckForUpdates(wxCommandEvent&)
+void CMainFrame::OnCheckForUpdates(wxCommandEvent& event)
 {
 	if (!m_pUpdater) {
 		return;
+	}
+
+	if (event.GetId() == XRCID("ID_CHECKFORUPDATES") || (!COptions::Get()->GetOptionVal(OPTION_DEFAULT_DISABLEUPDATECHECK) && COptions::Get()->GetOptionVal(OPTION_UPDATECHECK) != 0)) {
+		m_pUpdater->RunIfNeeded();
 	}
 
 	update_dialog_timer_.Stop();
@@ -1782,14 +1791,11 @@ void CMainFrame::UpdaterStateChanged(UpdaterState s, build const& v)
 		}
 		return;
 	}
-	else if (s != UpdaterState::newversion && s != UpdaterState::newversion_ready) {
+	else if (s != UpdaterState::newversion && s != UpdaterState::newversion_ready && s != UpdaterState::newversion_stale) {
 		return;
 	}
-	else if (v.version_.empty()) {
-		return;
-	}
-
-	wxString const name = wxString::Format(_("&Version %s"), v.version_);
+	
+	wxString const name = v.version_.empty() ? _("Unknown version") : wxString::Format(_("&Version %s"), v.version_);
 
 	wxMenuItem* pItem = m_pMenuBar->FindItem(GetAvailableUpdateMenuId());
 	if (!pItem) {
@@ -1809,7 +1815,7 @@ void CMainFrame::UpdaterStateChanged(UpdaterState s, build const& v)
 
 void CMainFrame::TriggerUpdateDialog()
 {
-	if (m_bQuit) {
+	if (m_bQuit || !m_pUpdater) {
 		return;
 	}
 
@@ -2138,7 +2144,14 @@ void CMainFrame::OnNavigationKeyEvent(wxNavigationKeyEvent& event)
 
 void CMainFrame::OnChar(wxKeyEvent& event)
 {
-	if (event.GetKeyCode() != WXK_F6) {
+	if (event.GetKeyCode() == WXK_F7) {
+		auto * controls = m_pContextControl->GetCurrentControls();
+		if (controls) {
+			controls->SwitchFocusedSide();
+		}
+		return;
+	}
+	else if (event.GetKeyCode() != WXK_F6) {
 		event.Skip();
 		return;
 	}
@@ -2471,6 +2484,7 @@ void CMainFrame::OnDropdownComparisonMode(wxCommandEvent& event)
 
 	CComparisonManager* pComparisonManager = pState->GetComparisonManager();
 	if (old_mode != new_mode && pComparisonManager && pComparisonManager->IsComparing()) {
+		pComparisonManager->SetComparisonMode(new_mode);
 		pComparisonManager->CompareListings();
 	}
 }
@@ -2487,6 +2501,7 @@ void CMainFrame::OnDropdownComparisonHide(wxCommandEvent&)
 
 	CComparisonManager* pComparisonManager = pState->GetComparisonManager();
 	if (pComparisonManager && pComparisonManager->IsComparing()) {
+		pComparisonManager->SetHideIdentical(old_mode ? 0 : 1);
 		pComparisonManager->CompareListings();
 	}
 }

@@ -10,6 +10,9 @@
 
 #include <libfilezilla/local_filesys.hpp>
 
+#include <wx/filedlg.h>
+#include <wx/menu.h>
+
 BEGIN_EVENT_TABLE(CManualTransfer, wxDialogEx)
 EVT_TEXT(XRCID("ID_LOCALFILE"), CManualTransfer::OnLocalChanged)
 EVT_TEXT(XRCID("ID_REMOTEFILE"), CManualTransfer::OnRemoteChanged)
@@ -524,7 +527,7 @@ void CManualTransfer::OnSelectedSite(wxCommandEvent& event)
 	site_ = *pData;
 	lastSite_ = *pData;
 
-	xrc_call(*this, "ID_SERVER_SITE_SERVER", &wxStaticText::SetLabel, LabelEscape(site_.server.GetName()));
+	xrc_call(*this, "ID_SERVER_SITE_SERVER", &wxStaticText::SetLabel, LabelEscape(site_.GetName()));
 
 	DisplayServer();
 }

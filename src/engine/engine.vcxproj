@@ -125,12 +125,12 @@
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
       <AssemblerListingLocation>$(IntDir)%(RelativeDir)</AssemblerListingLocation>
+      <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="backend.cpp" />
     <ClCompile Include="commands.cpp" />
-    <ClCompile Include="ControlSocket.cpp" />
+    <ClCompile Include="controlsocket.cpp" />
     <ClCompile Include="directorycache.cpp" />
     <ClCompile Include="directorylisting.cpp" />
     <ClCompile Include="directorylistingparser.cpp" />
@@ -161,6 +161,7 @@
     <ClCompile Include="iothread.cpp" />
     <ClCompile Include="local_path.cpp" />
     <ClCompile Include="logging.cpp" />
+    <ClCompile Include="lookup.cpp" />
     <ClCompile Include="misc.cpp" />
     <ClCompile Include="notification.cpp" />
     <ClCompile Include="oplock_manager.cpp" />
@@ -169,7 +170,6 @@
     <ClCompile Include="proxy.cpp">
       <PrecompiledHeader />
     </ClCompile>
-    <ClCompile Include="ratelimiter.cpp" />
     <ClCompile Include="rtt.cpp" />
     <ClCompile Include="server.cpp" />
     <ClCompile Include="servercapabilities.cpp" />
@@ -199,9 +199,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\include\engine_context.h" />
-    <ClInclude Include="backend.h" />
     <ClInclude Include="..\include\commands.h" />
-    <ClInclude Include="ControlSocket.h" />
+    <ClInclude Include="controlsocket.h" />
     <ClInclude Include="directorycache.h" />
     <ClInclude Include="..\include\directorylisting.h" />
     <ClInclude Include="directorylistingparser.h" />
@@ -238,10 +237,10 @@
     <ClInclude Include="..\include\optionsbase.h" />
     <ClInclude Include="..\include\xmlutils.h" />
     <ClInclude Include="logging_private.h" />
+    <ClInclude Include="lookup.h" />
     <ClInclude Include="oplock_manager.h" />
     <ClInclude Include="pathcache.h" />
     <ClInclude Include="proxy.h" />
-    <ClInclude Include="ratelimiter.h" />
     <ClInclude Include="..\include\Server.h" />
     <ClInclude Include="rtt.h" />
     <ClInclude Include="servercapabilities.h" />

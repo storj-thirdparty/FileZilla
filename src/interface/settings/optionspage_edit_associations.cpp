@@ -1,69 +1,76 @@
 #include <filezilla.h>
 
+#include "../file_utils.h"
 #include "../Options.h"
+#include "../textctrlex.h"
 #include "settingsdialog.h"
 #include "optionspage.h"
 #include "optionspage_edit_associations.h"
 
-bool COptionsPageEditAssociations::LoadPage()
+#include <wx/hyperlink.h>
+
+void ShowQuotingRules(wxWindow* parent);
+
+bool COptionsPageEditAssociations::CreateControls(wxWindow* parent)
 {
-	bool failure = false;
+	auto const& lay = m_pOwner->layout();
 
-	COptions* pOptions = COptions::Get();
+	Create(parent);
+	auto main = lay.createFlex(1);
+	main->AddGrowableCol(0);
+	main->AddGrowableRow(1);
+	SetSizer(main);
 
-	SetTextFromOption(XRCID("ID_ASSOCIATIONS"), OPTION_EDIT_CUSTOMASSOCIATIONS, failure);
-	SetCheck(XRCID("ID_INHERIT"), pOptions->GetOptionVal(OPTION_EDIT_INHERITASSOCIATIONS) != 0, failure);
+	main->Add(new wxStaticText(this, -1, _("C&ustom filetype associations:")));
 
-	return !failure;
-}
+	assocs_ = new wxTextCtrlEx(this, -1, wxString(), wxDefaultPosition, wxDefaultSize, wxTE_MULTILINE);
+	main->Add(assocs_, lay.grow);
 
-bool COptionsPageEditAssociations::SavePage()
-{
-	COptions* pOptions = COptions::Get();
+	main->Add(new wxStaticText(this, -1, _("Format: Extension followed by properly quoted command and arguments.")));
 
-	SetOptionFromText(XRCID("ID_ASSOCIATIONS"), OPTION_EDIT_CUSTOMASSOCIATIONS);
+	main->Add(new wxStaticText(this, -1, _("Example: png \"c:\\program files\\viewer\\viewer.exe\" -open")));
 
-	pOptions->SetOption(OPTION_EDIT_INHERITASSOCIATIONS, GetCheck(XRCID("ID_INHERIT")) ? 1 : 0);
+	auto rules = new wxHyperlinkCtrl(this, -1, _("Quoting rules"), wxString());
+	main->Add(rules);
+	rules->Bind(wxEVT_HYPERLINK, [this](wxHyperlinkEvent const&) { ShowQuotingRules(this); });
 
 	return true;
 }
 
-// optionspage_edit.cpp
-extern bool UnquoteCommand(wxString& command, wxString& arguments, bool is_dde = false);
-extern bool ProgramExists(const wxString& editor);
+bool COptionsPageEditAssociations::LoadPage()
+{
+	assocs_->ChangeValue(m_pOptions->GetOption(OPTION_EDIT_CUSTOMASSOCIATIONS));
+	return true;
+}
+
+bool COptionsPageEditAssociations::SavePage()
+{
+	m_pOptions->SetOption(OPTION_EDIT_CUSTOMASSOCIATIONS, assocs_->GetValue().ToStdWstring());
+	return true;
+}
 
 bool COptionsPageEditAssociations::Validate()
 {
-	wxString associations = GetText(XRCID("ID_ASSOCIATIONS")) + _T("\n");
-	associations.Replace(_T("\r"), wxString());
-	int pos;
-	while ((pos = associations.Find('\n')) != -1) {
-		wxString assoc = associations.Left(pos);
-		associations = associations.Mid(pos + 1);
+	std::wstring const raw_assocs = assocs_->GetValue().ToStdWstring();
+	auto assocs = fz::strtok_view(raw_assocs, L"\r\n", true);
 
-		if (assoc.empty())
-			continue;
+	for (std::wstring_view assoc : assocs) {
+		std::optional<std::wstring> aext = UnquoteFirst(assoc);
+		if (!aext || aext->empty()) {
+			return DisplayError(assocs_, _("Improperly quoted association."));
+		}
 
-		wxString command;
-		if (!UnquoteCommand(assoc, command))
-			return DisplayError(_T("ID_ASSOCIATIONS"), _("Improperly quoted association."));
+		auto cmd_with_args = UnquoteCommand(assoc);
 
-		if (assoc.empty())
-			return DisplayError(_T("ID_ASSOCIATIONS"), _("Empty file extension."));
+		if (cmd_with_args.empty() || cmd_with_args[0].empty()) {
+			return DisplayError(assocs_, _("Improperly quoted association."));
+		}
 
-		wxString args;
-		if (!UnquoteCommand(command, args))
-			return DisplayError(_T("ID_ASSOCIATIONS"), _("Improperly quoted association."));
-
-		if (command.empty())
-			return DisplayError(_T("ID_ASSOCIATIONS"), _("Empty command."));
-
-		if (!ProgramExists(command))
-		{
+		if (!ProgramExists(cmd_with_args[0])) {
 			wxString error = _("Associated program not found:");
 			error += '\n';
-			error += command;
-			return DisplayError(_T("ID_ASSOCIATIONS"), error);
+			error += cmd_with_args[0];
+			return DisplayError(assocs_, error);
 		}
 	}
 

@@ -4,11 +4,11 @@
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
-const char ver[] = "FileZilla" PACKAGE_VERSION;
-const char sshver[] = "FileZilla-" PACKAGE_VERSION;
+const char ver[] = PACKAGE_VERSION;
+const char sshver[] = "-" PACKAGE_VERSION;
 #else
-const char ver[] = "FileZilla";
-const char sshver[] = "FileZilla-custom";
+const char ver[] = "custom";
+const char sshver[] = "-custom";
 #endif
 
 

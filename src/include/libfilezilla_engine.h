@@ -26,10 +26,6 @@
 #include <windows.h>
 #endif
 
-#include <list>
-#include <vector>
-#include <map>
-
 #include "optionsbase.h"
 #include "logging.h"
 #include "server.h"

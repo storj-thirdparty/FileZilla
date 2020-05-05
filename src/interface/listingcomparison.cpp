@@ -85,13 +85,13 @@ bool CComparisonManager::CompareListings()
 		return true;
 	}
 
-	const int mode = COptions::Get()->GetOptionVal(OPTION_COMPARISONMODE);
 	fz::duration const threshold = fz::duration::from_minutes( COptions::Get()->GetOptionVal(OPTION_COMPARISON_THRESHOLD) );
 
 	m_pLeft->StartComparison();
 	m_pRight->StartComparison();
 
-	std::wstring localFile, remoteFile;
+	std::wstring localPath, remotePath;
+	std::wstring_view localFile, remoteFile;
 	bool localDir = false;
 	bool remoteDir = false;
 	int64_t localSize, remoteSize;
@@ -99,25 +99,23 @@ bool CComparisonManager::CompareListings()
 
 	const int dirSortMode = COptions::Get()->GetOptionVal(OPTION_FILELIST_DIRSORT);
 
-	const bool hide_identical = COptions::Get()->GetOptionVal(OPTION_COMPARE_HIDEIDENTICAL) != 0;
-
-	bool gotLocal = m_pLeft->get_next_file(localFile, localDir, localSize, localDate);
-	bool gotRemote = m_pRight->get_next_file(remoteFile, remoteDir, remoteSize, remoteDate);
+	bool gotLocal = m_pLeft->get_next_file(localFile, localPath, localDir, localSize, localDate);
+	bool gotRemote = m_pRight->get_next_file(remoteFile, remotePath, remoteDir, remoteSize, remoteDate);
 
 	while (gotLocal && gotRemote) {
-		int cmp = CompareFiles(dirSortMode, localFile, remoteFile, localDir, remoteDir);
+		int cmp = CompareFiles(dirSortMode, localPath, localFile, remotePath, remoteFile, localDir, remoteDir);
 		if (!cmp) {
-			if (!mode) {
+			if (!m_comparisonMode) {
 				const CComparableListing::t_fileEntryFlags flag = (localDir || localSize == remoteSize) ? CComparableListing::normal : CComparableListing::different;
 
-				if (!hide_identical || flag != CComparableListing::normal || localFile == L"..") {
+				if (!m_hideIdentical || flag != CComparableListing::normal || localFile == L"..") {
 					m_pLeft->CompareAddFile(flag);
 					m_pRight->CompareAddFile(flag);
 				}
 			}
 			else {
 				if (localDate.empty() || remoteDate.empty()) {
-					if (!hide_identical || !localDate.empty() || !remoteDate.empty() || localFile == L"..") {
+					if (!m_hideIdentical || !localDate.empty() || !remoteDate.empty() || localFile == L"..") {
 						const CComparableListing::t_fileEntryFlags flag = CComparableListing::normal;
 						m_pLeft->CompareAddFile(flag);
 						m_pRight->CompareAddFile(flag);
@@ -146,37 +144,37 @@ bool CComparisonManager::CompareListings()
 					else if (dateCmp > 0) {
 						localFlag = CComparableListing::newer;
 					}
-					if (!hide_identical || localFlag != CComparableListing::normal || remoteFlag != CComparableListing::normal || localFile == L"..") {
+					if (!m_hideIdentical || localFlag != CComparableListing::normal || remoteFlag != CComparableListing::normal || localFile == L"..") {
 						m_pLeft->CompareAddFile(localFlag);
 						m_pRight->CompareAddFile(remoteFlag);
 					}
 				}
 			}
-			gotLocal = m_pLeft->get_next_file(localFile, localDir, localSize, localDate);
-			gotRemote = m_pRight->get_next_file(remoteFile, remoteDir, remoteSize, remoteDate);
+			gotLocal = m_pLeft->get_next_file(localFile, localPath, localDir, localSize, localDate);
+			gotRemote = m_pRight->get_next_file(remoteFile, remotePath, remoteDir, remoteSize, remoteDate);
 			continue;
 		}
 
 		if (cmp < 0) {
 			m_pLeft->CompareAddFile(CComparableListing::lonely);
 			m_pRight->CompareAddFile(CComparableListing::fill);
-			gotLocal = m_pLeft->get_next_file(localFile, localDir, localSize, localDate);
+			gotLocal = m_pLeft->get_next_file(localFile, localPath, localDir, localSize, localDate);
 		}
 		else {
 			m_pLeft->CompareAddFile(CComparableListing::fill);
 			m_pRight->CompareAddFile(CComparableListing::lonely);
-			gotRemote = m_pRight->get_next_file(remoteFile, remoteDir, remoteSize, remoteDate);
+			gotRemote = m_pRight->get_next_file(remoteFile, remotePath, remoteDir, remoteSize, remoteDate);
 		}
 	}
 	while (gotLocal) {
 		m_pLeft->CompareAddFile(CComparableListing::lonely);
 		m_pRight->CompareAddFile(CComparableListing::fill);
-		gotLocal = m_pLeft->get_next_file(localFile, localDir, localSize, localDate);
+		gotLocal = m_pLeft->get_next_file(localFile, localPath, localDir, localSize, localDate);
 	}
 	while (gotRemote) {
 		m_pLeft->CompareAddFile(CComparableListing::fill);
 		m_pRight->CompareAddFile(CComparableListing::lonely);
-		gotRemote = m_pRight->get_next_file(remoteFile, remoteDir, remoteSize, remoteDate);
+		gotRemote = m_pRight->get_next_file(remoteFile, remotePath, remoteDir, remoteSize, remoteDate);
 	}
 
 	m_pRight->FinishComparison();
@@ -185,7 +183,7 @@ bool CComparisonManager::CompareListings()
 	return true;
 }
 
-int CComparisonManager::CompareFiles(const int dirSortMode, std::wstring const& local, std::wstring const& remote, bool localDir, bool remoteDir)
+int CComparisonManager::CompareFiles(const int dirSortMode, std::wstring_view const& local_path, std::wstring_view const& local, std::wstring_view const& remote_path, std::wstring_view const& remote, bool localDir, bool remoteDir)
 {
 	switch (dirSortMode)
 	{
@@ -205,17 +203,25 @@ int CComparisonManager::CompareFiles(const int dirSortMode, std::wstring const& 
 	}
 
 #ifdef __WXMSW__
-	return fz::stricmp(local, remote);
+	auto cmp = fz::stricmp(local, remote);
+	if (!cmp) {
+		return fz::stricmp(local_path, remote_path);
+	}
+	return cmp;
 #else
-	return local.compare(remote);
+	auto cmp = local.compare(remote);
+	if (!cmp) {
+		return local_path.compare(remote_path);
+	}
+	return cmp;
 #endif
-
-	return 0;
 }
 
 CComparisonManager::CComparisonManager(CState& state)
 	: m_state(state)
 {
+	m_comparisonMode = COptions::Get()->GetOptionVal(OPTION_COMPARISONMODE);
+	m_hideIdentical = COptions::Get()->GetOptionVal(OPTION_COMPARE_HIDEIDENTICAL) != 0;
 }
 
 void CComparisonManager::SetListings(CComparableListing* pLeft, CComparableListing* pRight)

@@ -1,7 +1,9 @@
 #include <filezilla.h>
 
-#include "directorycache.h"
+#include "../directorycache.h"
 #include "list.h"
+
+#include <assert.h>
 
 enum listStates
 {
@@ -14,16 +16,19 @@ enum listStates
 int CSftpListOpData::Send()
 {
 	if (opState == list_init) {
-		if (!currentServer_) {
-			log(logmsg::debug_warning, L"currenServer_ is empty");
-			return FZ_REPLY_INTERNALERROR;
-		}
-
 		if (path_.GetType() == DEFAULT) {
 			path_.SetType(currentServer_.GetType());
 		}
 		refresh_ = (flags_ & LIST_FLAG_REFRESH) != 0;
 		fallback_to_current_ = !path_.empty() && (flags_ & LIST_FLAG_FALLBACK_CURRENT) != 0;
+
+		auto newPath = CServerPath::GetChanged(currentPath_, path_, subDir_);
+		if (newPath.empty()) {
+			log(logmsg::status, _("Retrieving directory listing..."));
+		}
+		else {
+			log(logmsg::status, _("Retrieving directory listing of \"%s\"..."), newPath.GetPath());
+		}
 
 		controlSocket_.ChangeDir(path_, subDir_, (flags_ & LIST_FLAG_LINK) != 0);
 		opState = list_waitcwd;
@@ -59,7 +64,7 @@ int CSftpListOpData::Send()
 		return controlSocket_.SendCommand(L"ls");
 	}
 
-	log(logmsg::debug_warning, L"Unknown opState in CSftpControlSocket::ListSend()");
+	log(logmsg::debug_warning, L"Unknown opState in CSftpListOpData::Send()");
 	return FZ_REPLY_INTERNALERROR;
 }
 
@@ -119,6 +124,12 @@ int CSftpListOpData::ParseEntry(std::wstring && entry, uint64_t mtime, std::wstr
 		log(logmsg::debug_warning, L"CSftpListOpData::ParseEntry called at improper time: %d", opState);
 		return FZ_REPLY_INTERNALERROR;
 	}
+
+	if (entry.size() > 65536 || name.size() > 65536) {
+		log(fz::logmsg::error, _("Received too long response line from server, closing connection."));
+		return FZ_REPLY_ERROR | FZ_REPLY_DISCONNECTED;
+	}
+
 
 	if (!listing_parser_) {
 		controlSocket_.log_raw(logmsg::listing, entry);

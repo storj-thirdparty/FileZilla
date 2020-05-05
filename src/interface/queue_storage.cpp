@@ -732,8 +732,8 @@ bool CQueueStorage::Impl::SaveServer(CServerItem const& item)
 	}
 
 	Bind(insertServerQuery_, server_table_column_names::bypass_proxy, site.server.GetBypassProxy() ? 1 : 0);
-	if (!site.server.GetName().empty()) {
-		Bind(insertServerQuery_, server_table_column_names::name, site.server.GetName());
+	if (!site.GetName().empty()) {
+		Bind(insertServerQuery_, server_table_column_names::name, site.GetName());
 	}
 	else {
 		BindNull(insertServerQuery_, server_table_column_names::name);
@@ -1050,7 +1050,7 @@ int64_t CQueueStorage::Impl::ParseServerFromRow(Site & site)
 
 
 	site.server.SetBypassProxy(GetColumnInt(selectServersQuery_, server_table_column_names::bypass_proxy) == 1 );
-	site.server.SetName(GetColumnText(selectServersQuery_, server_table_column_names::name).substr(0, 255));
+	site.SetName(GetColumnText(selectServersQuery_, server_table_column_names::name).substr(0, 255));
 
 	fz::query_string qs = fz::query_string(GetColumnTextUtf8(selectServersQuery_, server_table_column_names::parameters));
 	for (auto const& pair : qs.pairs()) {

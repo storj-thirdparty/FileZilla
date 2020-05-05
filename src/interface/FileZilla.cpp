@@ -33,7 +33,7 @@
 #include "osx_sandbox_userdirs.h"
 #endif
 
-#ifndef __WXGTK__
+#if !defined(__WXGTK__) && !defined(__MINGW32__)
 IMPLEMENT_APP(CFileZillaApp)
 #else
 IMPLEMENT_APP_NO_MAIN(CFileZillaApp)
@@ -44,18 +44,6 @@ IMPLEMENT_APP_NO_MAIN(CFileZillaApp)
 #endif
 
 namespace {
-std::wstring GetEnv(std::string const& name)
-{
-	std::wstring ret;
-
-	char const* const p = getenv(name.c_str());
-	if (p && *p) {
-		ret = fz::to_wstring(std::string(p));
-	}
-
-	return ret;
-}
-
 #if FZ_WINDOWS
 std::wstring const PATH_SEP = L";";
 #else
@@ -212,6 +200,11 @@ bool CFileZillaApp::OnInit()
 {
 	AddStartupProfileRecord("CFileZillaApp::OnInit()");
 
+	// Turn off idle events, we don't need them
+	wxIdleEvent::SetMode(wxIDLE_PROCESS_SPECIFIED);
+
+	wxUpdateUIEvent::SetMode(wxUPDATE_UI_PROCESS_SPECIFIED);
+
 	fz::set_translators(translator, translator_pf);
 
 #ifdef __WXMSW__
@@ -250,7 +243,7 @@ bool CFileZillaApp::OnInit()
 
 #if USE_MAC_SANDBOX
 	// Set PUTTYDIR so that fzsftp uses the sandboxed home to put settings.
-	std::wstring home = GetEnv("Home");
+	std::wstring home = GetEnv("HOME");
 	if (!home.empty()) {
 		if (home.back() != '/') {
 			home += '/';
@@ -289,21 +282,15 @@ USE AT OWN RISK"), _T("Important Information"));
 		return false;
 	}
 
+	themeProvider_ = std::make_unique<CThemeProvider>();
 	CheckExistsFzsftp();
 #if ENABLE_STORJ
 	CheckExistsFzstorj();
 #endif
 
-	// Turn off idle events, we don't need them
-	wxIdleEvent::SetMode(wxIDLE_PROCESS_SPECIFIED);
-
-	wxUpdateUIEvent::SetMode(wxUPDATE_UI_PROCESS_SPECIFIED);
-
 #ifdef WITH_LIBDBUS
 	CSessionManager::Init();
 #endif
-
-	themeProvider_ = std::make_unique<CThemeProvider>();
 
 	// Load the text wrapping engine
 	m_pWrapEngine = std::make_unique<CWrapEngine>();
@@ -313,14 +300,14 @@ USE AT OWN RISK"), _T("Important Information"));
 #ifdef USE_MAC_SANDBOX
 	OSXSandboxUserdirs::Get().Load();
 
-    if (OSXSandboxUserdirs::Get().GetDirs().empty()) {
+	if (OSXSandboxUserdirs::Get().GetDirs().empty()) {
 		CWelcomeDialog welcome;
 		welcome.Run(nullptr, false);
 		welcome_skip = true;
 
-        OSXSandboxUserdirsDialog dlg;
-        dlg.Run(nullptr, true);
-	    if (OSXSandboxUserdirs::Get().GetDirs().empty()) {
+		OSXSandboxUserdirsDialog dlg;
+		dlg.Run(nullptr, true);
+		if (OSXSandboxUserdirs::Get().GetDirs().empty()) {
 			return false;
 		}
     }
@@ -471,8 +458,9 @@ bool CFileZillaApp::LoadResourceFiles()
 		wxMessageBoxEx(msg, _("FileZilla Error"), wxOK | wxICON_ERROR);
 		return false;
 	}
-
-	m_resourceDir.AddSegment(_T("resources"));
+	else {
+		m_resourceDir.AddSegment(_T("resources"));
+	}
 
 	// Useful for XRC files with embedded image data.
 	wxFileSystem::AddHandler(new wxFileSystemBlobHandler);
@@ -616,7 +604,7 @@ void CFileZillaApp::CheckExistsFzstorj()
 }
 #endif
 
-void CFileZillaApp::CheckExistsTool(std::wstring const& tool, std::wstring const& buildRelPath, std::string const& env, int setting, std::wstring const& description)
+void CFileZillaApp::CheckExistsTool(std::wstring const& tool, std::wstring const& buildRelPath, char const* env, int setting, std::wstring const& description)
 {
 	// Get the correct path to the specified tool
 
@@ -759,13 +747,30 @@ void CFileZillaApp::ShowStartupProfile()
 	if (m_profile_start && m_pCommandLine && m_pCommandLine->HasSwitch(CCommandLine::debug_startup)) {
 		AddStartupProfileRecord("CFileZillaApp::ShowStartupProfile");
 		wxString msg = _T("Profile:\n");
+
+		size_t const max_digits = fz::to_string((m_startupProfile.back().first - m_profile_start).get_milliseconds()).size();
+		
+		int64_t prev{};
 		for (auto const& p : m_startupProfile) {
 			auto const diff = p.first - m_profile_start;
+			auto absolute = std::to_wstring(diff.get_milliseconds());
+			if (absolute.size() < max_digits) {
+				msg.append(max_digits - absolute.size(), wchar_t(0x2007)); // FIGURE SPACE
+			}
+			msg += absolute;
+			msg += L" ";
 
-			msg += std::to_wstring(diff.get_milliseconds());
-			msg += _T(" ");
+			auto relative = std::to_wstring(diff.get_milliseconds() - prev);
+			if (relative.size() < max_digits) {
+				msg.append(max_digits - relative.size(), wchar_t(0x2007)); // FIGURE SPACE
+			}
+			msg += relative;
+			msg += L" ";
+
 			msg += fz::to_wstring(p.second);
-			msg += _T("\n");
+			msg += L"\n";
+
+			prev = diff.get_milliseconds();
 		}
 		wxMessageBoxEx(msg);
 	}
@@ -778,3 +783,15 @@ std::wstring CFileZillaApp::GetSettingsFile(std::wstring const& name) const
 {
 	return COptions::Get()->GetOption(OPTION_DEFAULT_SETTINGSDIR) + name + _T(".xml");
 }
+
+#if defined(__MINGW32__)
+extern "C" {
+__declspec(dllexport) // This forces ld to not strip relocations so that ASLR can work on MSW.
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR, int nCmdShow)
+{
+	wxDISABLE_DEBUG_SUPPORT();
+	return wxEntry(hInstance, hPrevInstance, NULL, nCmdShow);
+}
+}
+#endif
+

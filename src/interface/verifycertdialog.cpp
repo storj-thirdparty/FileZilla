@@ -73,7 +73,7 @@ bool CertStore::DoIsTrusted(std::string const& host, unsigned int port, std::vec
 	}
 
 	bool const dnsname = fz::get_address_type(host) == fz::address_type::unknown;
-	
+
 	for (auto const& cert : trustedCerts) {
 		if (port != cert.port) {
 			continue;
@@ -352,66 +352,58 @@ void CertStore::SetTrusted(fz::tls_session_info const& info, bool permanent, boo
 }
 
 
-
-
-CVerifyCertDialog::CVerifyCertDialog(CertStore & certStore)
-	: certStore_(certStore)
-{
-}
-
-
-bool CVerifyCertDialog::DisplayCert(wxDialogEx* pDlg, fz::x509_certificate const& cert)
+bool CVerifyCertDialog::DisplayCert(fz::x509_certificate const& cert)
 {
 	bool warning = false;
 	if (!cert.get_activation_time().empty()) {
 		if (cert.get_activation_time() > fz::datetime::now()) {
-			pDlg->SetChildLabel(XRCID("ID_ACTIVATION_TIME"), wxString::Format(_("%s - Not yet valid!"), CTimeFormat::Format(cert.get_activation_time())));
-			xrc_call(*pDlg, "ID_ACTIVATION_TIME", &wxWindow::SetForegroundColour, wxColour(255, 0, 0));
+			SetChildLabel(XRCID("ID_ACTIVATION_TIME"), wxString::Format(_("%s - Not yet valid!"), CTimeFormat::Format(cert.get_activation_time())));
+			xrc_call(*this, "ID_ACTIVATION_TIME", &wxWindow::SetForegroundColour, wxColour(255, 0, 0));
 			warning = true;
 		}
 		else {
-			pDlg->SetChildLabel(XRCID("ID_ACTIVATION_TIME"), CTimeFormat::Format(cert.get_activation_time()));
-			xrc_call(*pDlg, "ID_ACTIVATION_TIME", &wxWindow::SetForegroundColour, wxColour());
+			SetChildLabel(XRCID("ID_ACTIVATION_TIME"), CTimeFormat::Format(cert.get_activation_time()));
+			xrc_call(*this, "ID_ACTIVATION_TIME", &wxWindow::SetForegroundColour, wxColour());
 		}
 	}
 	else {
 		warning = true;
-		pDlg->SetChildLabel(XRCID("ID_ACTIVATION_TIME"), _("Invalid date"));
+		SetChildLabel(XRCID("ID_ACTIVATION_TIME"), _("Invalid date"));
 	}
 
 	if (!cert.get_expiration_time().empty()) {
 		if (cert.get_expiration_time() < fz::datetime::now()) {
-			pDlg->SetChildLabel(XRCID("ID_EXPIRATION_TIME"), wxString::Format(_("%s - Certificate expired!"), CTimeFormat::Format(cert.get_expiration_time())));
-			xrc_call(*pDlg, "ID_EXPIRATION_TIME", &wxWindow::SetForegroundColour, wxColour(255, 0, 0));
+			SetChildLabel(XRCID("ID_EXPIRATION_TIME"), wxString::Format(_("%s - Certificate expired!"), CTimeFormat::Format(cert.get_expiration_time())));
+			xrc_call(*this, "ID_EXPIRATION_TIME", &wxWindow::SetForegroundColour, wxColour(255, 0, 0));
 			warning = true;
 		}
 		else {
-			pDlg->SetChildLabel(XRCID("ID_EXPIRATION_TIME"), CTimeFormat::Format(cert.get_expiration_time()));
-			xrc_call(*pDlg, "ID_EXPIRATION_TIME", &wxWindow::SetForegroundColour, wxColour());
+			SetChildLabel(XRCID("ID_EXPIRATION_TIME"), CTimeFormat::Format(cert.get_expiration_time()));
+			xrc_call(*this, "ID_EXPIRATION_TIME", &wxWindow::SetForegroundColour, wxColour());
 		}
 	}
 	else {
 		warning = true;
-		pDlg->SetChildLabel(XRCID("ID_EXPIRATION_TIME"), _("Invalid date"));
+		SetChildLabel(XRCID("ID_EXPIRATION_TIME"), _("Invalid date"));
 	}
 
 	if (!cert.get_serial().empty()) {
-		pDlg->SetChildLabel(XRCID("ID_SERIAL"), fz::to_wstring_from_utf8(cert.get_serial()));
+		SetChildLabel(XRCID("ID_SERIAL"), fz::to_wstring_from_utf8(cert.get_serial()));
 	}
 	else {
-		pDlg->SetChildLabel(XRCID("ID_SERIAL"), _("None"));
+		SetChildLabel(XRCID("ID_SERIAL"), _("None"));
 	}
 
-	pDlg->SetChildLabel(XRCID("ID_PKALGO"), wxString::Format(_("%s with %d bits"), fz::to_wstring_from_utf8(cert.get_pubkey_algorithm()), cert.get_pubkey_bits()));
-	pDlg->SetChildLabel(XRCID("ID_SIGNALGO"), fz::to_wstring_from_utf8(cert.get_signature_algorithm()));
+	SetChildLabel(XRCID("ID_PKALGO"), wxString::Format(_("%s with %d bits"), fz::to_wstring_from_utf8(cert.get_pubkey_algorithm()), cert.get_pubkey_bits()));
+	SetChildLabel(XRCID("ID_SIGNALGO"), fz::to_wstring_from_utf8(cert.get_signature_algorithm()));
 
 	wxString const sha256 = fz::to_wstring_from_utf8(cert.get_fingerprint_sha256());
-	pDlg->SetChildLabel(XRCID("ID_FINGERPRINT_SHA256"), sha256.Left(sha256.size() / 2 + 1) + L"\n" + sha256.Mid(sha256.size() / 2 + 1));
-	pDlg->SetChildLabel(XRCID("ID_FINGERPRINT_SHA1"), fz::to_wstring_from_utf8(cert.get_fingerprint_sha1()));
+	SetChildLabel(XRCID("ID_FINGERPRINT_SHA256"), sha256.Left(sha256.size() / 2 + 1) + L"\n" + sha256.Mid(sha256.size() / 2 + 1));
+	SetChildLabel(XRCID("ID_FINGERPRINT_SHA1"), fz::to_wstring_from_utf8(cert.get_fingerprint_sha1()));
 
-	ParseDN(XRCCTRL(*pDlg, "ID_ISSUER_BOX", wxStaticBox), fz::to_wstring_from_utf8(cert.get_issuer()), m_pIssuerSizer);
+	ParseDN(XRCCTRL(*this, "ID_ISSUER_BOX", wxStaticBox), fz::to_wstring_from_utf8(cert.get_issuer()), m_pIssuerSizer);
 
-	auto subjectPanel = XRCCTRL(*pDlg, "ID_SUBJECT_PANEL", wxScrolledWindow);
+	auto subjectPanel = XRCCTRL(*this, "ID_SUBJECT_PANEL", wxScrolledWindow);
 	subjectPanel->Freeze();
 
 	ParseDN(subjectPanel, fz::to_wstring_from_utf8(cert.get_subject()), m_pSubjectSizer);
@@ -429,7 +421,7 @@ bool CVerifyCertDialog::DisplayCert(wxDialogEx* pDlg, fz::x509_certificate const
 	m_pSubjectSizer->Fit(subjectPanel);
 
 	wxSize min = m_pSubjectSizer->CalcMin();
-	int const maxHeight = (line_height_ + m_pDlg->ConvertDialogToPixels(wxPoint(0, 1)).y) * 15;
+	int const maxHeight = (line_height_ + ConvertDialogToPixels(wxPoint(0, 1)).y) * 15;
 	if (min.y >= maxHeight) {
 		min.y = maxHeight;
 		min.x += wxSystemSettings::GetMetric(wxSYS_VSCROLL_X);
@@ -453,52 +445,79 @@ bool CVerifyCertDialog::DisplayAlgorithm(int controlId, std::string const& name,
 		wname += L" - ";
 		wname += _("Insecure algorithm!");
 
-		auto wnd = m_pDlg->FindWindow(controlId);
+		auto wnd = FindWindow(controlId);
 		if (wnd) {
 			wnd->SetForegroundColour(wxColour(255, 0, 0));
 		}
 	}
 
-	m_pDlg->SetChildLabel(controlId, wname);
+	SetChildLabel(controlId, wname);
 
 	return insecure;
 }
 
-void CVerifyCertDialog::ShowVerificationDialog(CCertificateNotification& notification, bool displayOnly)
+void CVerifyCertDialog::ShowVerificationDialog(CertStore & certStore, CCertificateNotification& notification)
 {
-	fz::tls_session_info& info = notification.info_;
-
-	m_pDlg = new wxDialogEx;
-	if (!m_pDlg->Load(0, L"ID_VERIFYCERT")) {
-		wxBell();
-		delete m_pDlg;
-		m_pDlg = 0;
+	CVerifyCertDialog dlg;
+	if (!dlg.CreateVerificationDialog(notification, false)) {
 		return;
 	}
 
-	if (displayOnly) {
-		xrc_call(*m_pDlg, "ID_DESC", &wxWindow::Hide);
-		xrc_call(*m_pDlg, "ID_ALWAYS_DESC", &wxWindow::Hide);
-		xrc_call(*m_pDlg, "ID_ALWAYS", &wxWindow::Hide);
-		xrc_call(*m_pDlg, "ID_TRUST_SANS", &wxWindow::Hide);
-		xrc_call(*m_pDlg, "wxID_CANCEL", &wxWindow::Hide);
-		m_pDlg->SetTitle(L"Certificate details");
+	int res = dlg.ShowModal();
+	if (res == wxID_OK) {
+		notification.trusted_ = true;
+
+		if (!notification.info_.get_algorithm_warnings()) {
+			bool trustSANs = dlg.sanTrustAllowed_ && xrc_call(dlg, "ID_TRUST_SANS", &wxCheckBox::GetValue);
+			bool permanent = !dlg.warning_ && xrc_call(dlg, "ID_ALWAYS", &wxCheckBox::GetValue);
+			certStore.SetTrusted(notification.info_, permanent, trustSANs);
+		}
 	}
 	else {
-		m_pDlg->WrapText(m_pDlg, XRCID("ID_DESC"), 420);
+		notification.trusted_ = false;
+	}
+}
+
+void CVerifyCertDialog::DisplayCertificate(CCertificateNotification const& notification)
+{
+	CVerifyCertDialog dlg;
+	if (dlg.CreateVerificationDialog(notification, true)) {
+		dlg.ShowModal();
+	}
+}
+
+bool CVerifyCertDialog::CreateVerificationDialog(CCertificateNotification const& notification, bool displayOnly)
+{
+	fz::tls_session_info const& info = notification.info_;
+
+	if (!Load(0, L"ID_VERIFYCERT", L"certificate.xrc")) {
+		wxBell();
+		return false;
+	}
+
+	if (displayOnly) {
+		xrc_call(*this, "ID_DESC", &wxWindow::Hide);
+		xrc_call(*this, "ID_ALWAYS_DESC", &wxWindow::Hide);
+		xrc_call(*this, "ID_ALWAYS", &wxWindow::Hide);
+		xrc_call(*this, "ID_TRUST_SANS", &wxWindow::Hide);
+		xrc_call(*this, "wxID_CANCEL", &wxWindow::Hide);
+		SetTitle(L"Certificate details");
+	}
+	else {
+		WrapText(this, XRCID("ID_DESC"), 420);
 
 		if (COptions::Get()->GetOptionVal(OPTION_DEFAULT_KIOSKMODE) == 2) {
-			XRCCTRL(*m_pDlg, "ID_ALWAYS", wxCheckBox)->Hide();
+			XRCCTRL(*this, "ID_ALWAYS", wxCheckBox)->Hide();
 		}
 	}
 
 	m_certificates = info.get_certificates();
 	if (m_certificates.size() == 1) {
-		XRCCTRL(*m_pDlg, "ID_CHAIN_DESC", wxStaticText)->Hide();
-		XRCCTRL(*m_pDlg, "ID_CHAIN", wxChoice)->Hide();
+		XRCCTRL(*this, "ID_CHAIN_DESC", wxStaticText)->Hide();
+		XRCCTRL(*this, "ID_CHAIN", wxChoice)->Hide();
 	}
 	else {
-		wxChoice* pChoice = XRCCTRL(*m_pDlg, "ID_CHAIN", wxChoice);
+		wxChoice* pChoice = XRCCTRL(*this, "ID_CHAIN", wxChoice);
 		for (unsigned int i = 0; i < m_certificates.size(); ++i) {
 			pChoice->Append(wxString::Format(L"%d", i));
 		}
@@ -508,31 +527,31 @@ void CVerifyCertDialog::ShowVerificationDialog(CCertificateNotification& notific
 	}
 
 	if (info.mismatched_hostname()) {
-		xrc_call(*m_pDlg, "ID_HOST", &wxWindow::SetForegroundColour, wxColour(255, 0, 0));
-		m_pDlg->SetChildLabel(XRCID("ID_HOST"), wxString::Format(_("%s:%d - Hostname does not match certificate"), LabelEscape(fz::to_wstring_from_utf8(info.get_host())), info.get_port()));
+		xrc_call(*this, "ID_HOST", &wxWindow::SetForegroundColour, wxColour(255, 0, 0));
+		SetChildLabel(XRCID("ID_HOST"), wxString::Format(_("%s:%d - Hostname does not match certificate"), LabelEscape(fz::to_wstring_from_utf8(info.get_host())), info.get_port()));
 	}
 	else {
-		m_pDlg->SetChildLabel(XRCID("ID_HOST"), wxString::Format(L"%s:%d", LabelEscape(fz::to_wstring_from_utf8(info.get_host())), info.get_port()));
+		SetChildLabel(XRCID("ID_HOST"), wxString::Format(L"%s:%d", LabelEscape(fz::to_wstring_from_utf8(info.get_host())), info.get_port()));
 	}
 
-	line_height_ = XRCCTRL(*m_pDlg, "ID_SUBJECT_DUMMY", wxStaticText)->GetSize().y;
+	line_height_ = XRCCTRL(*this, "ID_SUBJECT_DUMMY", wxStaticText)->GetSize().y;
 
-	m_pSubjectSizer = XRCCTRL(*m_pDlg, "ID_SUBJECT_DUMMY", wxStaticText)->GetContainingSizer();
+	m_pSubjectSizer = XRCCTRL(*this, "ID_SUBJECT_DUMMY", wxStaticText)->GetContainingSizer();
 	m_pSubjectSizer->Clear(true);
 
-	m_pIssuerSizer = XRCCTRL(*m_pDlg, "ID_ISSUER_DUMMY", wxStaticText)->GetContainingSizer();
+	m_pIssuerSizer = XRCCTRL(*this, "ID_ISSUER_DUMMY", wxStaticText)->GetContainingSizer();
 	m_pIssuerSizer->Clear(true);
 
 	wxSize minSize(0, 0);
 	for (unsigned int i = 0; i < m_certificates.size(); ++i) {
-		DisplayCert(m_pDlg, m_certificates[i]);
-		m_pDlg->Layout();
-		m_pDlg->GetSizer()->Fit(m_pDlg);
-		minSize.IncTo(m_pDlg->GetSizer()->GetMinSize());
+		DisplayCert(m_certificates[i]);
+		Layout();
+		GetSizer()->Fit(this);
+		minSize.IncTo(GetSizer()->GetMinSize());
 	}
-	m_pDlg->GetSizer()->SetMinSize(minSize);
+	GetSizer()->SetMinSize(minSize);
 
-	bool warning = DisplayCert(m_pDlg, m_certificates[0]);
+	warning_ = DisplayCert(m_certificates[0]);
 
 	DisplayAlgorithm(XRCID("ID_PROTOCOL"), info.get_protocol(), (info.get_algorithm_warnings() & fz::tls_session_info::tlsver) != 0);
 	DisplayAlgorithm(XRCID("ID_KEYEXCHANGE"), info.get_key_exchange(), (info.get_algorithm_warnings() & fz::tls_session_info::kex) != 0);
@@ -540,45 +559,27 @@ void CVerifyCertDialog::ShowVerificationDialog(CCertificateNotification& notific
 	DisplayAlgorithm(XRCID("ID_MAC"), info.get_session_mac(), (info.get_algorithm_warnings() & fz::tls_session_info::mac) != 0);
 
 	if (info.get_algorithm_warnings() != 0) {
-		warning = true;
+		warning_ = true;
 	}
 
-	if (warning) {
-		XRCCTRL(*m_pDlg, "ID_IMAGE", wxStaticBitmap)->SetBitmap(wxArtProvider::GetBitmap(wxART_WARNING));
-		XRCCTRL(*m_pDlg, "ID_ALWAYS", wxCheckBox)->Enable(false);
+	if (warning_) {
+		XRCCTRL(*this, "ID_IMAGE", wxStaticBitmap)->SetBitmap(wxArtProvider::GetBitmap(wxART_WARNING));
+		XRCCTRL(*this, "ID_ALWAYS", wxCheckBox)->Enable(false);
 	}
 
 	bool const dnsname = fz::get_address_type(info.get_host()) == fz::address_type::unknown;
-	bool const sanTrustAllowed = !warning && dnsname && !info.mismatched_hostname();
-	XRCCTRL(*m_pDlg, "ID_TRUST_SANS", wxCheckBox)->Enable(sanTrustAllowed);
+	sanTrustAllowed_ = !warning_ && dnsname && !info.mismatched_hostname();
+	XRCCTRL(*this, "ID_TRUST_SANS", wxCheckBox)->Enable(sanTrustAllowed_);
 
-	if (sanTrustAllowed && info.system_trust()) {
-		xrc_call(*m_pDlg, "ID_ALWAYS", &wxCheckBox::SetValue, true);
-		xrc_call(*m_pDlg, "ID_TRUST_SANS", &wxCheckBox::SetValue, true);
+	if (sanTrustAllowed_ && info.system_trust()) {
+		xrc_call(*this, "ID_ALWAYS", &wxCheckBox::SetValue, true);
+		xrc_call(*this, "ID_TRUST_SANS", &wxCheckBox::SetValue, true);
 	}
 
-	m_pDlg->GetSizer()->Fit(m_pDlg);
-	m_pDlg->GetSizer()->SetSizeHints(m_pDlg);
+	GetSizer()->Fit(this);
+	GetSizer()->SetSizeHints(this);
 
-	int res = m_pDlg->ShowModal();
-
-	if (!displayOnly) {
-		if (res == wxID_OK) {
-			notification.trusted_ = true;
-
-			if (!info.get_algorithm_warnings()) {
-				bool trustSANs = sanTrustAllowed && xrc_call(*m_pDlg, "ID_TRUST_SANS", &wxCheckBox::GetValue);
-				bool permanent = !warning && xrc_call(*m_pDlg, "ID_ALWAYS", &wxCheckBox::GetValue);
-				certStore_.SetTrusted(info, permanent, trustSANs);
-			}
-		}
-		else {
-			notification.trusted_ = false;
-		}
-	}
-
-	delete m_pDlg;
-	m_pDlg = 0;
+	return true;
 }
 
 namespace {
@@ -703,11 +704,11 @@ void CVerifyCertDialog::OnCertificateChoice(wxCommandEvent& event)
 	if (sel < 0 || static_cast<unsigned int>(sel) > m_certificates.size()) {
 		return;
 	}
-	DisplayCert(m_pDlg, m_certificates[sel]);
+	DisplayCert(m_certificates[sel]);
 
-	m_pDlg->Layout();
-	m_pDlg->GetSizer()->Fit(m_pDlg);
-	m_pDlg->Refresh();
+	Layout();
+	GetSizer()->Fit(this);
+	Refresh();
 }
 
 
@@ -722,6 +723,9 @@ void ConfirmInsecureConection(wxWindow* parent, CertStore & certStore, CInsecure
 	case FTP:
 	case INSECURE_FTP:
 		name = L"FTP";
+		break;
+	case INSECURE_WEBDAV:
+		name = L"WebDAV";
 		break;
 	default:
 		name = CServer::GetProtocolName(protocol);
@@ -784,7 +788,9 @@ void ConfirmInsecureConection(wxWindow* parent, CertStore & certStore, CInsecure
 	}
 	buttons->AddButton(cancel);
 
-	dlg.Bind(wxEVT_BUTTON, [&dlg](wxEvent & evt) {dlg.EndModal(evt.GetId()); });
+	auto onButton = [&dlg](wxEvent & evt) {dlg.EndModal(evt.GetId()); };
+	ok->Bind(wxEVT_BUTTON, onButton);
+	cancel->Bind(wxEVT_BUTTON, onButton);
 
 	buttons->Realize();
 

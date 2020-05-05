@@ -1,7 +1,7 @@
 #include <filezilla.h>
 
 #include "connect.h"
-#include "ControlSocket.h"
+#include "controlsocket.h"
 #include "engineprivate.h"
 #include "filetransfer.h"
 #include "httpcontrolsocket.h"
@@ -14,11 +14,12 @@
 #include <libfilezilla/tls_layer.hpp>
 #include <libfilezilla/uri.hpp>
 
+#include <assert.h>
 #include <string.h>
 
 int simple_body::data_request(unsigned char* data, unsigned int & len)
 {
-	len = std::min(static_cast<size_t>(len), body_.size() - written_);
+	len = static_cast<unsigned int>(std::min(static_cast<size_t>(len), body_.size() - written_));
 	memcpy(data, body_.c_str() + written_, len);
 	written_ += len;
 	return FZ_REPLY_CONTINUE;
@@ -38,6 +39,9 @@ int file_body::data_request(unsigned char* data, unsigned int & len)
 	assert(size_ >= written_);
 	assert(len > 0);
 	len = static_cast<unsigned int>(std::min(static_cast<uint64_t>(len), size_ - written_));
+	if (!len) {
+		return FZ_REPLY_CONTINUE;
+	}
 	auto bytes_read = file_.read(data, len);
 	if (bytes_read < 0) {
 		len = 0;
@@ -101,6 +105,63 @@ int HttpResponse::reset()
 
 	return FZ_REPLY_CONTINUE;
 }
+
+void RequestThrottler::throttle(std::string const& hostname, fz::datetime const& backoff)
+{
+	if (hostname.empty() || !backoff) {
+		return;
+	}
+
+	fz::scoped_lock l(mtx_);
+
+	bool found{};
+	auto now = fz::datetime::now();
+	for (size_t i = 0; i < backoff_.size(); ) {
+		auto & entry = backoff_[i];
+		if (entry.first == hostname) {
+			found = true;
+			if (entry.second < backoff) {
+				entry.second = backoff;
+			}
+		}
+		if (entry.second < now) {
+			backoff_[i] = std::move(backoff_.back());
+			backoff_.pop_back();
+		}
+		else {
+			++i;
+		}
+	}
+	if (!found) {
+		backoff_.emplace_back(hostname, backoff);
+	}
+}
+
+fz::duration RequestThrottler::get_throttle(std::string const& hostname)
+{
+	fz::scoped_lock l(mtx_);
+
+	fz::duration ret;
+
+	auto now = fz::datetime::now();
+	for (size_t i = 0; i < backoff_.size(); ) {
+		auto & entry = backoff_[i];
+		if (entry.second < now) {
+			backoff_[i] = std::move(backoff_.back());
+			backoff_.pop_back();
+		}
+		else {
+			if (entry.first == hostname) {
+				ret = entry.second - now;
+			}
+			++i;
+		}
+	}
+
+	return ret;
+}
+
+RequestThrottler CHttpControlSocket::throttler_;
 
 CHttpControlSocket::CHttpControlSocket(CFileZillaEnginePrivate & engine)
 	: CRealControlSocket(engine)
@@ -190,7 +251,7 @@ void CHttpControlSocket::OnConnect()
 		return;
 	}
 
-	socket_->set_flags(fz::socket::flag_nodelay);  //, true);
+	socket_->set_flags(fz::socket::flag_nodelay, true);
 
 	auto & data = static_cast<CHttpInternalConnectOpData &>(*operations_.back());
 
@@ -315,9 +376,10 @@ int CHttpControlSocket::Disconnect()
 	return FZ_REPLY_OK;
 }
 
-void CHttpControlSocket::Connect(CServer const& server, Credentials const&)
+void CHttpControlSocket::Connect(CServer const& server, Credentials const& credentials)
 {
 	currentServer_ = server;
+	credentials_ = credentials;
 	Push(std::make_unique<CHttpConnectOpData>(*this));
 }
 

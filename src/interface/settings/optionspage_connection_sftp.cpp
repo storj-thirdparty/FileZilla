@@ -10,36 +10,86 @@
 #include "../osx_sandbox_userdirs.h"
 #endif
 
-BEGIN_EVENT_TABLE(COptionsPageConnectionSFTP, COptionsPage)
-EVT_BUTTON(XRCID("ID_ADDKEY"), COptionsPageConnectionSFTP::OnAdd)
-EVT_BUTTON(XRCID("ID_REMOVEKEY"), COptionsPageConnectionSFTP::OnRemove)
-EVT_LIST_ITEM_SELECTED(wxID_ANY, COptionsPageConnectionSFTP::OnSelChanged)
-EVT_LIST_ITEM_DESELECTED(wxID_ANY, COptionsPageConnectionSFTP::OnSelChanged)
-END_EVENT_TABLE()
+#include <wx/filedlg.h>
+#include <wx/listctrl.h>
+#include <wx/statbox.h>
+
+struct COptionsPageConnectionSFTP::impl
+{
+	std::unique_ptr<CFZPuttyGenInterface> fzpg_;
+
+	wxListCtrl* keys_{};
+	wxButton* add_{};
+	wxButton* remove_{};
+
+	wxCheckBox* compression_{};
+};
 
 COptionsPageConnectionSFTP::COptionsPageConnectionSFTP()
+	: impl_(std::make_unique<impl>())
 {
-	m_pFzpg = std::make_unique<CFZPuttyGenInterface>(this);
+	impl_->fzpg_ = std::make_unique<CFZPuttyGenInterface>(this);
 }
 
 COptionsPageConnectionSFTP::~COptionsPageConnectionSFTP()
 {
 }
 
+bool COptionsPageConnectionSFTP::CreateControls(wxWindow* parent)
+{
+	auto const& lay = m_pOwner->layout();
+
+	Create(parent);
+	auto main = lay.createFlex(1);
+	main->AddGrowableCol(0);
+	main->AddGrowableRow(0);
+	SetSizer(main);
+
+	{
+		auto [box, inner] = lay.createStatBox(main, _("Public Key Authentication"), 1);
+		inner->AddGrowableCol(0);
+		inner->AddGrowableRow(2);
+		inner->Add(new wxStaticText(box, -1, _("To support public key authentication, FileZilla needs to know the private keys to use.")));
+		inner->Add(new wxStaticText(box, -1, _("Private &keys:")));
+		impl_->keys_ = new wxListCtrl(box, -1, wxDefaultPosition, wxDefaultSize, wxLC_REPORT | wxBORDER_SUNKEN);
+		impl_->keys_->Bind(wxEVT_LIST_ITEM_SELECTED, &COptionsPageConnectionSFTP::OnSelChanged, this);
+		impl_->keys_->Bind(wxEVT_LIST_ITEM_DESELECTED, &COptionsPageConnectionSFTP::OnSelChanged, this);
+		inner->Add(impl_->keys_, lay.grow);
+
+		auto row = lay.createGrid(2);
+		inner->Add(row, lay.halign);
+		impl_->add_ = new wxButton(box, -1, _("&Add key file..."));
+		impl_->add_->Bind(wxEVT_BUTTON, &COptionsPageConnectionSFTP::OnAdd, this);
+		row->Add(impl_->add_, lay.valign);
+		impl_->remove_ = new wxButton(box, -1, _("&Remove key"));
+		impl_->remove_->Bind(wxEVT_BUTTON, &COptionsPageConnectionSFTP::OnRemove, this);
+		row->Add(impl_->remove_, lay.valign);
+
+#ifdef __WXMSW__
+		inner->Add(new wxStaticText(box, -1, _("Alternatively you can use the Pageant tool from PuTTY to manage your keys, FileZilla does recognize Pageant.")));
+#else
+		inner->Add(new wxStaticText(box, -1, _("Alternatively you can use your system's SSH agent. To do so, make sure the SSH_AUTH_SOCK environment variable is set.")));
+#endif
+	}
+	{
+		auto [box, inner] = lay.createStatBox(main, _("Other SFTP options"), 1);
+
+		impl_->compression_ = new wxCheckBox(box, -1, _("&Enable compression"));
+		inner->Add(impl_->compression_);
+	}
+	return true;
+}
+
 bool COptionsPageConnectionSFTP::LoadPage()
 {
-	wxListCtrl* pKeys = XRCCTRL(*this, "ID_KEYS", wxListCtrl);
-	if (!pKeys) {
-		return false;
-	}
-	pKeys->InsertColumn(0, _("Filename"), wxLIST_FORMAT_LEFT, 150);
-	pKeys->InsertColumn(1, _("Comment"), wxLIST_FORMAT_LEFT, 100);
-	pKeys->InsertColumn(2, _("Data"), wxLIST_FORMAT_LEFT, 350);
+	impl_->keys_->InsertColumn(0, _("Filename"), wxLIST_FORMAT_LEFT, 150);
+	impl_->keys_->InsertColumn(1, _("Comment"), wxLIST_FORMAT_LEFT, 100);
+	impl_->keys_->InsertColumn(2, _("Data"), wxLIST_FORMAT_LEFT, 350);
 
 	// Generic wxListCtrl has gross minsize
-	wxSize size = pKeys->GetMinSize();
+	wxSize size = impl_->keys_->GetMinSize();
 	size.x = 1;
-	pKeys->SetMinSize(size);
+	impl_->keys_->SetMinSize(size);
 
 	std::wstring keyFiles = m_pOptions->GetOption(OPTION_SFTP_KEYFILES);
 	auto tokens = fz::strtok(keyFiles, L"\r\n");
@@ -51,7 +101,7 @@ bool COptionsPageConnectionSFTP::LoadPage()
 
 	SetCtrlState();
 
-	SetCheckFromOption(XRCID("ID_SFTP_COMPRESSION"), OPTION_SFTP_COMPRESSION, failure);
+	impl_->compression_->SetValue(m_pOptions->GetOptionVal(OPTION_SFTP_COMPRESSION) != 0);
 
 	return !failure;
 }
@@ -59,19 +109,18 @@ bool COptionsPageConnectionSFTP::LoadPage()
 bool COptionsPageConnectionSFTP::SavePage()
 {
 	// Don't save keys on process error
-	if (!m_pFzpg->ProcessFailed()) {
-		wxString keyFiles;
-		wxListCtrl* pKeys = XRCCTRL(*this, "ID_KEYS", wxListCtrl);
-		for (int i = 0; i < pKeys->GetItemCount(); ++i) {
+	if (!impl_->fzpg_->ProcessFailed()) {
+		std::wstring keyFiles;
+		for (int i = 0; i < impl_->keys_->GetItemCount(); ++i) {
 			if (!keyFiles.empty()) {
-				keyFiles += _T("\n");
+				keyFiles += L"\n";
 			}
-			keyFiles += pKeys->GetItemText(i);
+			keyFiles += impl_->keys_->GetItemText(i).ToStdWstring();
 		}
-		m_pOptions->SetOption(OPTION_SFTP_KEYFILES, keyFiles.ToStdWstring());
+		m_pOptions->SetOption(OPTION_SFTP_KEYFILES, keyFiles);
 	}
 
-	SetOptionFromCheck(XRCID("ID_SFTP_COMPRESSION"), OPTION_SFTP_COMPRESSION);
+	m_pOptions->SetOption(OPTION_SFTP_COMPRESSION, impl_->compression_->GetValue() ? 1 : 0);
 
 	return true;
 }
@@ -94,29 +143,22 @@ void COptionsPageConnectionSFTP::OnAdd(wxCommandEvent&)
 
 void COptionsPageConnectionSFTP::OnRemove(wxCommandEvent&)
 {
-	wxListCtrl* pKeys = XRCCTRL(*this, "ID_KEYS", wxListCtrl);
-
-	int index = pKeys->GetNextItem(-1, wxLIST_NEXT_ALL, wxLIST_STATE_SELECTED);
+	int index = impl_->keys_->GetNextItem(-1, wxLIST_NEXT_ALL, wxLIST_STATE_SELECTED);
 	if (index == -1) {
 		return;
 	}
 
-	pKeys->DeleteItem(index);
+	impl_->keys_->DeleteItem(index);
 }
 
 bool COptionsPageConnectionSFTP::AddKey(std::wstring keyFile, bool silent)
 {
-	wxListCtrl* pKeys = XRCCTRL(*this, "ID_KEYS", wxListCtrl);
-	if (!pKeys) {
-		return false;
-	}
-
 	std::wstring comment, data;
-	if (!m_pFzpg->LoadKeyFile(keyFile, silent, comment, data)) {
+	if (!impl_->fzpg_->LoadKeyFile(keyFile, silent, comment, data)) {
 		if (silent) {
-			int index = pKeys->InsertItem(pKeys->GetItemCount(), keyFile);
-			pKeys->SetItem(index, 1, comment);
-			pKeys->SetItem(index, 2, data);
+			int index = impl_->keys_->InsertItem(impl_->keys_->GetItemCount(), keyFile);
+			impl_->keys_->SetItem(index, 1, comment);
+			impl_->keys_->SetItem(index, 2, data);
 		}
 		return false;
 	}
@@ -128,18 +170,17 @@ bool COptionsPageConnectionSFTP::AddKey(std::wstring keyFile, bool silent)
 		return false;
 	}
 
-	int index = pKeys->InsertItem(pKeys->GetItemCount(), keyFile);
-	pKeys->SetItem(index, 1, comment);
-	pKeys->SetItem(index, 2, data);
+	int index = impl_->keys_->InsertItem(impl_->keys_->GetItemCount(), keyFile);
+	impl_->keys_->SetItem(index, 1, comment);
+	impl_->keys_->SetItem(index, 2, data);
 
 	return true;
 }
 
 bool COptionsPageConnectionSFTP::KeyFileExists(std::wstring const& keyFile)
 {
-	wxListCtrl* pKeys = XRCCTRL(*this, "ID_KEYS", wxListCtrl);
-	for (int i = 0; i < pKeys->GetItemCount(); ++i) {
-		if (pKeys->GetItemText(i) == keyFile) {
+	for (int i = 0; i < impl_->keys_->GetItemCount(); ++i) {
+		if (impl_->keys_->GetItemText(i) == keyFile) {
 			return true;
 		}
 	}
@@ -148,11 +189,8 @@ bool COptionsPageConnectionSFTP::KeyFileExists(std::wstring const& keyFile)
 
 void COptionsPageConnectionSFTP::SetCtrlState()
 {
-	wxListCtrl* pKeys = XRCCTRL(*this, "ID_KEYS", wxListCtrl);
-
-	int index = pKeys->GetNextItem(-1, wxLIST_NEXT_ALL, wxLIST_STATE_SELECTED);
-	XRCCTRL(*this, "ID_REMOVEKEY", wxButton)->Enable(index != -1);
-	return;
+	int index = impl_->keys_->GetNextItem(-1, wxLIST_NEXT_ALL, wxLIST_STATE_SELECTED);
+	impl_->remove_->Enable(index != -1);
 }
 
 void COptionsPageConnectionSFTP::OnSelChanged(wxListEvent&)

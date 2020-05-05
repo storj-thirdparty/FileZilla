@@ -5,6 +5,8 @@
 #include "list.h"
 #include "transfersocket.h"
 
+#include <assert.h>
+
 namespace {
 // Some servers are broken. Instead of an empty listing, some MVS servers
 // for example they return "550 no members found"
@@ -48,6 +50,14 @@ CFtpListOpData::CFtpListOpData(CFtpControlSocket & controlSocket, CServerPath co
 int CFtpListOpData::Send()
 {
 	if (opState == list_init) {
+		auto newPath = CServerPath::GetChanged(currentPath_, path_, subDir_);
+		if (newPath.empty()) {
+			log(logmsg::status, _("Retrieving directory listing..."));
+		}
+		else {
+			log(logmsg::status, _("Retrieving directory listing of \"%s\"..."), newPath.GetPath());
+		}
+
 		controlSocket_.ChangeDir(path_, subDir_, (flags_ & LIST_FLAG_LINK));
 		opState = list_waitcwd;
 		return FZ_REPLY_CONTINUE;

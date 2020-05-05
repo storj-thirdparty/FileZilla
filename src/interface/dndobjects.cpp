@@ -343,11 +343,11 @@ void CRemoteDataObject::Finalize()
 bool CRemoteDataObject::SetData(size_t len, const void* buf)
 {
 	char* data = (char*)buf;
-	if (!len || data[len - 1] != 0) {
+	if (!len) {
 		return false;
 	}
 
-	if (!m_xmlFile.ParseData(data)) {
+	if (!m_xmlFile.ParseData(reinterpret_cast<uint8_t const*>(data), len)) {
 		return false;
 	}
 

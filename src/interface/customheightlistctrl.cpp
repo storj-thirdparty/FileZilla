@@ -3,8 +3,6 @@
 
 #include <algorithm>
 
-IMPLEMENT_DYNAMIC_CLASS(wxCustomHeightListCtrl, wxScrolledWindow)
-
 BEGIN_EVENT_TABLE(wxCustomHeightListCtrl, wxScrolledWindow)
 EVT_MOUSE_EVENTS(wxCustomHeightListCtrl::OnMouseEvent)
 EVT_SIZE(wxCustomHeightListCtrl::OnSize)

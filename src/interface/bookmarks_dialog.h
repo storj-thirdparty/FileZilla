@@ -9,7 +9,7 @@ class CNewBookmarkDialog final : public wxDialogEx
 public:
 	CNewBookmarkDialog(wxWindow* parent, std::wstring& site_path, Site const* site);
 
-	int Run(const wxString &local_path, const CServerPath &remote_path);
+	int Run(wxString const& local_path, CServerPath const& remote_path);
 
 protected:
 	wxWindow* m_parent;
@@ -21,6 +21,7 @@ protected:
 	void OnBrowse(wxCommandEvent&);
 };
 
+class wxTreeCtrlEx;
 class CBookmarksDialog final : public wxDialogEx
 {
 public:
@@ -43,11 +44,11 @@ protected:
 	void SaveSiteSpecificBookmarks();
 	void SaveGlobalBookmarks();
 
-	wxWindow* m_parent;
+	wxWindow* m_parent{};
 	std::wstring &m_site_path;
-	Site const* site_;
+	Site const* site_{};
 
-	wxTreeCtrl *m_pTree{};
+	wxTreeCtrlEx* tree_{};
 	wxTreeItemId m_bookmarks_global;
 	wxTreeItemId m_bookmarks_site;
 

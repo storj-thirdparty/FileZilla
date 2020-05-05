@@ -44,6 +44,8 @@ public:
 		CSplitterWindowEx* pRemoteSplitter{};
 
 		CState* pState{};
+
+		void SwitchFocusedSide();
 	};
 
 	CContextControl(CMainFrame& mainFrame);

@@ -17,6 +17,7 @@
 #include <libfilezilla/uri.hpp>
 
 #include <wx/clipbrd.h>
+#include <wx/menu.h>
 
 #include <algorithm>
 
@@ -243,7 +244,7 @@ EVT_MENU(XRCID("ID_GETURL"), CRemoteTreeView::OnMenuGeturl)
 END_EVENT_TABLE()
 
 CRemoteTreeView::CRemoteTreeView(wxWindow* parent, wxWindowID id, CState& state, CQueueView* pQueue)
-	: wxTreeCtrlEx(parent, id, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL | wxTR_EDIT_LABELS | wxTR_LINES_AT_ROOT | wxTR_HAS_BUTTONS | wxNO_BORDER | wxTR_HIDE_ROOT),
+	: wxTreeCtrlEx(parent, id, wxDefaultPosition, wxDefaultSize, DEFAULT_TREE_STYLE | wxTAB_TRAVERSAL | wxTR_EDIT_LABELS | wxNO_BORDER | wxTR_HIDE_ROOT),
 	CSystemImageList(CThemeProvider::GetIconSize(iconSizeSmall).x),
 	CStateEventHandler(state)
 {
@@ -535,6 +536,8 @@ void CRemoteTreeView::DisplayItem(wxTreeItemId parent, const CDirectoryListing& 
 	std::wstring const path = listing.path.GetPath();
 
 	CFilterDialog filter;
+
+	wxTreeItemId last;
 	for (size_t i = 0; i < listing.size(); ++i) {
 		auto const& entry = listing[i];
 		if (!entry.is_dir()) {
@@ -560,7 +563,7 @@ void CRemoteTreeView::DisplayItem(wxTreeItemId parent, const CDirectoryListing& 
 			}
 		}
 		else {
-			wxTreeItemId child = AppendItem(parent, name, 1, 3, 0);
+			wxTreeItemId child = InsertItem(parent, last, name, 1, 3, 0);
 			SetItemImages(child, true);
 		}
 	}
@@ -594,14 +597,21 @@ void CRemoteTreeView::RefreshItem(wxTreeItemId parent, const CDirectoryListing& 
 		}
 	}
 
-	auto const& sortFunc = CFileListCtrlSortBase::GetCmpFunction(m_nameSortMode);
-	std::sort(dirs.begin(), dirs.end(), [&](auto const& lhs, auto const& rhs) { return sortFunc(lhs, rhs) < 0; });
+	std::sort(dirs.begin(), dirs.end(), [&](auto const& lhs, auto const& rhs) { return sortFunction_(lhs, rhs) < 0; });
+
+	std::vector<wxTreeItemId> toDelete;
 
 	bool inserted = false;
-	child = GetLastChild(parent);
-	auto iter = dirs.rbegin();
-	while (child && iter != dirs.rend()) {
-		int cmp = sortFunc(GetItemText(child).ToStdWstring(), *iter);
+	
+	wxTreeItemIdValue unused;
+	child = GetFirstChild(parent, unused);
+
+	wxTreeItemId last = GetLastChild(parent);
+
+	auto iter = dirs.begin();
+	while (child && iter != dirs.end()) {
+		wxString const& childName = GetItemText(child);
+		int cmp = sortFunction_(std::wstring_view(childName.data(), childName.size()), *iter);
 
 		if (!cmp) {
 			CServerPath childPath = listing.path;
@@ -618,7 +628,7 @@ void CRemoteTreeView::RefreshItem(wxTreeItemId parent, const CDirectoryListing& 
 				SetItemImages(child, true);
 			}
 
-			child = GetPrevSibling(child);
+			child = GetNextSibling(child);
 			++iter;
 		}
 		else if (cmp > 0) {
@@ -627,11 +637,10 @@ void CRemoteTreeView::RefreshItem(wxTreeItemId parent, const CDirectoryListing& 
 			while (sel && sel != child) {
 				sel = GetItemParent(sel);
 			}
-			wxTreeItemId prev = GetPrevSibling(child);
 			if (!sel || will_select_parent) {
-				Delete(child);
+				toDelete.push_back(child);
 			}
-			child = prev;
+			child = GetNextSibling(child);
 		}
 		else if (cmp < 0) {
 			// New directory
@@ -640,12 +649,12 @@ void CRemoteTreeView::RefreshItem(wxTreeItemId parent, const CDirectoryListing& 
 
 			CDirectoryListing subListing;
 			if (m_state.m_pEngine->CacheLookup(childPath, subListing) == FZ_REPLY_OK) {
-				wxTreeItemId childItem = AppendItem(parent, *iter, 0, 2, 0);
-				if (childItem) {
-					SetItemImages(childItem, false);
+				last = InsertItem(parent, last, *iter, 0, 2, 0);
+				if (last) {
+					SetItemImages(last, false);
 
 					if (HasSubdirs(subListing, filter)) {
-						AppendItem(childItem, _T(""), -1, -1);
+						AppendItem(last, _T(""), -1, -1);
 					}
 				}
 			}
@@ -666,24 +675,23 @@ void CRemoteTreeView::RefreshItem(wxTreeItemId parent, const CDirectoryListing& 
 		while (sel && sel != child) {
 			sel = GetItemParent(sel);
 		}
-		wxTreeItemId prev = GetPrevSibling(child);
 		if (!sel || will_select_parent) {
-			Delete(child);
+			toDelete.push_back(child);
 		}
-		child = prev;
+		child = GetNextSibling(child);
 	}
-	while (iter != dirs.rend()) {
+	while (iter != dirs.end()) {
 		CServerPath childPath = listing.path;
 		childPath.AddSegment(*iter);
 
 		CDirectoryListing subListing;
 		if (m_state.m_pEngine->CacheLookup(childPath, subListing) == FZ_REPLY_OK) {
-			wxTreeItemId childItem = AppendItem(parent, *iter, 0, 2, 0);
-			if (childItem) {
-				SetItemImages(childItem, false);
+			last = InsertItem(parent, last, *iter, 0, 2, 0);
+			if (last) {
+				SetItemImages(last, false);
 
 				if (HasSubdirs(subListing, filter)) {
-					AppendItem(childItem, _T(""), -1, -1);
+					AppendItem(last, _T(""), -1, -1);
 				}
 			}
 		}
@@ -697,9 +705,13 @@ void CRemoteTreeView::RefreshItem(wxTreeItemId parent, const CDirectoryListing& 
 		++iter;
 		inserted = true;
 	}
+	for (auto it = toDelete.rbegin(); it != toDelete.rend(); ++it) {
+		Delete(*it);
+	}
 
-	if (inserted)
+	if (inserted) {
 		SortChildren(parent);
+	}
 }
 
 void CRemoteTreeView::OnItemExpanding(wxTreeEvent& event)
@@ -1306,19 +1318,23 @@ void CRemoteTreeView::OnMenuMkdirChgDir(wxCommandEvent&)
 // Returns the name of the new directory
 CServerPath CRemoteTreeView::MenuMkdir()
 {
-	if (!m_state.IsRemoteIdle())
+	if (!m_state.IsRemoteIdle()) {
 		return CServerPath();
+	}
 
-	if (!m_contextMenuItem)
+	if (!m_contextMenuItem) {
 		return CServerPath();
+	}
 
 	const CServerPath& path = GetPathFromItem(m_contextMenuItem);
-	if (path.empty())
+	if (path.empty()) {
 		return CServerPath();
+	}
 
 	CInputDialog dlg;
-	if (!dlg.Create(this, _("Create directory"), _("Please enter the name of the directory which should be created:")))
+	if (!dlg.Create(this, _("Create directory"), _("Please enter the name of the directory which should be created:"))) {
 		return CServerPath();
+	}
 
 	CServerPath newPath = path;
 
@@ -1336,8 +1352,9 @@ CServerPath CRemoteTreeView::MenuMkdir()
 		dlg.SelectText(pos, pos + newName.Length());
 	}
 
-	if (dlg.ShowModal() != wxID_OK)
+	if (dlg.ShowModal() != wxID_OK) {
 		return CServerPath();
+	}
 
 	newPath = path;
 	if (!newPath.ChangePath(dlg.GetValue().ToStdWstring())) {
@@ -1354,19 +1371,21 @@ bool CRemoteTreeView::ListExpand(wxTreeItemId item)
 {
 	const CServerPath path = GetPathFromItem(item);
 	wxASSERT(!path.empty());
-	if (path.empty())
+	if (path.empty()) {
 		return false;
+	}
 
 	CDirectoryListing listing;
-	if (m_state.m_pEngine->CacheLookup(path, listing) == FZ_REPLY_OK)
+	if (m_state.m_pEngine->CacheLookup(path, listing) == FZ_REPLY_OK) {
 		RefreshItem(item, listing, false);
-	else
-	{
+	}
+	else {
 		SetItemImages(item, true);
 
 		wxTreeItemId child = GetLastChild(item);
-		if (!child || GetItemText(child).empty())
+		if (!child || GetItemText(child).empty()) {
 			return false;
+		}
 	}
 
 	return true;
@@ -1399,8 +1418,9 @@ void CRemoteTreeView::ApplyFilters(bool resort)
 	wxTreeItemIdValue cookie;
 	for (wxTreeItemId child = GetFirstChild(root, cookie); child; child = GetNextSibling(child)) {
 		CServerPath path = GetPathFromItem(child);
-		if (path.empty())
+		if (path.empty()) {
 			continue;
+		}
 
 		_parents dir;
 		dir.item = child;
@@ -1497,19 +1517,22 @@ void CRemoteTreeView::OnMenuGeturl(wxCommandEvent& event)
 
 void CRemoteTreeView::UpdateSortMode()
 {
+	CFileListCtrlSortBase::NameSortMode sortMode;
 	switch (COptions::Get()->GetOptionVal(OPTION_FILELIST_NAMESORT))
 	{
 	case 0:
 	default:
-		m_nameSortMode = CFileListCtrlSortBase::namesort_caseinsensitive;
+		sortMode = CFileListCtrlSortBase::namesort_caseinsensitive;
 		break;
 	case 1:
-		m_nameSortMode = CFileListCtrlSortBase::namesort_casesensitive;
+		sortMode = CFileListCtrlSortBase::namesort_casesensitive;
 		break;
 	case 2:
-		m_nameSortMode = CFileListCtrlSortBase::namesort_natural;
+		sortMode = CFileListCtrlSortBase::namesort_natural;
 		break;
 	}
+	sortFunction_ = CFileListCtrlSortBase::GetCmpFunction(sortMode);
+	Resort();
 }
 
 void CRemoteTreeView::OnOptionsChanged(changed_options_t const& options)

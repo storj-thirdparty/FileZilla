@@ -4,6 +4,8 @@
 #include <option_change_event_handler.h>
 #include "state.h"
 
+#include <wx/menu.h>
+
 class CMainFrame;
 class CMenuBar final : public wxMenuBar, public CGlobalStateEventHandler, public COptionChangeEventHandler
 {

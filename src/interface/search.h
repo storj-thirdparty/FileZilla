@@ -3,6 +3,7 @@
 
 #include "filter_conditions_dialog.h"
 #include "local_recursive_operation.h"
+#include "listingcomparison.h"
 #include "state.h"
 #include <set>
 
@@ -16,9 +17,9 @@ class CSearchDialog final : protected CFilterConditionsDialog, public CStateEven
 public:
 	enum class search_mode
 	{
-		none,
 		local,
-		remote
+		remote,
+		comparison
 	};
 
 	CSearchDialog(wxWindow* parent, CState& state, CQueueView* pQueue);
@@ -26,6 +27,8 @@ public:
 
 	bool Load();
 	void Run();
+
+	bool IsIdle();
 
 protected:
 	void ProcessDirectoryListing(std::shared_ptr<CDirectoryListing> const& listing);
@@ -36,9 +39,13 @@ protected:
 	void SaveConditions();
 	void LoadConditions();
 
-	wxWindow* m_parent;
+	wxWindow* m_parent{};
 	CSearchDialogFileList *m_results{};
-	CQueueView* m_pQueue;
+	CSearchDialogFileList *m_remoteResults{};
+	CQueueView* m_pQueue{};
+	wxSize m_otherSize{-1, -1};
+
+	CFilelistStatusBar* m_remoteStatusBar{};
 
 	virtual void OnStateChange(t_statechange_notifications notification, std::wstring const& data, const void* data2) override;
 
@@ -46,27 +53,35 @@ protected:
 
 	CFilter m_search_filter;
 
-	search_mode m_searching{};
+	search_mode mode_{};
+	bool searching_{};
 
 	CServerPath m_original_dir;
 
+	bool searched_remote_{};
+
+	void Stop();
+
 	DECLARE_EVENT_TABLE()
 	void OnSearch(wxCommandEvent& event);
-	void OnStop(wxCommandEvent& event);
 	void OnContextMenu(wxContextMenuEvent& event);
 	void OnDownload(wxCommandEvent&);
 	void OnUpload(wxCommandEvent&);
 	void OnEdit(wxCommandEvent&);
-	void OnDelete(wxCommandEvent&);
+	void OnDeleteLocal(wxCommandEvent&);
+	void OnDeleteRemote(wxCommandEvent&);
 	void OnCharHook(wxKeyEvent& event);
 	void OnChangeSearchMode(wxCommandEvent&);
 	void OnGetUrl(wxCommandEvent& event);
 	void OnOpen(wxCommandEvent& event);
+	void OnChangeCompareOption(wxCommandEvent& event);
 
 	std::set<CServerPath> m_visited;
 
 	CLocalPath m_local_search_root;
 	CServerPath m_remote_search_root;
+
+	CComparisonManager* m_pComparisonManager{};
 };
 
 #endif

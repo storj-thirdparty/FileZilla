@@ -1,6 +1,9 @@
 #ifndef FILEZILLA_ENGINE_PATHCACHE_HEADER
 #define FILEZILLA_ENGINE_PATHCACHE_HEADER
 
+#include <server.h>
+#include <serverpath.h>
+
 #include <libfilezilla/mutex.hpp>
 
 class CPathCache final

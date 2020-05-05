@@ -3,6 +3,8 @@
 #include "queueview_successful.h"
 #include "Options.h"
 
+#include <wx/menu.h>
+
 BEGIN_EVENT_TABLE(CQueueViewSuccessful, CQueueViewFailed)
 EVT_CONTEXT_MENU(CQueueViewSuccessful::OnContextMenu)
 EVT_MENU(XRCID("ID_AUTOCLEAR"), CQueueViewSuccessful::OnMenuAutoClear)

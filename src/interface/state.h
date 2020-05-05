@@ -104,7 +104,7 @@ public:
 	void SetCurrentContext(CState* pState);
 
 	void ProcessDirectoryListing(CServer const& server, std::shared_ptr<CDirectoryListing> const& listing, CState const* exempt);
-
+	
 protected:
 	CContextManager();
 
@@ -213,6 +213,8 @@ public:
 	void UpdateSite(std::wstring const& oldPath, Site const& newSite);
 
 	CStateFilterManager& GetStateFilterManager() { return m_stateFilterManager; }
+
+	void ChangeServer(CServer const& newServer);
 
 	fz::thread_pool & pool_;
 

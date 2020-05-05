@@ -35,13 +35,13 @@ protected:
 
 	void SetCtrlState(bool enabled);
 
-	wxListBox* m_pFilterListCtrl;
-	int m_currentSelection;
+	wxListBox* filterList_{};
+	int m_currentSelection{-1};
 
 	std::vector<CFilter> m_filters;
 	std::vector<CFilterSet> m_filterSets;
 
-	CWindowStateManager* m_pWindowStateManager;
+	CWindowStateManager* m_pWindowStateManager{};
 };
 
 #endif

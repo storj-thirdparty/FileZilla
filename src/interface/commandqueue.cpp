@@ -145,10 +145,6 @@ void CCommandQueue::ProcessReply(int nReplyCode, Command commandId)
 		return;
 	}
 	if (nReplyCode & FZ_REPLY_DISCONNECTED) {
-		if (commandId == Command::none && !m_CommandList.empty()) {
-			// Pending event, has no relevance during command execution
-			return;
-		}
 		if (nReplyCode & FZ_REPLY_PASSWORDFAILED) {
 			CLoginManager::Get().CachedPasswordFailed(m_state.GetSite().server);
 		}
@@ -158,36 +154,27 @@ void CCommandQueue::ProcessReply(int nReplyCode, Command commandId)
 		return;
 	}
 
+	auto & commandInfo = m_CommandList.front();
+
 	if (commandId != Command::connect &&
 		commandId != Command::disconnect &&
 		(nReplyCode & FZ_REPLY_CANCELED) != FZ_REPLY_CANCELED)
 	{
-		bool reconnect = false;
-		if (nReplyCode == FZ_REPLY_NOTCONNECTED) {
-			reconnect = true;
-		}
-		else if (nReplyCode & FZ_REPLY_DISCONNECTED) {
-			auto & info = m_CommandList.front();
-			if (!info.didReconnect) {
-				info.didReconnect = true;
-				reconnect = true;
-			}
-		}
-
-		if (reconnect) {
-			// Try automatic reconnect
-			Site const& site = m_state.GetSite();
-			if (site) {
-				m_CommandList.emplace_front(normal, std::make_unique<CConnectCommand>(site.server, site.Handle(), site.credentials));
-				ProcessNextCommand();
-				return;
+		if (nReplyCode & FZ_REPLY_DISCONNECTED) {
+			if (!commandInfo.didReconnect) {
+				// Try automatic reconnect
+				commandInfo.didReconnect = true;
+				Site const& site = m_state.GetSite();
+				if (site) {
+					m_CommandList.emplace_front(normal, std::make_unique<CConnectCommand>(site.server, site.Handle(), site.credentials));
+					ProcessNextCommand();
+					return;
+				}
 			}
 		}
 	}
 
 	++m_inside_commandqueue;
-
-	auto const& commandInfo = m_CommandList.front();
 
 	if (commandInfo.command->GetId() == Command::list && nReplyCode != FZ_REPLY_OK) {
 		if ((nReplyCode & FZ_REPLY_LINKNOTDIR) == FZ_REPLY_LINKNOTDIR) {

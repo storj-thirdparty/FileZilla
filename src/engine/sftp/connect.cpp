@@ -5,6 +5,7 @@
 #include "input_thread.h"
 #include "proxy.h"
 
+#include <libfilezilla/local_filesys.hpp>
 #include <libfilezilla/process.hpp>
 
 int CSftpConnectOpData::Send()
@@ -13,6 +14,27 @@ int CSftpConnectOpData::Send()
 	{
 	case connect_init:
 		{
+			log(logmsg::status, _("Connecting to %s..."), currentServer_.Format(ServerFormat::with_optional_port, controlSocket_.credentials_));
+
+			if (!controlSocket_.credentials_.keyFile_.empty()) {
+				keyfiles_ = fz::strtok(controlSocket_.credentials_.keyFile_, L"\r\n");
+			}
+			else {
+				keyfiles_ = fz::strtok(engine_.GetOptions().GetOption(OPTION_SFTP_KEYFILES), L"\r\n");
+			}
+
+			keyfiles_.erase(
+						std::remove_if(keyfiles_.begin(), keyfiles_.end(),
+									   [this](std::wstring const& keyfile) {
+							if (fz::local_filesys::get_file_type(fz::to_native(keyfile), true) != fz::local_filesys::file) {
+								log(logmsg::status, _("Skipping non-existing key file \"%s\""), keyfile);
+								return true;
+							}
+							return false;
+						}), keyfiles_.end());
+
+			keyfile_ = keyfiles_.cbegin();
+
 			auto executable = fz::to_native(engine_.GetOptions().GetOption(OPTION_FZSFTP_EXECUTABLE));
 			if (executable.empty()) {
 				executable = fzT("fzsftp");
@@ -23,16 +45,18 @@ int CSftpConnectOpData::Send()
 			if (engine_.GetOptions().GetOptionVal(OPTION_SFTP_COMPRESSION)) {
 				args.push_back(fzT("-C"));
 			}
+			engine_.GetRateLimiter().add(&controlSocket_);
+			controlSocket_.process_ = std::make_unique<fz::process>();
 			if (!controlSocket_.process_->spawn(executable, args)) {
 				log(logmsg::debug_warning, L"Could not create process");
-				return FZ_REPLY_ERROR | FZ_REPLY_DISCONNECTED;;
+				return FZ_REPLY_ERROR | FZ_REPLY_DISCONNECTED;
 			}
 
 			controlSocket_.input_thread_ = std::make_unique<CSftpInputThread>(controlSocket_, *controlSocket_.process_);
 			if (!controlSocket_.input_thread_->spawn(engine_.GetThreadPool())) {
 				log(logmsg::debug_warning, L"Thread creation failed");
 				controlSocket_.input_thread_.reset();
-				return FZ_REPLY_ERROR | FZ_REPLY_DISCONNECTED;;
+				return FZ_REPLY_ERROR | FZ_REPLY_DISCONNECTED;
 			}
 		}
 		return FZ_REPLY_WOULDBLOCK;
@@ -76,7 +100,7 @@ int CSftpConnectOpData::Send()
 		return controlSocket_.SendCommand(L"keyfile \"" + *(keyfile_++) + L"\"");
 	case connect_open:
 		{
-			std::wstring user = (credentials_.logonType_ == LogonType::anonymous) ? L"anonymous" : currentServer_.GetUser();
+			std::wstring user = (controlSocket_.credentials_.logonType_ == LogonType::anonymous) ? L"anonymous" : currentServer_.GetUser();
 			return controlSocket_.SendCommand(fz::sprintf(L"open \"%s@%s\" %d", user, controlSocket_.ConvertDomainName(currentServer_.GetHost()), currentServer_.GetPort()));
 		}
 	default:
@@ -98,7 +122,7 @@ int CSftpConnectOpData::ParseResponse()
 	case connect_init:
 		if (controlSocket_.response_ != fz::sprintf(L"fzSftp started, protocol_version=%d", FZSFTP_PROTOCOL_VERSION)) {
 			log(logmsg::error, _("fzsftp belongs to a different version of FileZilla"));
-			return FZ_REPLY_INTERNALERROR | FZ_REPLY_DISCONNECTED;;
+			return FZ_REPLY_INTERNALERROR | FZ_REPLY_DISCONNECTED;
 		}
 		if (engine_.GetOptions().GetOptionVal(OPTION_PROXY_TYPE) && !currentServer_.GetBypassProxy()) {
 			opState = connect_proxy;

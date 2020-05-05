@@ -35,14 +35,14 @@ void CLocalRecursiveOperation::AddRecursionRoot(local_recursion_root && root)
 	}
 }
 
-void CLocalRecursiveOperation::StartRecursiveOperation(OperationMode mode, ActiveFilters const& filters, bool immediate)
+void CLocalRecursiveOperation::StartRecursiveOperation(OperationMode mode, ActiveFilters const& filters, bool immediate, bool ignore_links)
 {
-	if (!DoStartRecursiveOperation(mode, filters, immediate)) {
+	if (!DoStartRecursiveOperation(mode, filters, immediate, ignore_links)) {
 		StopRecursiveOperation();
 	}
 }
 
-bool CLocalRecursiveOperation::DoStartRecursiveOperation(OperationMode mode, ActiveFilters const& filters, bool immediate)
+bool CLocalRecursiveOperation::DoStartRecursiveOperation(OperationMode mode, ActiveFilters const& filters, bool immediate, bool ignore_links)
 {
 	if (!m_pQueue) {
 		return false;
@@ -81,6 +81,7 @@ bool CLocalRecursiveOperation::DoStartRecursiveOperation(OperationMode mode, Act
 		m_operationMode = mode;
 
 		m_filters = filters;
+		m_ignoreLinks = ignore_links;
 
 		thread_ = m_state.pool_.spawn([this] {entry(); });
 		if (!thread_) {
@@ -196,15 +197,15 @@ void CLocalRecursiveOperation::entry()
 				listing::entry entry;
 				bool isLink{};
 				fz::native_string name;
-				bool isDir{};
-				while (fs.get_next_file(name, isLink, isDir, &entry.size, &entry.time, &entry.attributes)) {
-					if (isLink) {
+				fz::local_filesys::type t{};
+				while (fs.get_next_file(name, isLink, t, &entry.size, &entry.time, &entry.attributes)) {
+					if (isLink && m_ignoreLinks) {
 						continue;
 					}
 					entry.name = fz::to_wstring(name);
 
-					if (!filterManager.FilenameFiltered(filters, entry.name, d.localPath.GetPath(), isDir, entry.size, entry.attributes, entry.time)) {
-						if (isDir) {
+					if (!filterManager.FilenameFiltered(filters, entry.name, d.localPath.GetPath(), t == fz::local_filesys::dir, entry.size, entry.attributes, entry.time)) {
+						if (t == fz::local_filesys::dir) {
 							d.dirs.emplace_back(std::move(entry));
 						}
 						else {

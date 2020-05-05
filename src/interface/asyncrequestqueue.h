@@ -1,19 +1,21 @@
 #ifndef FILEZILLA_INTERFACE_ASYNCREQUESTQUEUE_HEADER
 #define FILEZILLA_INTERFACE_ASYNCREQUESTQUEUE_HEADER
 
+#include "context_control.h"
+
 #include <wx/timer.h>
 
+#include <list>
 #include <memory>
 
 class CertStore;
-class CMainFrame;
 class CQueueView;
 class CVerifyCertDialog;
 
-class CAsyncRequestQueue final : public wxEvtHandler
+class CAsyncRequestQueue final : public wxEvtHandler, protected CGlobalStateEventHandler
 {
 public:
-	CAsyncRequestQueue(CMainFrame *pMainFrame);
+	CAsyncRequestQueue(wxTopLevelWindow * parent);
 	~CAsyncRequestQueue();
 
 	bool AddRequest(CFileZillaEngine *pEngine, std::unique_ptr<CAsyncRequestNotification> && pNotification);
@@ -25,15 +27,15 @@ public:
 	void TriggerProcessing();
 
 protected:
+	virtual void OnStateChange(CState* pState, t_statechange_notifications notification, std::wstring const&, const void*) override;
 
 	// Returns false if main window doesn't have focus or is minimized.
 	// Request attention if needed
 	bool CheckWindowState();
 
-	CMainFrame *m_pMainFrame{};
+	wxTopLevelWindow *parent_{};
 	CQueueView *m_pQueueView{};
 	std::unique_ptr<CertStore> certStore_;
-	std::unique_ptr<CVerifyCertDialog> verifyCertDlg_;
 
 	bool ProcessNextRequest();
 	bool ProcessDefaults(CFileZillaEngine *pEngine, std::unique_ptr<CAsyncRequestNotification> & pNotification);
@@ -46,7 +48,7 @@ protected:
 		{
 		}
 
-		CFileZillaEngine *pEngine;
+		CFileZillaEngine *pEngine{};
 		std::unique_ptr<CAsyncRequestNotification> pNotification;
 	};
 	std::list<t_queueEntry> m_requestList;

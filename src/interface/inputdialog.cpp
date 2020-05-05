@@ -1,91 +1,69 @@
 #include <filezilla.h>
 #include "inputdialog.h"
+#include "textctrlex.h"
 
-BEGIN_EVENT_TABLE(CInputDialog, wxDialogEx)
-EVT_TEXT(XRCID("ID_STRING"), CInputDialog::OnValueChanged)
-EVT_TEXT(XRCID("ID_STRING_PW"), CInputDialog::OnValueChanged)
-EVT_BUTTON(XRCID("wxID_OK"), CInputDialog::OnOK)
-EVT_BUTTON(XRCID("wxID_CANCEL"), CInputDialog::OnCancel)
-END_EVENT_TABLE()
-
-CInputDialog::CInputDialog()
-	: m_allowEmpty()
-	, m_pTextCtrl()
+bool CInputDialog::Create(wxWindow* parent, wxString const& title, wxString const& text, int max_len, bool password)
 {
-}
-
-bool CInputDialog::Create(wxWindow* parent, wxString const& title, wxString const& text, int max_len)
-{
-	m_allowEmpty = false;
 	SetParent(parent);
 
-	if (!Load(parent, _T("ID_INPUTDIALOG"))) {
+	if (!wxDialogEx::Create(parent, -1, title)) {
 		return false;
 	}
 
-	SetTitle(title);
+	auto& lay = layout();
+	auto * main = lay.createMain(this, 1);
 
-	if (!XRCCTRL(*this, "wxID_OK", wxButton)) {
-		return false;
+	main->Add(new wxStaticText(this, -1, text));
+
+	textCtrl_ = new wxTextCtrlEx(this, -1, wxString(), wxDefaultPosition, wxDefaultSize, password ? wxTE_PASSWORD : 0);
+
+	main->Add(textCtrl_, lay.grow)->SetMinSize(lay.dlgUnits(150), -1);
+	if (max_len != -1) {
+		textCtrl_->SetMaxLength(max_len);
 	}
 
-	if (!XRCCTRL(*this, "wxID_CANCEL", wxButton)) {
-		return false;
-	}
+	auto * buttons = lay.createButtonSizer(this, main, true);
 
-	m_pTextCtrl = XRCCTRL(*this, "ID_STRING", wxTextCtrl);
-	if (!m_pTextCtrl) {
-		return false;
-	}
+	auto ok = new wxButton(this, wxID_OK, _("&OK"));
+	ok->SetDefault();
+	buttons->AddButton(ok);
 
-	if (!XRCCTRL(*this, "ID_STRING_PW", wxTextCtrl)) {
-		return false;
-	}
+	auto cancel = new wxButton(this, wxID_CANCEL, _("&Cancel"));
+	buttons->AddButton(cancel);
+	buttons->Realize();
 
-	wxStaticText* pText = XRCCTRL(*this, "ID_TEXT", wxStaticText);
-	if (!pText) {
-		return false;
-	}
+	auto onButton = [this](wxEvent& evt) {EndModal(evt.GetId()); };
+	ok->Bind(wxEVT_BUTTON, onButton);
+	cancel->Bind(wxEVT_BUTTON, onButton);
+
+	GetSizer()->Fit(this);
 
 	WrapRecursive(this, 2.0);
 
-	pText->SetLabel(text);
+	textCtrl_->SetFocus();
+	ok->Disable();
 
-	GetSizer()->Fit(this);
-	GetSizer()->SetSizeHints(this);
-
-	XRCCTRL(*this, "ID_STRING", wxTextCtrl)->SetFocus();
-
-	if (max_len != -1) {
-		XRCCTRL(*this, "ID_STRING", wxTextCtrl)->SetMaxLength(max_len);
-		XRCCTRL(*this, "ID_STRING_PW", wxTextCtrl)->SetMaxLength(max_len);
-	}
-
-	XRCCTRL(*this, "wxID_OK", wxButton)->Enable(false);
+	textCtrl_->Bind(wxEVT_TEXT, [this, ok](wxEvent const&){
+		ok->Enable(allowEmpty_ || !textCtrl_->GetValue().empty());
+	});
 
 	return true;
 }
 
 void CInputDialog::AllowEmpty(bool allowEmpty)
 {
-	m_allowEmpty = allowEmpty;
-	XRCCTRL(*this, "wxID_OK", wxButton)->Enable(m_allowEmpty ? true : (!m_pTextCtrl->GetValue().empty()));
-}
-
-void CInputDialog::OnValueChanged(wxCommandEvent&)
-{
-	wxString value = m_pTextCtrl->GetValue();
-	XRCCTRL(*this, "wxID_OK", wxButton)->Enable(m_allowEmpty ? true : !value.empty());
+	allowEmpty_ = allowEmpty;
+	XRCCTRL(*this, "wxID_OK", wxButton)->Enable(allowEmpty_ ? true : (!textCtrl_->GetValue().empty()));
 }
 
 void CInputDialog::SetValue(wxString const& value)
 {
-	m_pTextCtrl->SetValue(value);
+	textCtrl_->SetValue(value);
 }
 
 wxString CInputDialog::GetValue() const
 {
-	return m_pTextCtrl->GetValue();
+	return textCtrl_->GetValue();
 }
 
 bool CInputDialog::SelectText(int start, int end)
@@ -93,32 +71,7 @@ bool CInputDialog::SelectText(int start, int end)
 #ifdef __WXGTK__
 	Show();
 #endif
-	m_pTextCtrl->SetFocus();
-	m_pTextCtrl->SetSelection(start, end);
-	return true;
-}
-
-void CInputDialog::OnOK(wxCommandEvent&)
-{
-	EndModal(wxID_OK);
-}
-
-void CInputDialog::OnCancel(wxCommandEvent&)
-{
-	EndModal(wxID_CANCEL);
-}
-
-bool CInputDialog::SetPasswordMode(bool password)
-{
-	if (password) {
-		m_pTextCtrl = XRCCTRL(*this, "ID_STRING_PW", wxTextCtrl);
-		m_pTextCtrl->Show();
-		XRCCTRL(*this, "ID_STRING", wxTextCtrl)->Hide();
-	}
-	else {
-		m_pTextCtrl = XRCCTRL(*this, "ID_STRING", wxTextCtrl);
-		m_pTextCtrl->Show();
-		XRCCTRL(*this, "ID_STRING_PW", wxTextCtrl)->Hide();
-	}
+	textCtrl_->SetFocus();
+	textCtrl_->SetSelection(start, end);
 	return true;
 }
