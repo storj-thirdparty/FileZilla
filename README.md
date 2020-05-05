@@ -26,7 +26,7 @@
 	$ make && make install
     ```
 	- Please ensure there are no empty spaces in any folder name!
-* Download FileZilla source from the bitbucket:
+* Download FileZilla source from GitHub:
     ```
     $ cd ~
     $ git clone https://github.com/utropicmedia/storj-filezilla.git filezilla
@@ -127,10 +127,11 @@
 	$ make install
     ```
 	- Please ensure there are no empty spaces in any folder name!
-* Download FileZilla source from the bitbucket:
+* Download FileZilla source from GitHub:
     ``` 
-    $ cd ~
+    $ cd ~/src
     $ git clone https://github.com/utropicmedia/storj-filezilla.git filezilla
+    ```
 * Generate C binding library files for Storj (RC-v1.0.1) management:
     - Please ensure [golang](https://golang.org/doc/install) is installed
     - [storj-uplink-c go package](https://github.com/storj/uplink-c )
