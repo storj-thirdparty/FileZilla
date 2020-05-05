@@ -78,10 +78,9 @@
     - v0.20.2
 
 * Storj (RC-v1.0.1) Dependencies
-    - The repository already contains certain libraries (libuplinkc.a, libuplinkc.h) and header files (uplink_definitions.h), generated/taken from the following:
-        - [golang](https://golang.org/doc/install)
-        - [storj-uplink go package](https://github.com/storj/uplink )
-        - [storj-uplinkc go package](https://github.com/storj/uplink-c )
+    - [golang](https://golang.org/doc/install)
+    - [storj-uplink go package](https://github.com/storj/uplink )
+    - [storj-uplinkc go package](https://github.com/storj/uplink-c )
 
 
 * **Mac OS X**:
