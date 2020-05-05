@@ -79,8 +79,8 @@
 
 * Storj (RC-v1.0.2) Dependencies
     - [golang](https://golang.org/doc/install)
-    - [storj-uplink go package](https://github.com/storj/uplink )
-    - [storj-uplinkc go package](https://github.com/storj/uplink-c )
+    - [storj-uplink go package](https://github.com/storj/uplink)
+    - [storj-uplinkc go package](https://github.com/storj/uplink-c)
 
 #### References:
 * [Compiling FileZilla 3 under Windows](https://wiki.filezilla-project.org/wiki/index.php?title=Compiling_FileZilla_3_under_Windows&oldid=51076)
