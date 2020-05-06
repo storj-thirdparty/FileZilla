@@ -1,5 +1,5 @@
 #include <filezilla.h>
-#include "controlsocket.h"
+#include "ControlSocket.h"
 #include "directorycache.h"
 #include "engineprivate.h"
 #include "local_path.h"
