@@ -7,7 +7,7 @@ libengine_a_CPPFLAGS += $(LIBFILEZILLA_CFLAGS)
 
 libengine_a_SOURCES = \
 		commands.cpp \
-		controlsocket.cpp \
+		ControlSocket.cpp \
 		directorycache.cpp \
 		directorylisting.cpp \
 		directorylistingparser.cpp \
@@ -62,7 +62,7 @@ libengine_a_SOURCES = \
 		xmlutils.cpp
 
 noinst_HEADERS = \
-		controlsocket.h \
+		ControlSocket.h \
 		directorycache.h \
 		directorylistingparser.h \
 		engineprivate.h \
