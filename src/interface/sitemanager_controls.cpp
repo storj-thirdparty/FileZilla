@@ -366,7 +366,7 @@ void GeneralSiteControls::SetControlVisibility(ServerProtocol protocol, LogonTyp
 
 	for (auto const supportedLogonType : supportedlogonTypes) {
 		if (protocol == STORJ && (GetNameFromLogonType(supportedLogonType) == "Anonymous"))
-			choice->Append("Serialized Key");
+			choice->Append("Access Grant");
 		else
 			choice->Append(GetNameFromLogonType(supportedLogonType));
 		if (supportedLogonType == type) {
@@ -395,7 +395,7 @@ void GeneralSiteControls::SetControlVisibility(ServerProtocol protocol, LogonTyp
 	case STORJ:
 		// @translator: Keep short
 		if(type == LogonType::anonymous)
-			hostLabel = _("Serialized Key:");
+			hostLabel = _("Access Grant:");
 		else
 			hostLabel = _("&Satellite:");
 		// @translator: Keep short
