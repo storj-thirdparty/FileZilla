@@ -1,4 +1,4 @@
-# storj-filezilla
+# filezilla
 ### *Developed using RC v1.0.2 storj/uplink-c*
 ### *FileZilla v3.48.0*
 
@@ -29,7 +29,7 @@
 * Download FileZilla source from GitHub:
     ```
     $ cd ~
-	$ git clone https://github.com/storj/storj-filezilla.git filezilla
+	$ git clone https://github.com/storj/filezilla.git filezilla
     ```
 * Generate C binding library files for Storj (RC-v1.0.2) management:
     - Please ensure [golang](https://golang.org/doc/install) is installed
@@ -129,7 +129,7 @@
 * Download FileZilla source from GitHub:
     ```
     $ cd ~/src
-	$ git clone https://github.com/storj/storj-filezilla.git filezilla
+	$ git clone https://github.com/storj/filezilla.git filezilla
     ```
 * Generate C binding library files for Storj (RC-v1.0.2) management:
     - Please ensure [golang](https://golang.org/doc/install) is installed
