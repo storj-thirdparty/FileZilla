@@ -207,10 +207,10 @@
 	- Back as normal user, execute:
 		```
 		$ mkdir ~/prefix
-    		$ export PATH="$HOME/prefix/bin:$PATH"
+		$ export PATH="$HOME/prefix/bin:$PATH"
 		$ export LD_LIBRARY_PATH="$HOME/prefix/lib:$LD_LIBRARY_PATH"
-    		$ export PKG_CONFIG_PATH="$HOME/prefix/lib/pkgconfig:$PKG_CONFIG_PATH"
-    		```
+		$ export PKG_CONFIG_PATH="$HOME/prefix/lib/pkgconfig:$PKG_CONFIG_PATH"
+		```
 	- **NOTE**: If you ever close the terminal and reopen it, repeat the last 3 (export) steps mentioned above before you continue.
  
 * Getting and compiling dependencies
