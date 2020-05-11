@@ -305,6 +305,7 @@
  
 * In order to distribute the application:
 	```
+	$ strip --strip-debug $HOME/prefix/lib/*.so
 	$ strip --strip-debug $HOME/prefix/bin/*
 	```
 	- **NOTE**: Ignore the error ```strip:/home/...../prefix/bin/wx-config: File format not recognized```
