@@ -297,12 +297,12 @@
 	```
 	- The generated FileZilla binary is found in the directory ~/prefix/bin
 	
-### In order to run the FileZilla application, execute the following:
+* In order to run the FileZilla application, execute the following:
 	```
 	$ ~/prefix/bin/filezilla
 	```
  
-### In order to distribute the application:
+* In order to distribute the application:
 	```
 	$ strip --strip-debug $HOME/prefix/bin/*
 	```
@@ -312,7 +312,7 @@
 	$ tar cvfj filezilla.tar.bz2 prefix
 	```
 	
-### In order to run the application on another Ubuntu system:
+* In order to run the application on another Ubuntu system:
 	- Copy ```filezilla.tar.bz2``` to ```$HOME``` folder of another Ubuntu system
 	- Execute the following:
 		```
@@ -332,17 +332,17 @@
 * subversion
 * xdg-utils
 * GMP
- - 6.1.2^
+ - v6.1.2
 * Nettle
- - 3.4.1^
+ - v3.4.1
 * GnuTLS
- - 3.6.13^
+ - v3.6.13
 * SQLite
- - 3.26.0^
+ - v3.26.0
 * wxWidgets
- - 3.0.5^
+ - v3.0.5
 * libfilezilla
- - 0.21.0^
+ - v0.21.0
  
 #### References:
 * [Compiling FileZilla 3 under Windows](https://wiki.filezilla-project.org/wiki/index.php?title=Compiling_FileZilla_3_under_Windows&oldid=51076)
