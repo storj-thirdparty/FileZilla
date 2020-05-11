@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <fstream>
 #include <ctime>
 
 #include "events.hpp"
@@ -8,6 +9,7 @@
 
 typedef bool _Bool;
 #include "libuplinkc.h"
+#include "require.h"
 
 #include <map>
 
@@ -35,8 +37,6 @@ void fzprintf(storjEvent event, Args &&... args)
 	fputc('\n', stdout);
 	fflush(stdout);
 }
-
-#include "require.h"
 
 bool getLine(std::string & line)
 {
@@ -191,26 +191,48 @@ extern "C" void fv_listObjects(Project *project, std::string bucket, std::string
 
 extern "C" void fv_downloadObject(Project *project, std::string bucket, std::string id, std::string file)
 {
-	DownloadResult download_result = download_object_custom(project, const_cast<char*>(bucket.c_str()), const_cast<char*>(id.c_str()), const_cast<char*>(file.c_str()), NULL);
-	if (download_result.error) {
-		fzprintf(storjEvent::Error, "download starting failed: %s", download_result.error->message);
-		free_download_result(download_result);
-		return;
-	}
+	DownloadResult download_result = download_object(project, const_cast<char*>(bucket.c_str()), const_cast<char*>(id.c_str()), NULL);
+    if (download_result.error) {
+        fzprintf(storjEvent::Error, "download starting failed: %s", download_result.error->message);
+        free_download_result(download_result);
+        return;
+    }
 
-	fzprintf(storjEvent::Status, "downloaded object %s", id);
+	size_t buffer_size = 32768;
+    char *buffer = static_cast<char*>(malloc(buffer_size));
+	std::ofstream outfile (file, std::ofstream::binary);
 
     Download *download = download_result.download;
 	
-	ObjectResult object_result = download_info(download);
-    require_noerror(object_result.error);
-    require(object_result.object != NULL);
-	
-	Object *object = object_result.object;
-	
-	fzprintf(storjEvent::Transfer, "%u", object->system.content_length);
+	size_t downloaded_total = 0;
+    
+    while (true) {
+        ReadResult result = download_read(download, buffer, buffer_size);
+        downloaded_total += result.bytes_read;
+		
+		outfile.write(buffer, result.bytes_read);
+				
+		fzprintf(storjEvent::Transfer, "%u", result.bytes_read);
 
-	free_download_result(download_result);	
+        if (result.error) {
+            if (result.error->code == EOF) {
+                free_read_result(result);
+                break;
+            }
+            fzprintf(storjEvent::Error, "download failed to read: %s", result.error->message);
+            free_read_result(result);
+            return;
+        }
+        free_read_result(result);
+    }
+
+    Error *close_error = close_download(download);
+    if (close_error) {
+        fzprintf(storjEvent::Error, "download failed to close: %s", close_error->message);
+        free_error(close_error);
+    }
+
+    free_download_result(download_result);
 }
 
 extern "C" void fv_uploadObject(Project *project, std::string bucket, std::string prefix, std::string file, std::string objectName)
@@ -219,26 +241,41 @@ extern "C" void fv_uploadObject(Project *project, std::string bucket, std::strin
 	if(prefix != "")
 		object_key = object_key + "/" + prefix;
 
-	UploadResult upload_result = upload_object_custom(project, const_cast<char*>(object_key.c_str()), const_cast<char*>(file.c_str()), const_cast<char*>(objectName.c_str()), NULL);
-	if (upload_result.error) {
-		fzprintf(storjEvent::Status, "upload starting failed: %s", upload_result.error->message);
-		free_upload_result(upload_result);
-		return;
-	}
+	std::ifstream is (file, std::ifstream::binary);
+  
+    // get length of file:
+    is.seekg (0, is.end);
+	size_t length = is.tellg();
+    is.seekg (0, is.beg);
 
-	fzprintf(storjEvent::Status, "uploaded object %s", objectName);
-	
+	size_t buffer_size = 32768;
+    char *buffer = static_cast<char*>(malloc(buffer_size));
+    
+    UploadResult upload_result = upload_object(project, const_cast<char*>(object_key.c_str()), const_cast<char*>(objectName.c_str()), NULL);
+    
+	require_noerror(upload_result.error);
+    require(upload_result.upload->_handle != 0);
+
     Upload *upload = upload_result.upload;
 
-	ObjectResult object_result = upload_info(upload);
-    require_noerror(object_result.error);
-    require(object_result.object != NULL);
-	
-	Object *object = object_result.object;
-	
-	fzprintf(storjEvent::Transfer, "%u", object->system.content_length);	
+    size_t uploaded_total = 0;
 
-	free_upload_result(upload_result);
+	while (uploaded_total < length) {
+		is.read (buffer, buffer_size);
+		WriteResult result = upload_write(upload, buffer, is.gcount());
+        uploaded_total += result.bytes_written;
+        
+		fzprintf(storjEvent::Transfer, "%u", result.bytes_written);
+
+		require_noerror(result.error);
+        require(result.bytes_written > 0);
+        free_write_result(result);
+    }
+
+    Error *commit_err = upload_commit(upload);
+    require_noerror(commit_err);
+
+    free_upload_result(upload_result);
 }
 
 extern "C" void fv_deleteObject(Project *project, std::string bucketName, std::string objectKey)
