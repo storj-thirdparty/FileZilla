@@ -332,17 +332,17 @@
 * subversion
 * xdg-utils
 * GMP
- - v6.1.2
+	- v6.1.2
 * Nettle
- - v3.4.1
+	- v3.4.1
 * GnuTLS
- - v3.6.13
+	- v3.6.13
 * SQLite
- - v3.26.0
+	- v3.26.0
 * wxWidgets
- - v3.0.5
+	- v3.0.5
 * libfilezilla
- - v0.21.0
+	- v0.21.0
  
 #### References:
 * [Compiling FileZilla 3 under Windows](https://wiki.filezilla-project.org/wiki/index.php?title=Compiling_FileZilla_3_under_Windows&oldid=51076)
