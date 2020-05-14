@@ -104,7 +104,7 @@ GeneralSiteControls::GeneralSiteControls(wxWindow & parent, DialogLayout const& 
 	brow->Add(new wxChoice(&parent, XRCID("ID_ENCRYPTION")), 1);
 	brow->Add(new wxHyperlinkCtrl(&parent, XRCID("ID_DOCS"), _("Docs"), L"https://github.com/storj/storj/wiki/Vanguard-Release-Setup-Instructions"), lay.valign)->Show(false);
 	brow->AddSpacer(5);
-	brow->Add(new wxHyperlinkCtrl(&parent, XRCID("ID_SIGNUP"), _("Signup"), L"https://app.storj.io/#/signup"), lay.valign)->Show(false);
+	brow->Add(new wxHyperlinkCtrl(&parent, XRCID("ID_SIGNUP"), _("Signup"), L"https://tardigrade.io/satellites/"), lay.valign)->Show(false);
 	brow->AddSpacer(0);	
 	
 	lay.gbNewRow(bag);
@@ -733,18 +733,6 @@ bool GeneralSiteControls::UpdateSite(Site & site, bool silent)
 				return false;
 			}
 		}
-#if ENABLE_STORJ
-		if (!encryptionKey.empty() || !encrypted) {
-			CStorjKeyInterface validator(&parent_);
-			if (!validator.ValidateKey(encryptionKey, false)) {
-				if (!silent) {
-					wxMessageBoxEx(_("You have to enter a valid encryption key"), _("Site Manager - Invalid data"), wxICON_EXCLAMATION, wxGetTopLevelParent(&parent_));
-					xrc_call(parent_, "ID_ENCRYPTIONKEY", &wxWindow::SetFocus);
-				}
-				return false;
-			}
-		}
-#endif
 		if (!pw.empty() || !site.credentials.encrypted_) {
 			pw += '|';
 			pw += encryptionKey;
