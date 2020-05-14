@@ -357,7 +357,6 @@
 #### References:
 * [Compiling FileZilla 3 under Windows](https://wiki.filezilla-project.org/wiki/index.php?title=Compiling_FileZilla_3_under_Windows&oldid=51076)
 * [Compiling FileZilla 3 under macOS](https://wiki.filezilla-project.org/Compiling_FileZilla_3_under_macOS)
-* [Create a disk image from a folder or connected device](https://support.apple.com/en-bh/guide/disk-utility/dskutl11888/mac)
 * [About Storj connection with FileZilla](https://wiki.filezilla-project.org/Storj)
 * [Storj (RC-v1.0.2) uplink-c](https://github.com/storj/uplink-c)
  
