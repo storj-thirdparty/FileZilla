@@ -81,7 +81,14 @@ int CStorjFileTransferOpData::Send()
 		engine_.transfer_status_.SetStartTime();
 		transferInitiated_ = true;
 		if (download_) {
-			return controlSocket_.SendCommand(L"get " + bucket_ + L" " + fileId_ + L" " + controlSocket_.QuoteFilename(localFile_));
+			//return controlSocket_.SendCommand(L"get " + bucket_ + L" " + fileId_ + L" " + controlSocket_.QuoteFilename(localFile_));
+			
+			std::wstring objectName = remotePath_.FormatFilename(remoteFile_);
+
+			size_t pos = objectName.find_first_of(bucket_);
+			objectName = objectName.substr(pos + bucket_.size() + 1, objectName.size());
+
+			return controlSocket_.SendCommand(L"get " + bucket_ + L" " + objectName + L" " + controlSocket_.QuoteFilename(localFile_));
 		}
 		else {
 			std::wstring path = remotePath_.GetPath();

@@ -43,7 +43,16 @@ int CStorjDeleteOpData::Send()
 
 		engine_.GetDirectoryCache().InvalidateFile(currentServer_, path_, file);
 
-		return controlSocket_.SendCommand(L"rm " + bucket_ + L" " + id);
+		//return controlSocket_.SendCommand(L"rm " + bucket_ + L" " + id);
+		std::wstring objectName = id;
+		size_t pos = objectName.find_last_of('/');
+		
+		if (pos != std::string::npos)
+			objectName = objectName.substr(0, pos) + L"/" + file;
+		else
+			objectName = file;
+
+		return controlSocket_.SendCommand(L"rm " + bucket_ + L" " + objectName);
 	}
 
 	log(logmsg::debug_warning, L"Unknown opState in CStorjDeleteOpData::Send()");
