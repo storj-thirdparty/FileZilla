@@ -158,9 +158,17 @@
 	- The generated FileZilla.app application is found within the current 'filezilla' folder itself
 	
 ### In order to distribute the application:
-- Copy the FileZilla.app within an empty folder
-- Create a disk image (.dmg) file from this folder, by following instructions at [Create a disk image from a folder or connected device](https://support.apple.com/en-bh/guide/disk-utility/dskutl11888/mac)
-- This disk image (.dmg file) can be shared with other Mac users
+- Copy the FileZilla.app in some other folder outside this project directory, preferably in outer folders like Desktop or Downloads
+- In the terminal, go to the folder where the FileZilla.app file has been copied by using ```cd``` command.
+	- For example, if you have copied FileZilla.app to ```Desktop``` folder, then execute:
+		```
+		$ cd ~/Desktop
+		```
+- Execute the following command to generate the distrubutable:
+	```
+	$ tar -cJvf filezilla_mac.tar.xz FileZilla.app
+	```
+- This filezilla_mac.tar.xz file can be shared with other Mac users
 
 ### [INFO] List of softwares, packages, libraries, and dependencies to build FileZilla with Storj (RC-v1.0.2) on MAC OS (64-bit)
 
@@ -311,15 +319,15 @@
 	- **NOTE**: Ignore the error ```strip:/home/...../prefix/bin/wx-config: File format not recognized```
 	```
 	$ cd ~
-	$ tar cvfj filezilla.tar.bz2 prefix
+	$ tar -cJvf filezilla_ubuntu.tar.xz prefix
 	```
 	
 * In order to run the application on another Ubuntu system:
-	- Copy ```filezilla.tar.bz2``` to ```$HOME``` folder of another Ubuntu system
+	- Copy ```filezilla_ubuntu.tar.xz``` to ```$HOME``` folder of another Ubuntu system
 	- Execute the following:
 		```
 		$ cd ~
-		$ tar xf filezilla.tar.bz2
+		$ tar xf filezilla_ubuntu.tar.xz
 		$ export PATH="$HOME/prefix/bin:$PATH"
 		$ export LD_LIBRARY_PATH="$HOME/prefix/lib:$LD_LIBRARY_PATH"
 		$ export PKG_CONFIG_PATH="$HOME/prefix/lib/pkgconfig:$PKG_CONFIG_PATH"
