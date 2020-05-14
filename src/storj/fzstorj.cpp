@@ -365,6 +365,10 @@ int main()
 			break;
 		}
 
+		///////////////////////////////////////////////////////////////
+		//fzprintf(storjEvent::Status, "Command(Before): %s", command);
+		///////////////////////////////////////////////////////////////
+		
 		std::size_t pos = command.find(' ');
 		std::string arg;
 		if (pos != std::string::npos) {
@@ -457,18 +461,16 @@ int main()
 				continue;
 			}
 			std::string bucket = arg.substr(0, pos);
-			size_t pos2 = arg.find(' ', pos + 1);
-			if (pos == std::string::npos) {
-				fzprintf(storjEvent::Error, "Bad arguments");
-				continue;
-			}
-			auto id = arg.substr(pos + 1, pos2 - pos - 1);
-			auto file = arg.substr(pos2 + 1);
+			std::string others = arg.substr(pos + 1, arg.size());
+			size_t pos2 = others.find_first_of(' "');
+
+			auto id = others.substr(0, pos2 - 1);
+			auto file = others.substr(pos2, others.size());
 
 			if (file.size() >= 3 && file.front() == '"' && file.back() == '"') {
 				file = fz::replaced_substrings(file.substr(1, file.size() - 2), "\"\"", "\"");
 			}
-			
+
 			ProjectResult project_result = fv_openStorjProject();
 			fv_downloadObject(project_result.project, bucket, id, file);
 			
@@ -508,7 +510,7 @@ int main()
 			fzprintf(storjEvent::Done);
 		}
 		else if (command == "rm") {
-			auto args = fz::strtok(arg, ' ');
+/*			auto args = fz::strtok(arg, ' ');
 			if (args.size() != 2) {
 				fzprintf(storjEvent::Error, "Bad arguments");
 				continue;
@@ -517,7 +519,14 @@ int main()
 			std::string bucketName = args[0];
 			std::string objectKey = args[1];
 			std::string prefix = "";
+*/			
+			////////////////////////////////////////////////////////////////
+			size_t space_pos = arg.find_first_of(' ');
 			
+			std::string bucketName = arg.substr(0, space_pos);
+			std::string objectKey = arg.substr(space_pos+1, arg.size());
+			std::string prefix = "";
+			////////////////////////////////////////////////////////////////
 			size_t pos = objectKey.find_last_of('/');
 			if (pos != std::string::npos) {
 				prefix = objectKey.substr(0, pos);
