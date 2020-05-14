@@ -356,7 +356,7 @@
  
 #### References:
 * [Compiling FileZilla 3 under Windows](https://wiki.filezilla-project.org/wiki/index.php?title=Compiling_FileZilla_3_under_Windows&oldid=51076)
-* [Compiling FileZilla 3 under macOS](https://wiki.filezilla-project.org/Compiling_FileZilla_3_under_macOS)
+* [Compiling FileZilla 3 under macOS](https://wiki.filezilla-project.org/wiki/index.php?title=Compiling_FileZilla_3_under_macOS&oldid=51125)
 * [About Storj connection with FileZilla](https://wiki.filezilla-project.org/Storj)
 * [Storj (RC-v1.0.2) uplink-c](https://github.com/storj/uplink-c)
  
