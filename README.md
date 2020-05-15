@@ -353,10 +353,165 @@
 	- v3.0.5
 * libfilezilla
 	- v0.21.0
+
+
+* **Cross Compiling FileZilla 3 for Windows under Ubuntu or Debian GNU/Linux**:
+ 
+* Setting up the build environment
+    - As root, execute:
+		```
+		$ dpkg --add-architecture i386
+		$ apt update
+		$ apt install automake autoconf libtool make gettext lzip
+		$ apt install mingw-w64 pkg-config wx-common subversion git
+		$ apt install wine-stable
+		```
+	- Back as normal user, execute:
+		```
+		$ mkdir ~/prefix
+		$ mkdir ~/src
+		$ export PATH="$HOME/prefix/bin:$PATH"
+		$ export LD_LIBRARY_PATH="$HOME/prefix/lib:$LD_LIBRARY_PATH"
+		$ export PKG_CONFIG_PATH="$HOME/prefix/lib/pkgconfig:$PKG_CONFIG_PATH"
+		$ export TARGET_HOST=x86_64-w64-mingw32
+		```
+		- **NOTE**: If you ever close the terminal and reopen it, repeat the last 4 steps (export) mentioned above before you continue.
+		```
+		$ wine reg add HKCU\\Environment /f /v PATH /d "`x86_64-w64-mingw32-g++ -print-search-dirs | grep ^libraries | sed 's/^libraries: =//' | sed 's/:/;z:/g' | sed 's/^\\//z:\\\\\\\\/' | sed 's/\\//\\\\/g'`"
+		```
+ 
+* Getting and compiling dependencies
+	- Follow the instructions from [GMP](https://wiki.filezilla-project.org/wiki/index.php?title=Cross_Compiling_FileZilla_3_for_Windows_under_Ubuntu_or_Debian_GNU/Linux&oldid=51016#GMP) upto (and *excluding*) ["GnuTLS"](https://wiki.filezilla-project.org/wiki/index.php?title=Cross_Compiling_FileZilla_3_for_Windows_under_Ubuntu_or_Debian_GNU/Linux&oldid=51016#GnuTLS) section
+	- GnuTLS
+		```
+		$ cd ~/src
+		$ wget https://www.gnupg.org/ftp/gcrypt/gnutls/v3.6/gnutls-3.6.8.tar.xz
+		$ tar xvf gnutls-3.6.8.tar.xz
+		$ cd gnutls-3.6.8
+		$ ./configure --host=$TARGET_HOST --prefix="$HOME/prefix" --enable-shared --disable-static --without-p11-kit --with-included-libtasn1 --with-included-unistring --enable-local-libopts --disable-srp-authentication --disable-dtls-srtp-support --disable-heartbeat-support --disable-psk-authentication --disable-anon-authentication --disable-openssl-compatibility --without-tpm --disable-cxx --disable-doc LDFLAGS="-L$HOME/prefix/lib"
+		$ make
+		$ make install
+		```
+	- SQLite
+		```
+		$ cd ~/src
+		$ wget https://sqlite.org/2018/sqlite-autoconf-3260000.tar.gz
+		$ tar xvzf sqlite-autoconf-3260000.tar.gz
+		$ cd sqlite-autoconf-3260000
+		$ ./configure --host=$TARGET_HOST --prefix="$HOME/prefix" --enable-shared --disable-static --disable-dynamic-extensions
+		$ make
+		$ make install
+		```
+	- NSIS
+		```
+		$ cd ~/src
+		$ wget https://prdownloads.sourceforge.net/nsis/nsis-3.04-setup.exe
+		$ wine nsis-3.04-setup.exe /S
+		```
+		- **NOTE**: The above may print a lot of errors and warnings. Ignore them, check for success this way:
+		```
+		$ [ -f "$HOME/.wine/drive_c/Program Files (x86)/NSIS/makensis.exe" ] && echo "Success!"
+		```
+	- wxWidgets
+		```
+		$ cd ~/src
+		$ git clone --branch WX_3_0_BRANCH --single-branch https://github.com/wxWidgets/wxWidgets.git wx3
+		$ cd wx3
+		$ ./configure --host=$TARGET_HOST --prefix="$HOME/prefix" --enable-shared --disable-static
+		$ make
+		$ make install
+		```
+	- libfilezilla
+		```
+		$ cd ~/src
+		$ wget https://download.filezilla-project.org/libfilezilla/libfilezilla-0.21.0.tar.bz2
+		$ tar xf libfilezilla-0.21.0.tar.bz2
+		$ cd libfilezilla-0.21.0
+		$ autoreconf -i
+		$ ./configure --host=$TARGET_HOST --prefix="$HOME/prefix" --enable-shared --disable-static
+		$ make
+		$ make install
+		$ cp $HOME/prefix/lib/wx*.dll $HOME/prefix/bin		
+		```
+		
+* Download FileZilla source from GitHub:
+    ```
+	$ cd ~/src
+	$ git clone https://github.com/storj/filezilla.git filezilla
+	```
+
+* Generate C binding library files for Storj (RC-v1.0.2) management for Windows by cross-compilation from Ubuntu:
+    - Please ensure [golang](https://golang.org/doc/install) is installed
+    - [storj-uplink-c go package](https://github.com/storj/uplink-c )
+        ```
+        $ go get storj.io/uplink-c
+        ```
+    - In the terminal, go to the go/src/storj.io/uplink-c/ folder at your local computer
+    - Generate the C binding:
+        ```
+        $ GOOS="windows" GOARCH="amd64" CGO_ENABLED="1" CXX="x86_64-w64-mingw32-g++" CC="x86_64-w64-mingw32-gcc" go build -o libuplinkc.a -buildmode=c-archive
+        ```
+    - Copy the generated libuplinkc.h, libuplinkc.a, and uplink_definitions.h files to the filezilla/src/storj/ folder
+    	
+* Build FileZilla from source with Storj feature enable:
+	```
+	$ cd ~/src/filezilla
+    $ autoreconf -i
+	$ ./configure --host=$TARGET_HOST --prefix="$HOME/prefix" --enable-shared --disable-static --with-pugixml=builtin --enable-storj
+	```
+	- **NOTE**: In some systems, it may be required to allow execution of data/dllcopy.sh. Hence, please execute the following on the terminal:
+	```	
+	$ cd data && chmod 777 dllcopy.sh && cd ..
+	$ make
+	```
+ 
+### In order to distribute the application:
+- Strip the debug symbols as follows:
+	```
+	$ $TARGET_HOST-strip src/interface/.libs/filezilla.exe
+	$ $TARGET_HOST-strip src/putty/.libs/fzsftp.exe
+	$ $TARGET_HOST-strip src/putty/.libs/fzputtygen.exe
+	$ $TARGET_HOST-strip src/fzshellext/64/.libs/libfzshellext-0.dll
+	$ $TARGET_HOST-strip src/fzshellext/32/.libs/libfzshellext-0.dll
+	$ $TARGET_HOST-strip data/dlls/*.dll
+	```
+- Generate the distributable as follows:
+	```
+	$ cd data
+	$ wine "$HOME/.wine/drive_c/Program Files (x86)/NSIS/makensis.exe" install.nsi
+	```
+- The FileZilla_3_setup.exe distributable is generated in the current 'data' directory.
+
+### [INFO] List of softwares, packages, libraries, and dependencies to cross-compile FileZilla with Storj (RC-v1.0.2) for Windows (64-bit) under Ubuntu or Debian GNU/Linux
+
+* libtool
+* gettext
+* lzip
+* mingw-w64
+* pkg-config
+* wx-common
+* subversion
+* git
+* wine-stable
+* GMP
+	- v6.1.2
+* Nettle
+	- v3.4.1
+* GnuTLS
+	- v3.6.8
+* SQLite
+	- v3.26.0
+* NSIS
+	- v3.04
+* wxWidgets
+	- v3.0.6
+* libfilezilla
+	- v0.21.0
  
 #### References:
 * [Compiling FileZilla 3 under Windows](https://wiki.filezilla-project.org/wiki/index.php?title=Compiling_FileZilla_3_under_Windows&oldid=51076)
 * [Compiling FileZilla 3 under macOS](https://wiki.filezilla-project.org/wiki/index.php?title=Compiling_FileZilla_3_under_macOS&oldid=51125)
+* [Cross Compiling FileZilla 3 for Windows under Ubuntu or Debian GNU/Linux](https://wiki.filezilla-project.org/wiki/index.php?title=Cross_Compiling_FileZilla_3_for_Windows_under_Ubuntu_or_Debian_GNU/Linux&oldid=51016)
 * [About Storj connection with FileZilla](https://wiki.filezilla-project.org/Storj)
 * [Storj (RC-v1.0.2) uplink-c](https://github.com/storj/uplink-c)
  
