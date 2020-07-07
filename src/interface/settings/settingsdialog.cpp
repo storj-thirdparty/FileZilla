@@ -72,7 +72,7 @@ bool CSettingsDialog::Create(CMainFrame* pMainFrame)
 	auto ok = new wxButton(this, wxID_OK, _("OK"));
 	ok->SetDefault();
 	left->Add(ok, lay.grow);
-	left->Add(new wxButton(this, wxID_CANCEL, _("&Cancel")), lay.grow);
+	left->Add(new wxButton(this, wxID_CANCEL, _("Cancel")), lay.grow);
 
 	pagePanel_ = new wxPanel(this);
 	main->Add(pagePanel_, lay.grow);

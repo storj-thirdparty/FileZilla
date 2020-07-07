@@ -303,6 +303,11 @@ void CHttpControlSocket::Request(std::shared_ptr<HttpRequestResponseInterface> c
 {
 	log(logmsg::debug_verbose, L"CHttpControlSocket::Request()");
 
+	if (!request) {
+		log(logmsg::debug_warning, L"Dropping null request");
+		return;
+	}
+
 	auto op = dynamic_cast<CHttpRequestOpData*>(operations_.empty() ? nullptr : operations_.back().get());
 	if (op) {
 		op->AddRequest(request);

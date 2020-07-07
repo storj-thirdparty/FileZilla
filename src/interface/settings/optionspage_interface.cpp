@@ -110,63 +110,59 @@ void COptionsPageInterface::OnLayoutChange(wxCommandEvent&)
 
 bool COptionsPageInterface::CreateControls(wxWindow* parent)
 {
-	auto const& layout = m_pOwner->layout();
+	auto const& lay = m_pOwner->layout();
 
 	Create(parent);
-	auto outer = new wxBoxSizer(wxVERTICAL);
+	auto main = lay.createFlex(1);
+	main->AddGrowableCol(0);
+	SetSizer(main);
 
-	auto boxSizer = new wxStaticBoxSizer(wxVERTICAL, this, _("Layout"));
-	outer->Add(boxSizer, layout.grow);
-	auto box = boxSizer->GetStaticBox();
+	{
+		auto [box, inner] = lay.createStatBox(main, _("Layout"), 1);
 
-	auto layoutSizer = layout.createFlex(1);
-	boxSizer->Add(layoutSizer, 0, wxALL, layout.border);
-	auto innerlayoutSizer = layout.createFlex(2);
-	layoutSizer->Add(innerlayoutSizer);
-	innerlayoutSizer->Add(new wxStaticText(box, -1, _("&Layout of file and directory panes:")), layout.valign);
-	auto choice = new wxChoice(box, XRCID("ID_FILEPANELAYOUT"));
-	choice->Append(_("Classic"));
-	choice->Append(_("Explorer"));
-	choice->Append(_("Widescreen"));
-	choice->Append(_("Blackboard"));
-	innerlayoutSizer->Add(choice, layout.valign);
-	innerlayoutSizer->Add(new wxStaticText(box, -1, _("Message log positio&n:")), layout.valign);
-	choice = new wxChoice(box, XRCID("ID_MESSAGELOGPOS"));
-	choice->Append(_("Above the file lists"));
-	choice->Append(_("Next to the transfer queue"));
-	choice->Append(_("As tab in the transfer queue pane"));
-	innerlayoutSizer->Add(choice, layout.valign);
-	layoutSizer->Add(new wxCheckBox(box, XRCID("ID_FILEPANESWAP"), _("&Swap local and remote panes")));
+		auto rows = lay.createFlex(2);
+		inner->Add(rows);
+		rows->Add(new wxStaticText(box, -1, _("&Layout of file and directory panes:")), lay.valign);
+		auto choice = new wxChoice(box, XRCID("ID_FILEPANELAYOUT"));
+		choice->Append(_("Classic"));
+		choice->Append(_("Explorer"));
+		choice->Append(_("Widescreen"));
+		choice->Append(_("Blackboard"));
+		rows->Add(choice, lay.valign);
+		rows->Add(new wxStaticText(box, -1, _("Message log positio&n:")), lay.valign);
+		choice = new wxChoice(box, XRCID("ID_MESSAGELOGPOS"));
+		choice->Append(_("Above the file lists"));
+		choice->Append(_("Next to the transfer queue"));
+		choice->Append(_("As tab in the transfer queue pane"));
+		rows->Add(choice, lay.valign);
+		inner->Add(new wxCheckBox(box, XRCID("ID_FILEPANESWAP"), _("&Swap local and remote panes")));
+	}
 
-	boxSizer = new wxStaticBoxSizer(wxVERTICAL, this, _("Behaviour"));
-	outer->Add(boxSizer, layout.grow);
-	box = boxSizer->GetStaticBox();
-
-	auto behaviour = layout.createFlex(1);
-	boxSizer->Add(behaviour, 0, wxALL, layout.border);
+	{
+		auto [box, inner] = lay.createStatBox(main, _("Behaviour"), 1);
+		
 #ifndef __WXMAC__
-	behaviour->Add(new wxCheckBox(box, XRCID("ID_MINIMIZE_TRAY"), _("&Minimize to tray")));
+		inner->Add(new wxCheckBox(box, XRCID("ID_MINIMIZE_TRAY"), _("&Minimize to tray")));
 #endif
-	behaviour->Add(new wxCheckBox(box, XRCID("ID_PREVENT_IDLESLEEP"), _("P&revent system from entering idle sleep during transfers and other operations")));
-	behaviour->AddSpacer(0);
-	behaviour->Add(new wxStaticText(box, -1, _("On startup of FileZilla:")));
-	behaviour->Add(new wxRadioButton(box, XRCID("ID_INTERFACE_STARTUP_NORMAL"), _("S&tart normally"), wxDefaultPosition, wxDefaultSize, wxRB_GROUP));
-	behaviour->Add(new wxRadioButton(box, XRCID("ID_INTERFACE_STARTUP_SITEMANAGER"), _("S&how the Site Manager on startup")));
-	behaviour->Add(new wxRadioButton(box, XRCID("ID_INTERFACE_STARTUP_RESTORE"), _("Restore ta&bs and reconnect")));
-	behaviour->AddSpacer(0);
-	behaviour->Add(new wxStaticText(box, -1, _("When st&arting a new connection while already connected:")));
-	choice = new wxChoice(box, XRCID("ID_NEWCONN_ACTION"));
-	choice->Append(_("Ask for action"));
-	choice->Append(_("Connect in new tab"));
-	choice->Append(_("Connect in current tab"));
-	behaviour->Add(choice);
+		inner->Add(new wxCheckBox(box, XRCID("ID_PREVENT_IDLESLEEP"), _("P&revent system from entering idle sleep during transfers and other operations")));
+		inner->AddSpacer(0);
+		inner->Add(new wxStaticText(box, -1, _("On startup of FileZilla:")));
+		inner->Add(new wxRadioButton(box, XRCID("ID_INTERFACE_STARTUP_NORMAL"), _("S&tart normally"), wxDefaultPosition, wxDefaultSize, wxRB_GROUP));
+		inner->Add(new wxRadioButton(box, XRCID("ID_INTERFACE_STARTUP_SITEMANAGER"), _("S&how the Site Manager on startup")));
+		inner->Add(new wxRadioButton(box, XRCID("ID_INTERFACE_STARTUP_RESTORE"), _("Restore ta&bs and reconnect")));
+		inner->AddSpacer(0);
+		inner->Add(new wxStaticText(box, -1, _("When st&arting a new connection while already connected:")));
+		auto choice = new wxChoice(box, XRCID("ID_NEWCONN_ACTION"));
+		choice->Append(_("Ask for action"));
+		choice->Append(_("Connect in new tab"));
+		choice->Append(_("Connect in current tab"));
+		inner->Add(choice);
+	}
 
-	boxSizer = new wxStaticBoxSizer(wxVERTICAL, this, _("Transfer Queue"));
-	outer->Add(boxSizer, layout.grow);
-	box = boxSizer->GetStaticBox();
-	boxSizer->Add(new wxCheckBox(box, XRCID("ID_SPEED_DISPLAY"), _("&Display momentary transfer speed instead of average speed")), 0, wxALL, layout.border);
-
-	SetSizer(outer);
+	{
+		auto [box, inner] = lay.createStatBox(main, _("Transfer Queue"), 1);
+		inner->Add(new wxCheckBox(box, XRCID("ID_SPEED_DISPLAY"), _("&Display momentary transfer speed instead of average speed")));
+	}
 
 	return true;
 }

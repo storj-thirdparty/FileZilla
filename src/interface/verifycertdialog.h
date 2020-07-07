@@ -52,24 +52,25 @@ public:
 private:
 	bool CreateVerificationDialog(CCertificateNotification const& notification, bool displayOnly);
 
-	CVerifyCertDialog() = default;
+	CVerifyCertDialog();
+	~CVerifyCertDialog();
 
-	bool DisplayAlgorithm(int controlId, std::string const& name, bool insecure);
+	void AddAlgorithm(wxWindow* parent, wxGridBagSizer* sizer, std::string const& name, bool insecure);
 
 	bool DisplayCert(fz::x509_certificate const& cert);
 
 	void ParseDN(wxWindow* parent, std::wstring const& dn, wxSizer* pSizer);
 	void ParseDN_by_prefix(wxWindow* parent, std::vector<std::pair<std::wstring, std::wstring>>& tokens, std::wstring const& prefix, wxString const& name, wxSizer* pSizer);
 
-	std::vector<fz::x509_certificate> m_certificates;
-	wxSizer* m_pSubjectSizer{};
-	wxSizer* m_pIssuerSizer{};
 	int line_height_{};
 
-	void OnCertificateChoice(wxCommandEvent& event);
+	void OnCertificateChoice(wxCommandEvent const& event);
 
 	bool warning_{};
 	bool sanTrustAllowed_{};
+
+	struct impl;
+	std::unique_ptr<impl> impl_;
 };
 
 void ConfirmInsecureConection(wxWindow* parent, CertStore & certStore, CInsecureConnectionNotification & notification);

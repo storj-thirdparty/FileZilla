@@ -1088,14 +1088,19 @@ template<class CFileData> void CFileListCtrl<CFileData>::OnKeyDown(wxKeyEvent& e
 
 	const int code = event.GetKeyCode();
 	const int mods = event.GetModifiers();
-	if (code == 'A' && (mods == wxMOD_CMD || mods == (wxMOD_CONTROL | wxMOD_META))) {
+	if (code == 'A' && (mods & wxMOD_CMD || (mods & (wxMOD_CONTROL | wxMOD_META)) == (wxMOD_CONTROL | wxMOD_META))) {
+		int mask = fill;
+		if (mods & wxMOD_SHIFT) {
+			mask |= normal;
+		}
+
 		for (unsigned int i = m_hasParent ? 1 : 0; i < m_indexMapping.size(); ++i) {
 			const CFileData& data = m_fileData[m_indexMapping[i]];
-			if (data.comparison_flags != fill) {
-				SetSelection(i, true);
+			if (data.comparison_flags & mask) {
+				SetSelection(i, false);
 			}
 			else {
-				SetSelection(i, false);
+				SetSelection(i, true);
 			}
 		}
 		if (m_hasParent && GetItemCount()) {

@@ -28,7 +28,7 @@ bool CInputDialog::Create(wxWindow* parent, wxString const& title, wxString cons
 	ok->SetDefault();
 	buttons->AddButton(ok);
 
-	auto cancel = new wxButton(this, wxID_CANCEL, _("&Cancel"));
+	auto cancel = new wxButton(this, wxID_CANCEL, _("Cancel"));
 	buttons->AddButton(cancel);
 	buttons->Realize();
 

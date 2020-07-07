@@ -1,110 +1,180 @@
 #include <filezilla.h>
 
-#include "../Options.h"
 #include "settingsdialog.h"
 #include "optionspage.h"
 #include "optionspage_dateformatting.h"
 
-BEGIN_EVENT_TABLE(COptionsPageDateFormatting, COptionsPage)
-EVT_RADIOBUTTON(wxID_ANY, COptionsPageDateFormatting::OnRadioChanged)
-END_EVENT_TABLE()
+#include "../Options.h"
+#include "../textctrlex.h"
+
+#include <wx/hyperlink.h>
+#include <wx/statbox.h>
+
+struct COptionsPageDateFormatting::impl final
+{
+	wxRadioButton* date_system_{};
+	wxRadioButton* date_iso_{};
+	wxRadioButton* date_custom_{};
+	wxTextCtrlEx* date_format_{};
+	
+	wxRadioButton* time_system_{};
+	wxRadioButton* time_iso_{};
+	wxRadioButton* time_custom_{};
+	wxTextCtrlEx* time_format_{};
+};
+
+COptionsPageDateFormatting::COptionsPageDateFormatting()
+	: impl_(std::make_unique<impl>())
+{
+}
+
+COptionsPageDateFormatting::~COptionsPageDateFormatting()
+{
+}
+
+
+bool COptionsPageDateFormatting::CreateControls(wxWindow* parent)
+{
+	auto const& lay = m_pOwner->layout();
+
+	Create(parent);
+	auto main = lay.createFlex(1);
+	main->AddGrowableCol(0);
+	SetSizer(main);
+
+	{
+		auto [box, inner] = lay.createStatBox(main, _("Date formatting"), 1);
+		impl_->date_system_ = new wxRadioButton(box, -1, _("Use system &defaults for current language"), wxDefaultPosition, wxDefaultSize, wxRB_GROUP);
+		inner->Add(impl_->date_system_);
+		impl_->date_iso_ = new wxRadioButton(box, -1, _("&ISO 8601 (example: 2007-09-15)"));
+		inner->Add(impl_->date_iso_);
+		impl_->date_custom_ = new wxRadioButton(box, -1, _("C&ustom"));
+		inner->Add(impl_->date_custom_);
+
+		auto row = lay.createFlex(2);
+		inner->Add(row, 0, wxLEFT, lay.indent);
+		impl_->date_format_ = new wxTextCtrlEx(box, -1);
+		row->Add(impl_->date_format_, lay.valign);
+		row->Add(new wxStaticText(box, -1, _("(example: %Y-%m-%d)")), lay.valign);
+	}
+	{
+		auto [box, inner] = lay.createStatBox(main, _("Time formatting"), 1);
+		impl_->time_system_ = new wxRadioButton(box, -1, _("Us&e system &defaults for current language"), wxDefaultPosition, wxDefaultSize, wxRB_GROUP);
+		inner->Add(impl_->time_system_);
+		impl_->time_iso_ = new wxRadioButton(box, -1, _("I&SO 8601 (example: 15:47)"));
+		inner->Add(impl_->time_iso_);
+		impl_->time_custom_ = new wxRadioButton(box, -1, _("Cus&tom"));
+		inner->Add(impl_->time_custom_);
+
+		auto row = lay.createFlex(2);
+		inner->Add(row, 0, wxLEFT, lay.indent);
+		impl_->time_format_ = new wxTextCtrlEx(box, -1);
+		row->Add(impl_->time_format_, lay.valign);
+		row->Add(new wxStaticText(box, -1, _("(example: %Y-%m-%d)")), lay.valign);
+	}
+
+	auto link = new wxHyperlinkCtrl(this, -1, _("Show details about custom date and time formats"), L"https://wiki.filezilla-project.org/Date_and_Time_formatting");
+	link->SetToolTip(L"https://wiki.filezilla-project.org/Date_and_Time_formatting");
+	main->Add(link);
+
+	auto cb = [this](wxCommandEvent const&) { SetCtrlState(); };
+	impl_->date_system_->Bind(wxEVT_RADIOBUTTON, cb);
+	impl_->date_iso_->Bind(wxEVT_RADIOBUTTON, cb);
+	impl_->date_custom_->Bind(wxEVT_RADIOBUTTON, cb);
+	impl_->time_system_->Bind(wxEVT_RADIOBUTTON, cb);
+	impl_->time_iso_->Bind(wxEVT_RADIOBUTTON, cb);
+	impl_->time_custom_->Bind(wxEVT_RADIOBUTTON, cb);
+
+	return true;
+}
 
 bool COptionsPageDateFormatting::LoadPage()
 {
-	bool failure = false;
-
 	std::wstring const dateFormat = m_pOptions->GetOption(OPTION_DATE_FORMAT);
 	if (dateFormat == _T("1")) {
-		SetRCheck(XRCID("ID_DATEFORMAT_ISO"), true, failure);
+		impl_->date_iso_->SetValue(true);
 	}
 	else if (!dateFormat.empty() && dateFormat[0] == '2') {
-		SetRCheck(XRCID("ID_DATEFORMAT_CUSTOM"), true, failure);
-		SetText(XRCID("ID_CUSTOM_DATEFORMAT"), dateFormat.substr(1), failure);
+		impl_->date_custom_->SetValue(true);
+		impl_->date_format_->ChangeValue(dateFormat.substr(1));
 	}
 	else {
-		SetRCheck(XRCID("ID_DATEFORMAT_DEFAULT"), true, failure);
+		impl_->date_system_->SetValue(true);
 	}
 
 	std::wstring const timeFormat = m_pOptions->GetOption(OPTION_TIME_FORMAT);
 	if (timeFormat == _T("1")) {
-		SetRCheck(XRCID("ID_TIMEFORMAT_ISO"), true, failure);
+		impl_->time_iso_->SetValue(true);
 	}
 	else if (!timeFormat.empty() && timeFormat[0] == '2') {
-		SetRCheck(XRCID("ID_TIMEFORMAT_CUSTOM"), true, failure);
-		SetText(XRCID("ID_CUSTOM_TIMEFORMAT"), timeFormat.substr(1), failure);
+		impl_->time_custom_->SetValue(true);
+		impl_->time_format_->ChangeValue(timeFormat.substr(1));
 	}
 	else {
-		SetRCheck(XRCID("ID_TIMEFORMAT_DEFAULT"), true, failure);
+		impl_->time_system_->SetValue(true);
 	}
 
-	if (!failure) {
-		SetCtrlState();
-	}
+	SetCtrlState();
 
-	return !failure;
+	return true;
 }
 
 bool COptionsPageDateFormatting::SavePage()
 {
-	wxString dateFormat;
-	if (GetRCheck(XRCID("ID_DATEFORMAT_CUSTOM"))) {
-		dateFormat = _T("2") + XRCCTRL(*this, "ID_CUSTOM_DATEFORMAT", wxTextCtrl)->GetValue();
+	std::wstring dateFormat;
+	if (impl_->date_custom_->GetValue()) {
+		dateFormat = L"2" + impl_->date_format_->GetValue().ToStdWstring();
 	}
-	else if (GetRCheck(XRCID("ID_DATEFORMAT_ISO"))) {
-		dateFormat = _T("1");
+	else if (impl_->date_iso_->GetValue()) {
+		dateFormat = L"1";
 	}
 	else {
-		dateFormat = _T("0");
+		dateFormat = L"0";
 	}
-	m_pOptions->SetOption(OPTION_DATE_FORMAT, dateFormat.ToStdWstring());
+	m_pOptions->SetOption(OPTION_DATE_FORMAT, dateFormat);
 
-	wxString timeFormat;
-	if (GetRCheck(XRCID("ID_TIMEFORMAT_CUSTOM"))) {
-		timeFormat = _T("2") + XRCCTRL(*this, "ID_CUSTOM_TIMEFORMAT", wxTextCtrl)->GetValue();
+	std::wstring timeFormat;
+	if (impl_->time_custom_->GetValue()) {
+		timeFormat = L"2" + impl_->time_format_->GetValue().ToStdWstring();
 	}
-	else if (GetRCheck(XRCID("ID_TIMEFORMAT_ISO"))) {
-		timeFormat = _T("1");
+	else if (impl_->time_iso_->GetValue()) {
+		timeFormat = L"1";
 	}
 	else {
-		timeFormat = _T("0");
+		timeFormat = L"0";
 	}
-	m_pOptions->SetOption(OPTION_TIME_FORMAT, timeFormat.ToStdWstring());
+	m_pOptions->SetOption(OPTION_TIME_FORMAT, timeFormat);
 
 	return true;
 }
 
 bool COptionsPageDateFormatting::Validate()
 {
-	if (GetRCheck(XRCID("ID_DATEFORMAT_CUSTOM"))) {
-		wxString const dateformat = XRCCTRL(*this, "ID_CUSTOM_DATEFORMAT", wxTextCtrl)->GetValue();
+	if (impl_->date_custom_->GetValue()) {
+		std::wstring const dateformat = impl_->date_format_->GetValue().ToStdWstring();
 		if (dateformat.empty()) {
-			return DisplayError(_T("ID_CUSTOM_DATEFORMAT"), _("Please enter a custom date format."));
+			return DisplayError(impl_->date_format_, _("Please enter a custom date format."));
 		}
-		if (!fz::datetime::verify_format(dateformat.ToStdWstring())) {
-			return DisplayError(_T("ID_CUSTOM_DATEFORMAT"), _("The custom date format is invalid or contains unsupported format specifiers."));
+		if (!fz::datetime::verify_format(dateformat)) {
+			return DisplayError(impl_->date_format_, _("The custom date format is invalid or contains unsupported format specifiers."));
 		}
 	}
 
-	if (GetRCheck(XRCID("ID_TIMEFORMAT_CUSTOM"))) {
-		wxString const timeformat = XRCCTRL(*this, "ID_CUSTOM_TIMEFORMAT", wxTextCtrl)->GetValue();
+	if (impl_->time_custom_->GetValue()) {
+		std::wstring const timeformat = impl_->time_format_->GetValue().ToStdWstring();
 		if (timeformat.empty()) {
-			return DisplayError(_T("ID_CUSTOM_TIMEFORMAT"), _("Please enter a custom time format."));
+			return DisplayError(impl_->time_format_, _("Please enter a custom time format."));
 		}
-		if (!fz::datetime::verify_format(timeformat.ToStdWstring())) {
-			return DisplayError(_T("ID_CUSTOM_TIMEFORMAT"), _("The custom time format is invalid or contains unsupported format specifiers."));
+		if (!fz::datetime::verify_format(timeformat)) {
+			return DisplayError(impl_->time_format_, _("The custom time format is invalid or contains unsupported format specifiers."));
 		}
 	}
 
 	return true;
 }
 
-void COptionsPageDateFormatting::OnRadioChanged(wxCommandEvent&)
-{
-	SetCtrlState();
-}
-
 void COptionsPageDateFormatting::SetCtrlState()
 {
-	XRCCTRL(*this, "ID_CUSTOM_DATEFORMAT", wxTextCtrl)->Enable(GetRCheck(XRCID("ID_DATEFORMAT_CUSTOM")));
-	XRCCTRL(*this, "ID_CUSTOM_TIMEFORMAT", wxTextCtrl)->Enable(GetRCheck(XRCID("ID_TIMEFORMAT_CUSTOM")));
+	impl_->date_format_->Enable(impl_->date_custom_->GetValue());
+	impl_->time_format_->Enable(impl_->time_custom_->GetValue());
 }

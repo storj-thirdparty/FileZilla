@@ -26,7 +26,7 @@ bool CAskSavePasswordDialog::Create(wxWindow*)
 	XRCCTRL(*this, "ID_PASSWORDS_NOSAVE", wxEvtHandler)->Bind(wxEVT_RADIOBUTTON, onChange);
 	XRCCTRL(*this, "ID_PASSWORDS_USEMASTERPASSWORD", wxEvtHandler)->Bind(wxEVT_RADIOBUTTON, onChange);
 
-	XRCCTRL(*this, "wxID_OK", wxButton)->Bind(wxEVT_BUTTON, &CAskSavePasswordDialog::OnOk, &*this);
+	XRCCTRL(*this, "wxID_OK", wxButton)->Bind(wxEVT_BUTTON, &CAskSavePasswordDialog::OnOk, this);
 
 	return true;
 }

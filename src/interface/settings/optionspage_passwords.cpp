@@ -165,33 +165,29 @@ bool COptionsPagePasswords::Validate()
 
 bool COptionsPagePasswords::CreateControls(wxWindow* parent)
 {
-	auto const& layout = m_pOwner->layout();
+	auto const& lay = m_pOwner->layout();
 
 	Create(parent);
-	auto boxSizer = new wxStaticBoxSizer(wxVERTICAL, this, _("Passwords"));
-	auto box = boxSizer->GetStaticBox();
-	auto sizer = layout.createFlex(1);
-	sizer->AddGrowableCol(0);
-	boxSizer->Add(sizer, 0, wxGROW|wxALL, layout.border);
+	auto main = lay.createFlex(1);
+	main->AddGrowableCol(0);
+	SetSizer(main);
 
-	sizer->Add(new wxRadioButton(box, XRCID("ID_PASSWORDS_SAVE"), _("Sav&e passwords"), wxDefaultPosition, wxDefaultSize, wxRB_GROUP));
-	sizer->Add(new wxRadioButton(box, XRCID("ID_PASSWORDS_NOSAVE"), _("D&o not save passwords")));
-	sizer->Add(new wxRadioButton(box, XRCID("ID_PASSWORDS_USEMASTERPASSWORD"), _("Sa&ve passwords protected by a master password")));
+	auto [box, inner] = lay.createStatBox(main, _("Passwords"), 1);
 
-	auto changeSizer = layout.createFlex(2);
+	inner->Add(new wxRadioButton(box, XRCID("ID_PASSWORDS_SAVE"), _("Sav&e passwords"), wxDefaultPosition, wxDefaultSize, wxRB_GROUP));
+	inner->Add(new wxRadioButton(box, XRCID("ID_PASSWORDS_NOSAVE"), _("D&o not save passwords")));
+	inner->Add(new wxRadioButton(box, XRCID("ID_PASSWORDS_USEMASTERPASSWORD"), _("Sa&ve passwords protected by a master password")));
+
+	auto changeSizer = lay.createFlex(2);
 	changeSizer->AddGrowableCol(1);
-	changeSizer->Add(new wxStaticText(box, -1, _("Master password:")), layout.valign);
+	changeSizer->Add(new wxStaticText(box, -1, _("Master password:")), lay.valign);
 	auto pw = new wxTextCtrlEx(box, XRCID("ID_MASTERPASSWORD"), wxString(), wxDefaultPosition, wxDefaultSize, wxTE_PASSWORD);
-	changeSizer->Add(pw, layout.valigng);
-	changeSizer->Add(new wxStaticText(box, -1, _("Repeat password:")), layout.valign);
-	changeSizer->Add(new wxTextCtrlEx(box, XRCID("ID_MASTERPASSWORD_REPEAT"), wxString(), wxDefaultPosition, wxDefaultSize, wxTE_PASSWORD), layout.valigng);
+	changeSizer->Add(pw, lay.valigng);
+	changeSizer->Add(new wxStaticText(box, -1, _("Repeat password:")), lay.valign);
+	changeSizer->Add(new wxTextCtrlEx(box, XRCID("ID_MASTERPASSWORD_REPEAT"), wxString(), wxDefaultPosition, wxDefaultSize, wxTE_PASSWORD), lay.valigng);
 
-	sizer->Add(changeSizer, 0, wxGROW | wxLEFT, layout.dlgUnits(10));
-	sizer->Add(new wxStaticText(box, -1, _("A lost master password cannot be recovered! Please thoroughly memorize your password.")), 0, wxLEFT, layout.dlgUnits(10));
-
-	auto outer = new wxBoxSizer(wxVERTICAL);
-	outer->Add(boxSizer, layout.grow);
-	SetSizer(outer);
+	inner->Add(changeSizer, 0, wxGROW | wxLEFT, lay.indent);
+	inner->Add(new wxStaticText(box, -1, _("A lost master password cannot be recovered! Please thoroughly memorize your password.")), 0, wxLEFT, lay.indent);
 
 	return true;
 }

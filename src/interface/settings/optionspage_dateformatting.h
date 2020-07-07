@@ -1,20 +1,26 @@
 #ifndef FILEZILLA_INTERFACE_OPTIONSPAGE_DATEFORMATTING_HEADER
 #define FILEZILLA_INTERFACE_OPTIONSPAGE_DATEFORMATTING_HEADER
 
+#include "optionspage.h"
+
+#include <memory>
+
 class COptionsPageDateFormatting final : public COptionsPage
 {
 public:
-	virtual wxString GetResourceName() const override { return _T("ID_SETTINGS_DATEFORMATTING"); }
+	COptionsPageDateFormatting();
+	~COptionsPageDateFormatting();
+
+	virtual bool CreateControls(wxWindow* parent) override;
 	virtual bool LoadPage() override;
 	virtual bool SavePage() override;
 	virtual bool Validate() override;
 
-protected:
-
+private:
 	void SetCtrlState();
 
-	DECLARE_EVENT_TABLE()
-	void OnRadioChanged(wxCommandEvent& event);
+	struct impl;
+	std::unique_ptr<impl> impl_;
 };
 
 #endif

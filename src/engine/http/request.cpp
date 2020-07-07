@@ -145,6 +145,10 @@ int CHttpRequestOpData::Send()
 		if (send_pos_ >= requests_.size()) {
 			opState &= ~request_send;
 		}
+		else if (!requests_[send_pos_]) {
+			log(logmsg::debug_warning, L"Null request in request_send state.");
+			return FZ_REPLY_INTERNALERROR;
+		}
 		else {
 			auto & req = requests_[send_pos_]->request();
 			if (!(req.flags_ & HttpRequest::flag_sent_header)) {
@@ -634,8 +638,10 @@ int CHttpRequestOpData::ProcessCompleteHeader()
 
 		if (res != FZ_REPLY_CONTINUE) {
 			if (res == FZ_REPLY_OK) {
-				// Clear the pointer, we no longer need the request to finish, all needed information is in read_state_
-				srr.reset();
+				if (!request.body_ || request.flags_ & HttpRequest::flag_sent_body) {
+					// Clear the pointer, we no longer need the request to finish, all needed information is in read_state_
+					srr.reset();
+				}
 				res = FZ_REPLY_CONTINUE;
 			}
 			else {

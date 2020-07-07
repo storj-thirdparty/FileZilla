@@ -10,6 +10,20 @@ Legend:
     *nix: Unix (e.g BSD) and Unix-like systems (e.g. Linux)
     macOS/OS X: Apple macOS
 
+3.48.1 (2020-05-18)
+
+- If FileZilla is configured to restore open tabs on startup, the directory trees no longer shrink in size
+
+3.48.1-rc1 (2020-05-12)
+
+
+! MSW: The settings directory is now initially created with tight permissions restricted to the user's account. Previously the directory could have had inherited too wide permissions if a custom location outside the user's profile directory had been preconfigured.
++ Redesigned certificate dialog
++ During directory comparison and comparative search, Ctrl+Shift+A can now be used to select only the highlighted files
+- Fixed import of settings
+- Fixed local file editing if the option to track local file changes had been disabled
+- Fixes to storing associations
+
 3.48.0 (2020-04-27)
 
 ! Custom associations for file extensions containing spaces were not saved correctly

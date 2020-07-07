@@ -2228,6 +2228,7 @@ void CMainFrame::RememberSplitterPositions()
 		return;
 	}
 
+	auto const positions = controls->GetSplitterPositions();
 	std::wstring const posString = fz::sprintf(
 		L"%d %d %d %d %d %d",
 		// top_pos
@@ -2238,13 +2239,13 @@ void CMainFrame::RememberSplitterPositions()
 
 		// view_pos
 		// Note that we cannot use %f, it is locale-dependent
-		static_cast<int>(controls->pViewSplitter->GetRelativeSashPosition() * 1000000000),
+		static_cast<int>(std::get<0>(positions) * 1000000000),
 
 		// local_pos
-		controls->pLocalSplitter->GetSashPosition(),
+		std::get<1>(positions),
 
 		// remote_pos
-		controls->pRemoteSplitter->GetSashPosition(),
+		std::get<2>(positions),
 
 		// queuelog splitter
 		static_cast<int>(m_pQueueLogSplitter->GetRelativeSashPosition() * 1000000000)
@@ -2260,7 +2261,8 @@ bool CMainFrame::RestoreSplitterPositions()
 	}
 
 	// top_pos bottom_height view_pos view_height_width local_pos remote_pos
-	auto tokens = fz::strtok(COptions::Get()->GetOption(OPTION_MAINWINDOW_SPLITTER_POSITION), L" ");
+	std::wstring const positions = COptions::Get()->GetOption(OPTION_MAINWINDOW_SPLITTER_POSITION);
+	auto tokens = fz::strtok_view(positions, L" ");
 	if (tokens.size() < 6) {
 		return false;
 	}
@@ -2273,25 +2275,26 @@ bool CMainFrame::RestoreSplitterPositions()
 		}
 	}
 
-	m_pTopSplitter->SetSashPosition(values[0]);
-
-	m_pBottomSplitter->SetSashPosition(values[1]);
-
-	CContextControl::_context_controls* controls = m_pContextControl ? m_pContextControl->GetCurrentControls() : 0;
-	if (!controls) {
-		return false;
+	if (m_pTopSplitter) {
+		m_pTopSplitter->SetSashPosition(values[0]);
+	}
+	if (m_pBottomSplitter) {
+		m_pBottomSplitter->SetSashPosition(values[1]);
 	}
 
-	double pos = static_cast<double>(values[2]) / 1000000000;
-	if (pos >= 0 && pos <= 1) {
-		controls->pViewSplitter->SetRelativeSashPosition(pos);
+	if (m_pContextControl) {
+		double pos = static_cast<double>(values[2]) / 1000000000;
+		for (int i = 0; i < m_pContextControl->GetTabCount(); ++i) {
+			auto controls = m_pContextControl->GetControlsFromTabIndex(i);
+			if (!controls) {
+				continue;
+			}
+			controls->SetSplitterPositions(std::make_tuple(pos, values[3], values[4]));
+		}
 	}
 
-	controls->pLocalSplitter->SetSashPosition(values[3]);
-	controls->pRemoteSplitter->SetSashPosition(values[4]);
-
-	pos = static_cast<double>(values[5]) / 1000000000;
-	if (pos >= 0 && pos <= 1) {
+	double pos = static_cast<double>(values[5]) / 1000000000;
+	if (pos >= 0 && pos <= 1 && m_pQueueLogSplitter) {
 		m_pQueueLogSplitter->SetRelativeSashPosition(pos);
 	}
 
@@ -2300,22 +2303,39 @@ bool CMainFrame::RestoreSplitterPositions()
 
 void CMainFrame::SetDefaultSplitterPositions()
 {
-	m_pTopSplitter->SetSashPosition(97);
+	if (m_pTopSplitter) {
+		m_pTopSplitter->SetSashPosition(97);
+	}
 
 	wxSize size = m_pBottomSplitter->GetClientSize();
 	int h = size.GetHeight() - 135;
 	if (h < 50) {
 		h = 50;
 	}
-	m_pBottomSplitter->SetSashPosition(h);
+	if (m_pBottomSplitter) {
+		m_pBottomSplitter->SetSashPosition(h);
+	}
 
-	m_pQueueLogSplitter->SetSashPosition(0);
+	if (m_pQueueLogSplitter) {
+		m_pQueueLogSplitter->SetSashPosition(0);
+	}
 
-	CContextControl::_context_controls* controls = m_pContextControl ? m_pContextControl->GetCurrentControls() : 0;
-	if (controls) {
-		controls->pViewSplitter->SetSashPosition(0);
-		controls->pLocalSplitter->SetRelativeSashPosition(0.4);
-		controls->pRemoteSplitter->SetRelativeSashPosition(0.4);
+	if (m_pContextControl) {
+		for (int i = 0; i < m_pContextControl->GetTabCount(); ++i) {
+			CContextControl::_context_controls* controls = m_pContextControl->GetControlsFromTabIndex(i);
+			if (!controls) {
+				continue;
+			}
+			if (controls->pViewSplitter) {
+				controls->pViewSplitter->SetRelativeSashPosition(0.5);
+			}
+			if (controls->pLocalSplitter) {
+				controls->pLocalSplitter->SetRelativeSashPosition(0.4);
+			}
+			if (controls->pRemoteSplitter) {
+				controls->pRemoteSplitter->SetRelativeSashPosition(0.4);
+			}
+		}
 	}
 }
 
@@ -2483,9 +2503,11 @@ void CMainFrame::OnDropdownComparisonMode(wxCommandEvent& event)
 	COptions::Get()->SetOption(OPTION_COMPARISONMODE, new_mode);
 
 	CComparisonManager* pComparisonManager = pState->GetComparisonManager();
-	if (old_mode != new_mode && pComparisonManager && pComparisonManager->IsComparing()) {
+	if (old_mode != new_mode && pComparisonManager) {
 		pComparisonManager->SetComparisonMode(new_mode);
-		pComparisonManager->CompareListings();
+		if (pComparisonManager->IsComparing()) {
+			pComparisonManager->CompareListings();
+		}
 	}
 }
 
@@ -2500,9 +2522,11 @@ void CMainFrame::OnDropdownComparisonHide(wxCommandEvent&)
 	COptions::Get()->SetOption(OPTION_COMPARE_HIDEIDENTICAL, old_mode ? 0 : 1);
 
 	CComparisonManager* pComparisonManager = pState->GetComparisonManager();
-	if (pComparisonManager && pComparisonManager->IsComparing()) {
+	if (pComparisonManager) {
 		pComparisonManager->SetHideIdentical(old_mode ? 0 : 1);
-		pComparisonManager->CompareListings();
+		if (pComparisonManager->IsComparing()) {
+			pComparisonManager->CompareListings();
+		}
 	}
 }
 
@@ -2771,7 +2795,7 @@ void CMainFrame::PostInitialize()
 
 	if (m_pContextControl && startupReconnect) {
 		auto xml = COptions::Get()->GetOptionXml(OPTION_TAB_DATA);
-		pugi::xml_node tabs = xml ? xml->child("Tabs") : pugi::xml_node();
+		pugi::xml_node tabs = xml.child("Tabs");
 		int i = 0;
 		for (auto tab = tabs.child("Tab"); tab; tab = tab.next_sibling("Tab")) {
 			if (tab.attribute("connected").as_int()) {

@@ -7,6 +7,8 @@
 #include <option_change_event_handler.h>
 #include "sizeformatting.h"
 
+#include <libfilezilla/local_filesys.hpp>
+
 #include <algorithm>
 #include <string>
 
@@ -166,7 +168,7 @@ static const t_Option options[OPTIONS_NUM] =
 	{ "Show queue", number, L"1", normal },
 	{ "Default editor", string, L"", platform },
 	{ "Always use default editor", number, L"0", normal },
-	{ "File associations", string, L"", platform },
+	{ "File associations (v2)", string, L"", platform },
 	{ "Comparison mode", number, L"1", normal },
 	{ "Comparison threshold", number, L"1", normal },
 	{ "Site Manager position", string, L"", normal },
@@ -255,13 +257,19 @@ t_OptionsCache& t_OptionsCache::operator=(int v)
 	return *this;
 }
 
-t_OptionsCache& t_OptionsCache::operator=(std::unique_ptr<pugi::xml_document> const& v)
+t_OptionsCache& t_OptionsCache::operator=(pugi::xml_document const& v)
 {
-	xmlValue = std::make_unique<pugi::xml_document>();
-	for (auto c = v->first_child(); c; c = c.next_sibling()) {
-		xmlValue->append_copy(c);
+	xmlValue.reset();
+	for (auto c = v.first_child(); c; c = c.next_sibling()) {
+		xmlValue.append_copy(c);
 	}
 
+	return *this;
+}
+
+t_OptionsCache& t_OptionsCache::operator=(pugi::xml_document && v)
+{
+	xmlValue = std::move(v);
 	return *this;
 }
 
@@ -290,6 +298,8 @@ COptions::COptions()
 	}
 
 	LoadOptions(nameOptionMap);
+
+	changedOptions_.reset();
 }
 
 std::map<std::string, unsigned int> COptions::GetNameOptionMap() const
@@ -328,18 +338,17 @@ std::wstring COptions::GetOption(unsigned int nID)
 	return m_optionsCache[nID].strValue;
 }
 
-std::unique_ptr<pugi::xml_document> COptions::GetOptionXml(unsigned int nID)
+pugi::xml_document COptions::GetOptionXml(unsigned int nID)
 {
-	if (nID >= OPTIONS_NUM) {
-		return nullptr;
+	pugi::xml_document ret;
+	if (nID < OPTIONS_NUM) {
+		fz::scoped_lock l(m_sync_);
+		for (auto c = m_optionsCache[nID].xmlValue.first_child(); c; c = c.next_sibling()) {
+			ret.append_copy(c);
+		}
 	}
 
-	auto value = std::make_unique<pugi::xml_document>();
-	for (auto c = m_optionsCache[nID].xmlValue->first_child(); c; c = c.next_sibling()) {
-		value->append_copy(c);
-	}
-
-	return value;
+	return ret;
 }
 
 bool COptions::SetOption(unsigned int nID, int value)
@@ -380,17 +389,17 @@ bool COptions::SetOptionXml(unsigned int nID, pugi::xml_node const& value)
 		return false;
 	}
 
-	auto doc = std::make_unique<pugi::xml_document>();
+	pugi::xml_document doc;
 	if (value) {
 		if (value.type() == pugi::node_document) {
 			for (auto c = value.first_child(); c; c = c.next_sibling()) {
 				if (c.type() == pugi::node_element) {
-					doc->append_copy(c);
+					doc.append_copy(c);
 				}
 			}
 		}
 		else {
-			doc->append_copy(value);
+			doc.append_copy(value);
 		}
 	}
 
@@ -411,6 +420,11 @@ void COptions::ContinueSetOption(unsigned int nID, T const& value)
 			return;
 		}
 		m_optionsCache[nID] = validated;
+
+		if (changedOptions_.none()) {
+			CallAfter(&COptions::NotifyChangedOptions);
+		}
+		changedOptions_.set(nID);
 	}
 
 	// Fixme: Setting options from other threads
@@ -418,25 +432,31 @@ void COptions::ContinueSetOption(unsigned int nID, T const& value)
 		return;
 	}
 
+	if (!xmlFile_) {
+		return;
+	}
+	auto settings = CreateSettingsXmlElement();
+	if (!settings) {
+		return;
+	}
+
 	if (!(options[nID].flags & (internal | default_only))) {
-		SetXmlValue(nID, validated);
+		SetXmlValue(nID, settings, validated);
 
 		if (!m_save_timer.IsRunning()) {
 			m_save_timer.Start(15000, true);
 		}
 	}
-
-	if (changedOptions_.none()) {
-		CallAfter(&COptions::NotifyChangedOptions);
-	}
-	changedOptions_.set(nID);
 }
 
 void COptions::NotifyChangedOptions()
 {
 	// Reset prior to notifying to correctly handle the case of an option being set while notifying
-	auto changedOptions = changedOptions_;
-	changedOptions_.reset();
+	changed_options_t changedOptions;
+	{
+		fz::scoped_lock l(m_sync_);
+		std::swap(changedOptions, changedOptions_);
+	}
 	COptionChangeEventHandler::DoNotify(changedOptions);
 }
 
@@ -467,115 +487,93 @@ pugi::xml_node COptions::CreateSettingsXmlElement()
 	}
 
 	settings = element.append_child("Settings");
-	for (int i = 0; i < OPTIONS_NUM; ++i) {
-		if (options[i].type == string) {
-			SetXmlValue(i, GetOption(i));
-		}
-		else if (options[i].type == xml) {
-			SetXmlValue(i, GetOptionXml(i));
-		}
-		else {
-			SetXmlValue(i, GetOptionVal(i));
-		}
-	}
+
+	WriteCacheToXml(settings);
 
 	return settings;
 }
 
-void COptions::SetXmlValue(unsigned int nID, int value)
+void COptions::WriteCacheToXml(pugi::xml_node settings)
 {
-	SetXmlValue(nID, fz::to_wstring(value));
+	fz::scoped_lock l(m_sync_);
+	for (int i = 0; i < OPTIONS_NUM; ++i) {
+		if ((options[i].flags & (internal | default_only))) {
+			continue;
+		}
+		if (options[i].type == string) {
+			SetXmlValue(i, settings, m_optionsCache[i].strValue);
+		}
+		else if (options[i].type == xml) {
+			SetXmlValue(i, settings, m_optionsCache[i].xmlValue);
+		}
+		else {
+			SetXmlValue(i, settings, m_optionsCache[i].numValue);
+		}
+	}
 }
 
-void COptions::SetXmlValue(unsigned int nID, std::wstring_view const& value)
+void COptions::SetXmlValue(unsigned int nID, pugi::xml_node settings, int value)
 {
-	if (!xmlFile_) {
-		return;
-	}
+	SetXmlValue(nID, settings, fz::to_wstring(value));
+}
 
+void COptions::SetXmlValue(unsigned int nID, pugi::xml_node settings, std::wstring_view const& value)
+{
 	// No checks are made about the validity of the value, that's done in SetOption
 	std::string utf8 = fz::to_utf8(value);
 
-	auto settings = CreateSettingsXmlElement();
-	if (settings) {
-		pugi::xml_node setting;
-		for (pugi::xml_node it = settings.child("Setting"); it;) {
-			auto cur = it;
-			it = it.next_sibling("Setting");
+	for (pugi::xml_node it = settings.child("Setting"); it;) {
+		auto cur = it;
+		it = it.next_sibling("Setting");
 
-			char const *attribute = cur.attribute("name").value();
-			if (strcmp(attribute, options[nID].name)) {
+		char const *attribute = cur.attribute("name").value();
+		if (strcmp(attribute, options[nID].name)) {
+			continue;
+		}
+
+		if (options[nID].flags & platform) {
+			// Ignore items from the wrong platform
+			char const* p = cur.attribute("platform").value();
+			if (*p && strcmp(p, platform_name)) {
 				continue;
 			}
-
-			if (options[nID].flags & platform) {
-				// Ignore items from the wrong platform
-				char const* p = cur.attribute("platform").value();
-				if (*p && strcmp(p, platform_name)) {
-					continue;
-				}
-			}
-
-			if (setting) {
-				// Remove duplicates
-				settings.remove_child(cur);
-			}
-			else {
-				setting = cur;
-			}
-			break;
 		}
-		if (!setting) {
-			setting = settings.append_child("Setting");
-			SetTextAttribute(setting, "name", options[nID].name);
-		}
-		if (options[nID].flags & platform) {
-			SetTextAttribute(setting, "platform", platform_name);
-		}
-		setting.text() = utf8.c_str();
+		settings.remove_child(cur);
 	}
+	pugi::xml_node setting = settings.append_child("Setting");
+	SetTextAttribute(setting, "name", options[nID].name);
+	if (options[nID].flags & platform) {
+		SetTextAttribute(setting, "platform", platform_name);
+	}
+	setting.text() = utf8.c_str();
 }
 
-void COptions::SetXmlValue(unsigned int nID, std::unique_ptr<pugi::xml_document> const& value)
+void COptions::SetXmlValue(unsigned int nID, pugi::xml_node settings, pugi::xml_document const& value)
 {
-	if (!xmlFile_) {
-		return;
-	}
+	for (pugi::xml_node it = settings.child("Setting"); it;) {
+		auto cur = it;
+		it = it.next_sibling("Setting");
 
-	auto settings = CreateSettingsXmlElement();
-	if (settings) {
-		pugi::xml_node setting;
-		for (pugi::xml_node it = settings.child("Setting"); it;) {
-			auto cur = it;
-			it = it.next_sibling("Setting");
-
-			const char *attribute = cur.attribute("name").value();
-			if (strcmp(attribute, options[nID].name)) {
+		const char *attribute = cur.attribute("name").value();
+		if (strcmp(attribute, options[nID].name)) {
+			continue;
+		}
+		if (options[nID].flags & platform) {
+			// Ignore items from the wrong platform
+			char const* p = cur.attribute("platform").value();
+			if (*p && strcmp(p, platform_name)) {
 				continue;
 			}
-			if (options[nID].flags & platform) {
-				// Ignore items from the wrong platform
-				char const* p = cur.attribute("platform").value();
-				if (*p && strcmp(p, platform_name)) {
-					continue;
-				}
-			}
-			break;
 		}
-		if (setting) {
-			settings.remove_child(setting);
-		}
-		if (value && value->first_child()) {
-			setting = settings.append_child("Setting");
-			SetTextAttribute(setting, "name", options[nID].name);
-			if (options[nID].flags & platform) {
-				SetTextAttribute(setting, "platform", platform_name);
-			}
-
-			for (auto c = value->first_child(); c; c = c.next_sibling()) {
-				setting.append_copy(c);
-			}
-		}
+		settings.remove_child(cur);
+	}
+	pugi::xml_node setting = settings.append_child("Setting");
+	SetTextAttribute(setting, "name", options[nID].name);
+	if (options[nID].flags & platform) {
+		SetTextAttribute(setting, "platform", platform_name);
+	}
+	for (auto c = value.first_child(); c; c = c.next_sibling()) {
+		setting.append_copy(c);
 	}
 }
 
@@ -710,12 +708,12 @@ std::wstring COptions::Validate(unsigned int nID, std::wstring_view const& value
 	return std::wstring(value);
 }
 
-std::unique_ptr<pugi::xml_document> COptions::Validate(unsigned int, std::unique_ptr<pugi::xml_document> const& value)
+pugi::xml_document COptions::Validate(unsigned int, pugi::xml_document const& value)
 {
-	auto res = std::make_unique<pugi::xml_document>();
-	for (auto c = value->first_child(); c; c = c.next_sibling()) {
+	pugi::xml_document res;
+	for (auto c = value.first_child(); c; c = c.next_sibling()) {
 		if (c.type() == pugi::node_element) {
-			res->append_copy(c);
+			res.append_copy(c);
 		}
 	}
 
@@ -746,23 +744,36 @@ COptions* COptions::Get()
 
 void COptions::Import(pugi::xml_node element)
 {
+	bool canNotifyChanged{};
+	{
+		fz::scoped_lock l(m_sync_);
+		canNotifyChanged = changedOptions_.none();
+	}
 	LoadOptions(GetNameOptionMap(), element);
+
 	if (!m_save_timer.IsRunning()) {
 		m_save_timer.Start(15000, true);
 	}
-}
 
-void COptions::LoadOptions(std::map<std::string, unsigned int> const& nameOptionMap, pugi::xml_node settings)
-{
-	if (!settings) {
-		settings = CreateSettingsXmlElement();
-		if (!settings) {
-			return;
+	{
+		fz::scoped_lock l(m_sync_);
+		if (canNotifyChanged && changedOptions_.any()) {
+			CallAfter(&COptions::NotifyChangedOptions);
 		}
 	}
+}
 
-	for (auto setting = settings.child("Setting"); setting; setting = setting.next_sibling("Setting")) {
+void COptions::LoadOptions(std::map<std::string, unsigned int> const& nameOptionMap, pugi::xml_node import)
+{
+	pugi::xml_node settings = CreateSettingsXmlElement();
+
+	pugi::xml_node first = import ? import.child("Setting") : settings.child("Setting");
+	for (auto setting = first; setting; setting = setting.next_sibling("Setting")) {
 		LoadOptionFromElement(setting, nameOptionMap, false);
+	}
+
+	if (import) {
+		WriteCacheToXml(settings);
 	}
 }
 
@@ -804,21 +815,26 @@ void COptions::LoadOptionFromElement(pugi::xml_node option, std::map<std::string
 			int numValue = fz::to_integral<int>(value);
 			numValue = Validate(iter->second, numValue);
 			fz::scoped_lock l(m_sync_);
-			m_optionsCache[iter->second] = numValue;
+			if (m_optionsCache[iter->second].numValue != numValue) {
+				m_optionsCache[iter->second] = numValue;
+				changedOptions_.set(iter->second);
+			}
 		}
 		else if (options[iter->second].type == string) {
 			value = Validate(iter->second, value);
 			fz::scoped_lock l(m_sync_);
-			m_optionsCache[iter->second] = value;
+			if (m_optionsCache[iter->second].strValue != value) {
+				m_optionsCache[iter->second] = value;
+				changedOptions_.set(iter->second);
+			}
 		}
 		else {
 			fz::scoped_lock l(m_sync_);
-			if (!option.first_child().empty()) {
-				m_optionsCache[iter->second].xmlValue = std::make_unique<pugi::xml_document>();
-				for (auto c = option.first_child(); c; c = c.next_sibling()) {
-					m_optionsCache[iter->second].xmlValue->append_copy(c);
-				}
+			m_optionsCache[iter->second].xmlValue.reset();
+			for (auto c = option.first_child(); c; c = c.next_sibling()) {
+				m_optionsCache[iter->second].xmlValue.append_copy(c);
 			}
+			changedOptions_.set(iter->second);
 		}
 	}
 }
@@ -1052,7 +1068,7 @@ CLocalPath COptions::InitSettingsDir()
 	}
 
 	if (!p.empty() && !p.Exists()) {
-		wxFileName::Mkdir(p.GetPath(), 0700, wxPATH_MKDIR_FULL);
+		fz::mkdir(fz::to_native(p.GetPath()), true, true);
 	}
 
 	SetOption(OPTION_DEFAULT_SETTINGSDIR, p.GetPath());
@@ -1066,8 +1082,8 @@ void COptions::SetDefaultValues()
 	for (int i = 0; i < OPTIONS_NUM; ++i) {
 		m_optionsCache[i].from_default = false;
 		if (options[i].type == xml) {
-			m_optionsCache[i].xmlValue = std::make_unique<pugi::xml_document>();
-			m_optionsCache[i].xmlValue->load_string(fz::to_string(options[i].defaultValue).c_str());
+			m_optionsCache[i].xmlValue.reset();
+			m_optionsCache[i].xmlValue.load_string(fz::to_string(options[i].defaultValue).c_str());
 		}
 		else {
 			m_optionsCache[i] = options[i].defaultValue;

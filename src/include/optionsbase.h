@@ -97,7 +97,7 @@ public:
 	virtual ~COptionsBase() noexcept = default;
 	virtual int GetOptionVal(unsigned int nID) = 0;
 	virtual std::wstring GetOption(unsigned int nID) = 0;
-	virtual std::unique_ptr<pugi::xml_document> GetOptionXml(unsigned int nID) = 0;
+	virtual pugi::xml_document GetOptionXml(unsigned int nID) = 0;
 
 	virtual bool SetOption(unsigned int nID, int value) = 0;
 	virtual bool SetOption(unsigned int nID, std::wstring_view const& value) = 0;

@@ -13,11 +13,11 @@ public:
 
 	enum t_fileEntryFlags
 	{
-		normal,
-		fill,
-		different,
-		newer,
-		lonely
+		normal = 1,
+		fill = 2,
+		different = 4,
+		newer = 8,
+		lonely = 16
 	};
 
 	virtual bool CanStartComparison() = 0;

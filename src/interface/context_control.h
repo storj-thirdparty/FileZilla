@@ -46,6 +46,8 @@ public:
 		CState* pState{};
 
 		void SwitchFocusedSide();
+		std::tuple<double, int, int> GetSplitterPositions();
+		void SetSplitterPositions(std::tuple<double, int, int> const& positions);
 	};
 
 	CContextControl(CMainFrame& mainFrame);

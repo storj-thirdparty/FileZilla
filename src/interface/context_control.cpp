@@ -143,10 +143,6 @@ bool CContextControl::CreateTab(CLocalPath const& localPath, Site const& site, C
 		CContextManager::Get()->SetCurrentContext(pState);
 	}
 
-	if (!m_mainFrame.RestoreSplitterPositions()) {
-		m_mainFrame.SetDefaultSplitterPositions();
-	}
-
 	if (m_tabs) {
 		m_tabs->SetSelection(m_tabs->GetPageCount() - 1);
 	}
@@ -166,7 +162,14 @@ void CContextControl::CreateContextControls(CState& state)
 	const wxPoint initial_position(wxDefaultPosition);
 #endif
 
+	std::tuple<double, int, int> splitterPositions;
+
 	if (!m_context_controls.empty()) {
+
+		splitterPositions = m_context_controls[m_current_context_controls].GetSplitterPositions();
+		m_context_controls[m_current_context_controls].pLocalListView->SaveColumnSettings(OPTION_LOCALFILELIST_COLUMN_WIDTHS, OPTION_LOCALFILELIST_COLUMN_SHOWN, OPTION_LOCALFILELIST_COLUMN_ORDER);
+		m_context_controls[m_current_context_controls].pRemoteListView->SaveColumnSettings(OPTION_REMOTEFILELIST_COLUMN_WIDTHS, OPTION_REMOTEFILELIST_COLUMN_SHOWN, OPTION_REMOTEFILELIST_COLUMN_ORDER);
+		
 		if (!m_tabs) {
 			m_tabs = new wxAuiNotebookEx();
 
@@ -193,10 +196,6 @@ void CContextControl::CreateContextControls(CState& state)
 			m_tabs->SetSelection(0);
 #endif
 		}
-
-		m_mainFrame.RememberSplitterPositions();
-		m_context_controls[m_current_context_controls].pLocalListView->SaveColumnSettings(OPTION_LOCALFILELIST_COLUMN_WIDTHS, OPTION_LOCALFILELIST_COLUMN_SHOWN, OPTION_LOCALFILELIST_COLUMN_ORDER);
-		m_context_controls[m_current_context_controls].pRemoteListView->SaveColumnSettings(OPTION_REMOTEFILELIST_COLUMN_WIDTHS, OPTION_REMOTEFILELIST_COLUMN_SHOWN, OPTION_REMOTEFILELIST_COLUMN_ORDER);
 
 		parent = m_tabs;
 	}
@@ -328,6 +327,15 @@ void CContextControl::CreateContextControls(CState& state)
 		else {
 			context_controls.pLocalSplitter->SetSashGravity(1.0);
 		}
+	}
+
+	if (!m_context_controls.empty()) {
+		context_controls.SetSplitterPositions(splitterPositions);
+	}
+	else {
+		context_controls.pViewSplitter->SetRelativeSashPosition(0.5);
+		context_controls.pLocalSplitter->SetRelativeSashPosition(0.4);
+		context_controls.pLocalSplitter->SetRelativeSashPosition(0.4);
 	}
 
 	m_mainFrame.ConnectNavigationHandler(context_controls.pLocalListView);
@@ -700,7 +708,7 @@ void CContextControl::RestoreTabs()
 		selectedOnly = true;
 	}
 
-	pugi::xml_node tabs = xml ? xml->child("Tabs") : pugi::xml_node();
+	pugi::xml_node tabs = xml.child("Tabs");
 	if (tabs) {
 		for (auto tab = tabs.child("Tab"); tab; tab = tab.next_sibling("Tab")) {
 
@@ -771,5 +779,33 @@ void CContextControl::_context_controls::SwitchFocusedSide()
 			}
 		}
 		focus = focus->GetParent();
+	}
+}
+
+std::tuple<double, int, int> CContextControl::_context_controls::GetSplitterPositions()
+{
+	std::tuple<double, int, int> ret;
+
+	std::get<0>(ret) = pViewSplitter ? pViewSplitter->GetRelativeSashPosition() : 0.5f;
+	std::get<1>(ret) = pLocalSplitter ? pLocalSplitter->GetSashPosition() : 135;
+	std::get<2>(ret) = pRemoteSplitter ? pRemoteSplitter->GetSashPosition() : 135;
+
+	return ret;
+}
+
+void CContextControl::_context_controls::SetSplitterPositions(std::tuple<double, int, int> const& positions)
+{
+	if (pViewSplitter) {
+		double pos = std::get<0>(positions);
+		if (pos < 0 || pos > 1) {
+			pos = 0.5;
+		}
+		pViewSplitter->SetRelativeSashPosition(pos);
+	}
+	if (pLocalSplitter) {
+		pLocalSplitter->SetSashPosition(std::get<1>(positions));
+	}
+	if (pRemoteSplitter) {
+		pRemoteSplitter->SetSashPosition(std::get<2>(positions));
 	}
 }
