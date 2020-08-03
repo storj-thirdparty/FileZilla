@@ -49,9 +49,8 @@
     - Generate the C binding with GPL v2 License:
         ```
         $ ./check-licenses.sh
-        $ go build -modfile=go-gpl2.mod -ldflags="-s -w" -buildmode c-archive -tags stdsha256 -o libuplinkc.a .
+        $ go build -modfile=go-gpl2.mod -ldflags="-s -w" -buildmode c-archive -tags stdsha256 -o ~/src/filezilla/src/storj/libuplinkc.a . && cp uplink_definitions.h ~/src/filezilla/src/storj/
         ```
-    - Copy the generated libuplinkc.h, libuplinkc.a, and uplink_definitions.h files to the filezilla/src/storj/ folder in MSYS2
 * Build FileZilla from source with Storj feature enable:
 	```
     $ cd ~/filezilla
@@ -158,9 +157,8 @@
     - Generate the C binding with GPL v2 License:
         ```
         $ ./check-licenses.sh
-        $ go build -modfile=go-gpl2.mod -ldflags="-s -w" -buildmode c-archive -tags stdsha256 -o libuplinkc.a .
+		$ go build -modfile=go-gpl2.mod -ldflags="-s -w" -buildmode c-archive -tags stdsha256 -o ~/src/filezilla/src/storj/libuplinkc.a . && cp uplink_definitions.h ~/src/filezilla/src/storj/
         ```
-    - Copy the generated libuplinkc.h, libuplinkc.a, and uplink_definitions.h files to the filezilla/src/storj/ folder
 * Build FileZilla from source with Storj feature enable:
     ```
     $ cd ~/src/filezilla
@@ -320,10 +318,9 @@
     - Generate the C binding with GPL v2 License:
         ```
         $ ./check-licenses.sh
-        $ go build -modfile=go-gpl2.mod -ldflags="-s -w" -buildmode c-archive -tags stdsha256 -o libuplinkc.a .
+        $ go build -modfile=go-gpl2.mod -ldflags="-s -w" -buildmode c-archive -tags stdsha256 -o ~/filezilla/src/storj/libuplinkc.a . && cp uplink_definitions.h ~/filezilla/src/storj/
         ```
-    - Copy the generated libuplinkc.h, libuplinkc.a, and uplink_definitions.h files to the filezilla/src/storj/ folder
- 
+	
 * Build FileZilla from source with Storj feature enable:
 	```
 	$ cd ~/filezilla
@@ -484,9 +481,8 @@
     - Generate the C binding with GPL v2 License:
         ```
         $ ./check-licenses.sh
-        $ GOOS="windows" GOARCH="amd64" CGO_ENABLED="1" CXX="x86_64-w64-mingw32-g++" CC="x86_64-w64-mingw32-gcc" go build -modfile=go-gpl2.mod -ldflags="-s -w" -buildmode c-archive -tags stdsha256 -o libuplinkc.a .
+        $ GOOS="windows" GOARCH="amd64" CGO_ENABLED="1" CXX="x86_64-w64-mingw32-g++" CC="x86_64-w64-mingw32-gcc" go build -modfile=go-gpl2.mod -ldflags="-s -w" -buildmode c-archive -tags stdsha256 -o ~/src/filezilla/src/storj/libuplinkc.a . && cp uplink_definitions.h ~/src/filezilla/src/storj/
         ```
-    - Copy the generated libuplinkc.h, libuplinkc.a, and uplink_definitions.h files to the filezilla/src/storj/ folder
 
 * Build FileZilla from source with Storj feature enable:
 	```
