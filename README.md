@@ -49,7 +49,7 @@
     - Generate the C binding with GPL v2 License:
         ```
         $ ./check-licenses.sh
-        $ go build -modfile=go-gpl2.mod -ldflags="-s -w" -buildmode c-archive -tags stdsha256 -o ~/src/filezilla/src/storj/libuplinkc.a . && cp uplink_definitions.h ~/src/filezilla/src/storj/
+        $ go build -modfile=go-gpl2.mod -ldflags="-s -w" -buildmode c-archive -tags stdsha256 -o ~/filezilla/src/storj/libuplinkc.a . && cp uplink_definitions.h ~/filezilla/src/storj/
         ```
 * Build FileZilla from source with Storj feature enable:
 	```
