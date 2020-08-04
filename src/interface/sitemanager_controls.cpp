@@ -104,7 +104,7 @@ GeneralSiteControls::GeneralSiteControls(wxWindow & parent, DialogLayout const& 
 	brow->Add(new wxChoice(&parent, XRCID("ID_ENCRYPTION")), 1);
 	brow->Add(new wxHyperlinkCtrl(&parent, XRCID("ID_DOCS"), _("Docs"), L"https://github.com/storj/storj/wiki/Vanguard-Release-Setup-Instructions"), lay.valign)->Show(false);
 	brow->AddSpacer(5);
-	brow->Add(new wxHyperlinkCtrl(&parent, XRCID("ID_SIGNUP"), _("Signup"), L"https://tardigrade.io/satellites/"), lay.valign)->Show(false);
+	brow->Add(new wxHyperlinkCtrl(&parent, XRCID("ID_SIGNUP"), _("Signup"), L"https://tardigrade.io/signup/?partner=filezilla"), lay.valign)->Show(false);
 	brow->AddSpacer(0);	
 	
 	lay.gbNewRow(bag);
