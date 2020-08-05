@@ -101,13 +101,13 @@ std::string next_argument(std::string & line)
 namespace {
 #define DEBUG_MODE false
 
-extern "C" void fv_listBuckets(Project *project)
+extern "C" void fv_listBuckets(Uplink_Project *project)
 {
-	BucketIterator *it = list_buckets(project, NULL);
+	Uplink_BucketIterator *it = uplink_list_buckets(project, NULL);
 
 	int count = 0;
-	while (bucket_iterator_next(it)) {
-		Bucket *bucket = bucket_iterator_item(it);
+	while (uplink_bucket_iterator_next(it)) {
+		Uplink_Bucket *bucket = uplink_bucket_iterator_item(it);
 		std::string id = bucket->name;
 		std::string name = bucket->name;
 		char lc_a1_dateTime[64];
@@ -121,38 +121,38 @@ extern "C" void fv_listBuckets(Project *project)
 		fz::replace_substrings(id, "\n", "");
 		auto perms = "id:" + id;
 		fzprintf(storjEvent::Listentry, "%s\n-1\n%s\n%s", name, perms, lc_a1_dateTime);
-		free_bucket(bucket);
+		uplink_free_bucket(bucket);
 		count++;
 	}
-	Error *err = bucket_iterator_err(it);
+	Uplink_Error *err = uplink_bucket_iterator_err(it);
 	if (err) {
 		fzprintf(storjEvent::Error, "bucket listing failed: %s", err->message);
-		free_error(err);
-		free_bucket_iterator(it);
+		uplink_free_error(err);
+		uplink_free_bucket_iterator(it);
 		return;
 	}	
 		
-	free_bucket_iterator(it);
+	uplink_free_bucket_iterator(it);
 }
 
-extern "C" void fv_listObjects(Project *project, std::string bucket, std::string prefix)
+extern "C" void fv_listObjects(Uplink_Project *project, std::string bucket, std::string prefix)
 {			
 	if(!(prefix.empty()))
 		prefix = prefix + "/";
 	
-	ListObjectsOptions options = {
-		prefix : const_cast<char*>(prefix.c_str()),
-		cursor : "",
-		recursive: false, 
-		system : true,
-		custom : true,
+	Uplink_ListObjectsOptions options = {
+		.prefix = const_cast<char*>(prefix.c_str()),
+		.cursor = "",
+		.recursive = false, 
+		.system = true,
+		.custom = true,
 	};
 
-	ObjectIterator *it = list_objects(project, const_cast<char*>(bucket.c_str()), &options);
+	Uplink_ObjectIterator *it = uplink_list_objects(project, const_cast<char*>(bucket.c_str()), &options);
 
 	int count = 0;
-	while (object_iterator_next(it)) {
-		Object *object = object_iterator_item(it);
+	while (uplink_object_iterator_next(it)) {
+		Uplink_Object *object = uplink_object_iterator_item(it);
 		
 		char lc_a1_dateTime[64];
 		if (object->system.created != 0) {
@@ -175,26 +175,26 @@ extern "C" void fv_listObjects(Project *project, std::string bucket, std::string
 			fzprintf(storjEvent::Listentry, "%s\n%d\nid:%s%s\n%s", objectName, object->system.content_length, prefix, objectName, lc_a1_dateTime);
 		}
 				
-		free_object(object);
+		uplink_free_object(object);
 		count++;
 	}
 			
-	Error *err = object_iterator_err(it);
+	Uplink_Error *err = uplink_object_iterator_err(it);
 	if (err) {
 		fzprintf(storjEvent::Error, "object listing failed: %s", err->message);
-		free_error(err);
-		free_object_iterator(it);
+		uplink_free_error(err);
+		uplink_free_object_iterator(it);
 		return;
 	}
-	free_object_iterator(it);
+	uplink_free_object_iterator(it);
 }
 
-extern "C" void fv_downloadObject(Project *project, std::string bucket, std::string id, std::string file)
+extern "C" void fv_downloadObject(Uplink_Project *project, std::string bucket, std::string id, std::string file)
 {
-	DownloadResult download_result = download_object(project, const_cast<char*>(bucket.c_str()), const_cast<char*>(id.c_str()), NULL);
+	Uplink_DownloadResult download_result = uplink_download_object(project, const_cast<char*>(bucket.c_str()), const_cast<char*>(id.c_str()), NULL);
     if (download_result.error) {
         fzprintf(storjEvent::Error, "download starting failed: %s", download_result.error->message);
-        free_download_result(download_result);
+        uplink_free_download_result(download_result);
         return;
     }
 
@@ -202,12 +202,12 @@ extern "C" void fv_downloadObject(Project *project, std::string bucket, std::str
     char *buffer = static_cast<char*>(malloc(buffer_size));
 	std::ofstream outfile (file, std::ofstream::binary);
 
-    Download *download = download_result.download;
+    Uplink_Download *download = download_result.download;
 	
 	size_t downloaded_total = 0;
     
     while (true) {
-        ReadResult result = download_read(download, buffer, buffer_size);
+        Uplink_ReadResult result = uplink_download_read(download, buffer, buffer_size);
         downloaded_total += result.bytes_read;
 		
 		outfile.write(buffer, result.bytes_read);
@@ -216,26 +216,26 @@ extern "C" void fv_downloadObject(Project *project, std::string bucket, std::str
 
         if (result.error) {
             if (result.error->code == EOF) {
-                free_read_result(result);
+                uplink_free_read_result(result);
                 break;
             }
             fzprintf(storjEvent::Error, "download failed to read: %s", result.error->message);
-            free_read_result(result);
+            uplink_free_read_result(result);
             return;
         }
-        free_read_result(result);
+        uplink_free_read_result(result);
     }
 
-    Error *close_error = close_download(download);
+    Uplink_Error *close_error = uplink_close_download(download);
     if (close_error) {
         fzprintf(storjEvent::Error, "download failed to close: %s", close_error->message);
-        free_error(close_error);
+        uplink_free_error(close_error);
     }
 
-    free_download_result(download_result);
+    uplink_free_download_result(download_result);
 }
 
-extern "C" void fv_uploadObject(Project *project, std::string bucket, std::string prefix, std::string file, std::string objectName)
+extern "C" void fv_uploadObject(Uplink_Project *project, std::string bucket, std::string prefix, std::string file, std::string objectName)
 {
 	std::string object_key = bucket;
 	if(prefix != "")
@@ -251,66 +251,66 @@ extern "C" void fv_uploadObject(Project *project, std::string bucket, std::strin
 	size_t buffer_size = 32768;
     char *buffer = static_cast<char*>(malloc(buffer_size));
     
-    UploadResult upload_result = upload_object(project, const_cast<char*>(object_key.c_str()), const_cast<char*>(objectName.c_str()), NULL);
+    Uplink_UploadResult upload_result = uplink_upload_object(project, const_cast<char*>(object_key.c_str()), const_cast<char*>(objectName.c_str()), NULL);
     
 	require_noerror(upload_result.error);
     require(upload_result.upload->_handle != 0);
 
-    Upload *upload = upload_result.upload;
+    Uplink_Upload *upload = upload_result.upload;
 
     size_t uploaded_total = 0;
 
 	while (uploaded_total < length) {
 		is.read (buffer, buffer_size);
-		WriteResult result = upload_write(upload, buffer, is.gcount());
+		Uplink_WriteResult result = uplink_upload_write(upload, buffer, is.gcount());
         uploaded_total += result.bytes_written;
         
 		fzprintf(storjEvent::Transfer, "%u", result.bytes_written);
 
 		require_noerror(result.error);
         require(result.bytes_written > 0);
-        free_write_result(result);
+        uplink_free_write_result(result);
     }
 
-    Error *commit_err = upload_commit(upload);
+    Uplink_Error *commit_err = uplink_upload_commit(upload);
     require_noerror(commit_err);
 
-    free_upload_result(upload_result);
+    uplink_free_upload_result(upload_result);
 }
 
-extern "C" void fv_deleteObject(Project *project, std::string bucketName, std::string objectKey)
+extern "C" void fv_deleteObject(Uplink_Project *project, std::string bucketName, std::string objectKey)
 {	
-	ObjectResult object_result = delete_object(project, const_cast<char*>(bucketName.c_str()), const_cast<char*>(objectKey.c_str()));
+	Uplink_ObjectResult object_result = uplink_delete_object(project, const_cast<char*>(bucketName.c_str()), const_cast<char*>(objectKey.c_str()));
 	require_noerror(object_result.error);
 	require(object_result.object != NULL);
 	
 	fzprintf(storjEvent::Status, "deleted object %s", objectKey);
-	free_object_result(object_result);
+	uplink_free_object_result(object_result);
 }
 
-extern "C" void fv_createBucket(Project *project, std::string bucketName)
+extern "C" void fv_createBucket(Uplink_Project *project, std::string bucketName)
 {
-	BucketResult bucket_result = ensure_bucket(project, const_cast<char*>(bucketName.c_str()));
+	Uplink_BucketResult bucket_result = uplink_ensure_bucket(project, const_cast<char*>(bucketName.c_str()));
 	if (bucket_result.error) {
 		fzprintf(storjEvent::Error, "failed to create bucket %s: %s", bucketName, bucket_result.error->message);
-		free_bucket_result(bucket_result);
+		uplink_free_bucket_result(bucket_result);
 		return;
 	}
    
-	Bucket *bucket = bucket_result.bucket;
+	Uplink_Bucket *bucket = bucket_result.bucket;
 	fzprintf(storjEvent::Status, "created bucket %s", bucket->name);
-	free_bucket_result(bucket_result);
+	uplink_free_bucket_result(bucket_result);
 }
 
-extern "C" void fv_deleteBucket(Project *project, std::string bucketName)
+extern "C" void fv_deleteBucket(Uplink_Project *project, std::string bucketName)
 {
-	BucketResult bucket_result = delete_bucket(project, const_cast<char*>(bucketName.c_str()));
+	Uplink_BucketResult bucket_result = uplink_delete_bucket(project, const_cast<char*>(bucketName.c_str()));
 	require_noerror(bucket_result.error);
 	require(bucket_result.bucket != NULL);
 			
-	Bucket *bucket = bucket_result.bucket;
+	Uplink_Bucket *bucket = bucket_result.bucket;
 	fzprintf(storjEvent::Status, "deleted bucket %s", bucket->name);
-	free_bucket_result(bucket_result);
+	uplink_free_bucket_result(bucket_result);
 }
 
 }
@@ -324,31 +324,31 @@ int main()
 	std::string ls_encryptionPassPhrase;
 	std::string ls_serializedAccessGrantKey;
 	
-	Config config = {
-        user_agent : "FileZilla",
+	Uplink_Config config = {
+        .user_agent = "FileZilla",
     };
 	
-	auto fv_openStorjProject = [&]() -> ProjectResult {
-		AccessResult access_result;
+	auto fv_openStorjProject = [&]() -> Uplink_ProjectResult {
+		Uplink_AccessResult access_result;
 		if(!(ls_apiKey.empty())) {
-			access_result = config_request_access_with_passphrase(config, const_cast<char*>(ls_satelliteURL.c_str()), const_cast<char*>(ls_apiKey.c_str()), const_cast<char*>(ls_encryptionPassPhrase.c_str()));
+			access_result = uplink_config_request_access_with_passphrase(config, const_cast<char*>(ls_satelliteURL.c_str()), const_cast<char*>(ls_apiKey.c_str()), const_cast<char*>(ls_encryptionPassPhrase.c_str()));
 			if (access_result.error) {
 				fzprintf(storjEvent::Error, "failed to parse access: %s", access_result.error->message);
-				free_access_result(access_result);
+				uplink_free_access_result(access_result);
 			}
 		}
 		else {
-			access_result = parse_access(const_cast<char*>(ls_serializedAccessGrantKey.c_str()));
+			access_result = uplink_parse_access(const_cast<char*>(ls_serializedAccessGrantKey.c_str()));
 			if (access_result.error) {
 				fzprintf(storjEvent::Error, "failed to parse access: %s", access_result.error->message);
-				free_access_result(access_result);
+				uplink_free_access_result(access_result);
 			}
 		}
 		
-		ProjectResult project_result = config_open_project(config, access_result.access);
+		Uplink_ProjectResult project_result = uplink_config_open_project(config, access_result.access);
 		if (project_result.error) {
 			fzprintf(storjEvent::Error, "failed to open project: %s", project_result.error->message);
-			free_project_result(project_result);
+			uplink_free_project_result(project_result);
 		}
 		return project_result;
 	};
@@ -364,10 +364,6 @@ int main()
 		if (command.empty()) {
 			break;
 		}
-
-		///////////////////////////////////////////////////////////////
-		//fzprintf(storjEvent::Status, "Command(Before): %s", command);
-		///////////////////////////////////////////////////////////////
 		
 		std::size_t pos = command.find(' ');
 		std::string arg;
@@ -408,7 +404,7 @@ int main()
 			fzprintf(storjEvent::Done);
 		}
 		else if (command == "list-buckets") {
-			ProjectResult project_result = fv_openStorjProject();
+			Uplink_ProjectResult project_result = fv_openStorjProject();
 			fv_listBuckets(project_result.project);
 			
 			fzprintf(storjEvent::Done);
@@ -449,7 +445,7 @@ int main()
 				}
 			}
 
-			ProjectResult project_result = fv_openStorjProject();			
+			Uplink_ProjectResult project_result = fv_openStorjProject();			
 			fv_listObjects(project_result.project, bucket, prefix);
 			
 			fzprintf(storjEvent::Done);			
@@ -471,7 +467,7 @@ int main()
 				file = fz::replaced_substrings(file.substr(1, file.size() - 2), "\"\"", "\"");
 			}
 
-			ProjectResult project_result = fv_openStorjProject();
+			Uplink_ProjectResult project_result = fv_openStorjProject();
 			fv_downloadObject(project_result.project, bucket, id, file);
 			
 			fzprintf(storjEvent::Done);			
@@ -501,7 +497,7 @@ int main()
 				objectName = remote_name;
 			}
 
-			ProjectResult project_result = fv_openStorjProject();
+			Uplink_ProjectResult project_result = fv_openStorjProject();
 			fv_uploadObject(project_result.project, bucket, prefix, file, objectName);
 
 			// refresh
@@ -510,29 +506,19 @@ int main()
 			fzprintf(storjEvent::Done);
 		}
 		else if (command == "rm") {
-/*			auto args = fz::strtok(arg, ' ');
-			if (args.size() != 2) {
-				fzprintf(storjEvent::Error, "Bad arguments");
-				continue;
-			}
 
-			std::string bucketName = args[0];
-			std::string objectKey = args[1];
-			std::string prefix = "";
-*/			
-			////////////////////////////////////////////////////////////////
 			size_t space_pos = arg.find_first_of(' ');
 			
 			std::string bucketName = arg.substr(0, space_pos);
 			std::string objectKey = arg.substr(space_pos+1, arg.size());
 			std::string prefix = "";
-			////////////////////////////////////////////////////////////////
+			
 			size_t pos = objectKey.find_last_of('/');
 			if (pos != std::string::npos) {
 				prefix = objectKey.substr(0, pos);
 			}	
 			
-			ProjectResult project_result = fv_openStorjProject();
+			Uplink_ProjectResult project_result = fv_openStorjProject();
 			fv_deleteObject(project_result.project, bucketName, objectKey);
 
 			// refresh
@@ -548,7 +534,7 @@ int main()
 				continue;
 			}
 			
-			ProjectResult project_result = fv_openStorjProject();
+			Uplink_ProjectResult project_result = fv_openStorjProject();
 			fv_createBucket(project_result.project, bucketName);
 						
 			// refresh
@@ -559,7 +545,7 @@ int main()
 		else if (command == "rmbucket") {
 			std::string bucketName = arg;
 					
-			ProjectResult project_result = fv_openStorjProject();
+			Uplink_ProjectResult project_result = fv_openStorjProject();
 			fv_deleteBucket(project_result.project, bucketName);
 			
 			// refresh
