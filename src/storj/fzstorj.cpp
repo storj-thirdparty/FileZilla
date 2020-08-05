@@ -141,7 +141,8 @@ extern "C" void fv_listObjects(Uplink_Project *project, std::string bucket, std:
 		prefix = prefix + "/";
 	
 	Uplink_ListObjectsOptions options = {
-		.prefix = const_cast<char*>(prefix.c_str()),
+		//.prefix = const_cast<char*>(prefix.c_str()),
+		.prefix = prefix.c_str(),
 		.cursor = "",
 		.recursive = false, 
 		.system = true,
