@@ -8,7 +8,8 @@
 #include <libfilezilla/mutex.hpp>
 
 typedef bool _Bool;
-#include "libuplinkc.h"
+//#include "libuplinkc.h"
+#include <storj/libuplinkc.h>
 #include "require.h"
 
 #include <map>
