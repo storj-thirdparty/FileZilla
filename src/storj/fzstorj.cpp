@@ -505,8 +505,8 @@ int main()
 				objectName = remote_name;
 			}
 
-			//Uplink_ProjectResult project_result = fv_openStorjProject();
-			project_result = fv_openStorjProject();
+			Uplink_ProjectResult project_result = fv_openStorjProject();
+			//project_result = fv_openStorjProject();
 			fv_uploadObject(project_result.project, bucket, prefix, file, objectName);
 
 			// refresh
@@ -543,7 +543,7 @@ int main()
 				continue;
 			}
 			
-			//Uplink_ProjectResult project_result = fv_openStorjProject();
+			Uplink_ProjectResult project_result = fv_openStorjProject();
 			fv_createBucket(project_result.project, bucketName);
 						
 			// refresh
@@ -554,7 +554,7 @@ int main()
 		else if (command == "rmbucket") {
 			std::string bucketName = arg;
 					
-			//Uplink_ProjectResult project_result = fv_openStorjProject();
+			Uplink_ProjectResult project_result = fv_openStorjProject();
 			fv_deleteBucket(project_result.project, bucketName);
 			
 			// refresh
