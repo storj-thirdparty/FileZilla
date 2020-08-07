@@ -26,16 +26,12 @@
 	$ make && make install
     ```
 	- Please ensure there are no empty spaces in any folder name!
-* Download FileZilla source from GitHub:
-    ```
-    $ cd ~
-	$ git clone https://github.com/storj-thirdparty/FileZilla.git filezilla
-    ```
-* Generate C binding library files for Storj (v1.0.5 with GPL v2 License) management:
+
+* Build Storj-Uplink-C (v1.0.5 with GPL v2 License):
     - Please ensure [golang (minimum version 1.14.0)](https://golang.org/doc/install) is installed
     - [storj-uplink-c go package](https://github.com/storj/uplink-c )
         ```
-        $ go get storj.io/uplink-c
+        $ go get storj.io/uplink-c && rm -rf $HOME/go/src/storj.io/uplink-c && cd $HOME/go/src/storj.io && git clone https://github.com/storj-thirdparty/modified-uplink-c.git uplink-c	
         ```
     - [go-licenses go package](https://github.com/google/go-licenses )
         ```
@@ -46,14 +42,18 @@
         ```
         $ export PATH="$HOME/go/bin:$PATH"
         ```
-    - Generate the C binding with GPL v2 License:
+    - Build uplink-c with GPL v2 License:
         ```
-        $ ./check-licenses.sh
-        $ go build -modfile=go-gpl2.mod -ldflags="-s -w" -buildmode c-archive -tags stdsha256 -o libuplinkc.a . && mkdir -p $HOME/prefix/include/storj/ && mv libuplinkc.a $HOME/prefix/lib && mv libuplinkc.h $HOME/prefix/include/storj/ && cp uplink_definitions.h $HOME/prefix/include/storj/
+        $ cd $HOME/go/src/storj.io/uplink-c
+		$ autoreconf -i
+		$ ./configure --prefix="$HOME/prefix"
+		$ make && make install
         ```
 * Build FileZilla from source with Storj feature enable:
 	```
-    $ cd ~/filezilla
+    $ cd ~
+	$ git clone https://github.com/storj-thirdparty/FileZilla.git filezilla
+	$ cd filezilla
 	$ autoreconf -i
 	$ ./configure --with-pugixml=builtin --enable-storj
 	$ make
@@ -134,16 +134,12 @@
 	$ make install
     ```
 	- Please ensure there are no empty spaces in any folder name!
-* Download FileZilla source from GitHub:
-    ```
-    $ cd ~/src
-	$ git clone https://github.com/storj-thirdparty/FileZilla.git filezilla
-    ```
-* Generate C binding library files for Storj (v1.0.5 with GPL v2 License) management:
+
+* Build Storj-Uplink-C (v1.0.5 with GPL v2 License):
     - Please ensure [golang (minimum version 1.14.0)](https://golang.org/doc/install) is installed
     - [storj-uplink-c go package](https://github.com/storj/uplink-c )
         ```
-        $ go get storj.io/uplink-c
+        $ go get storj.io/uplink-c && rm -rf $HOME/go/src/storj.io/uplink-c && cd $HOME/go/src/storj.io && git clone https://github.com/storj-thirdparty/modified-uplink-c.git uplink-c
         ```
     - [go-licenses go package](https://github.com/google/go-licenses )
         ```
@@ -154,14 +150,18 @@
         ```
         $ export PATH="$HOME/go/bin:$PATH"
         ```
-    - Generate the C binding with GPL v2 License:
+    - Build uplink-c with GPL v2 License:
         ```
-        $ ./check-licenses.sh
-		$ go build -modfile=go-gpl2.mod -ldflags="-s -w" -buildmode c-archive -tags stdsha256 -o libuplinkc.a . && mkdir -p $HOME/prefix/include/storj/ && mv libuplinkc.a $HOME/prefix/lib && mv libuplinkc.h $HOME/prefix/include/storj/ && cp uplink_definitions.h $HOME/prefix/include/storj/
+        $ cd $HOME/go/src/storj.io/uplink-c
+		$ autoreconf -i
+		$ ./configure --prefix="$HOME/prefix"
+		$ make && make install
         ```
 * Build FileZilla from source with Storj feature enable:
     ```
-    $ cd ~/src/filezilla
+    $ cd ~/src
+    $ git clone https://github.com/storj-thirdparty/FileZilla.git filezilla
+    $ cd filezilla
     $ autoreconf -i
     $ ./configure --with-pugixml=builtin --enable-storj
     ```
@@ -294,17 +294,11 @@
 		```
     - Please ensure there are no empty spaces in any folder name!
 
-* Download FileZilla source from GitHub:
-    ```
-	$ cd ~
-    $ git clone https://github.com/storj-thirdparty/FileZilla.git filezilla
-	```
- 
-* Generate C binding library files for Storj (v1.0.5 with GPL v2 License) management:
+* Build Storj-Uplink-C (v1.0.5 with GPL v2 License):
     - Please ensure [golang (minimum version 1.14.0)](https://golang.org/doc/install) is installed
     - [storj-uplink-c go package](https://github.com/storj/uplink-c )
         ```
-        $ go get storj.io/uplink-c
+        $ go get storj.io/uplink-c && rm -rf $HOME/go/src/storj.io/uplink-c && cd $HOME/go/src/storj.io && git clone https://github.com/storj-thirdparty/modified-uplink-c.git uplink-c
         ```
     - [go-licenses go package](https://github.com/google/go-licenses )
         ```
@@ -315,15 +309,19 @@
         ```
         $ export PATH="$HOME/go/bin:$PATH"
         ```
-    - Generate the C binding with GPL v2 License:
+    - Build uplink-c with GPL v2 License:
         ```
-        $ ./check-licenses.sh
-        $ go build -modfile=go-gpl2.mod -ldflags="-s -w" -buildmode c-archive -tags stdsha256 -o libuplinkc.a . && mkdir -p $HOME/prefix/include/storj/ && mv libuplinkc.a $HOME/prefix/lib && mv libuplinkc.h $HOME/prefix/include/storj/ && cp uplink_definitions.h $HOME/prefix/include/storj/
+        $ cd $HOME/go/src/storj.io/uplink-c
+		$ autoreconf -i
+		$ ./configure --prefix="$HOME/prefix"
+		$ make && make install 
         ```
 	
 * Build FileZilla from source with Storj feature enable:
 	```
-	$ cd ~/filezilla
+	$ cd ~
+	$ git clone https://github.com/storj-thirdparty/FileZilla.git filezilla
+	$ cd filezilla
     $ autoreconf -i
 	$ ./configure --prefix="$HOME/prefix" --with-pugixml=builtin --enable-shared --disable-static --enable-storj
 	$ make && make install
@@ -456,18 +454,12 @@
 		$ make install
 		$ cp $HOME/prefix/lib/wx*.dll $HOME/prefix/bin		
 		```
-
-* Download FileZilla source from GitHub:
-    ```
-	$ cd ~/src
-	$ git clone https://github.com/storj-thirdparty/FileZilla.git filezilla
-	```
-
-* Generate C binding library files for Storj (v1.0.5 with GPL v2 License) management for Windows by cross-compilation from Ubuntu:
+		
+* Build Storj-Uplink-C (v1.0.5 with GPL v2 License) for Windows by cross-compilation from Ubuntu:
     - Please ensure [golang (minimum version 1.14.0)](https://golang.org/doc/install) is installed
     - [storj-uplink-c go package](https://github.com/storj/uplink-c )
         ```
-        $ go get storj.io/uplink-c
+        $ go get storj.io/uplink-c && rm -rf $HOME/go/src/storj.io/uplink-c && cd $HOME/go/src/storj.io && git clone https://github.com/storj-thirdparty/modified-uplink-c.git uplink-c
         ```
     - [go-licenses go package](https://github.com/google/go-licenses )
         ```
@@ -478,15 +470,19 @@
         ```
         $ export PATH="$HOME/go/bin:$PATH"
         ```
-    - Generate the C binding with GPL v2 License:
+    - Build uplink-c with GPL v2 License:
         ```
-        $ ./check-licenses.sh
-        $ GOOS="windows" GOARCH="amd64" CGO_ENABLED="1" CXX="x86_64-w64-mingw32-g++" CC="x86_64-w64-mingw32-gcc" go build -modfile=go-gpl2.mod -ldflags="-s -w" -buildmode c-archive -tags stdsha256 -o libuplinkc.a . && mkdir -p $HOME/prefix/include/storj/ && mv libuplinkc.a $HOME/prefix/lib && mv libuplinkc.h $HOME/prefix/include/storj/ && cp uplink_definitions.h $HOME/prefix/include/storj/
+        $ cd $HOME/go/src/storj.io/uplink-c
+		$ autoreconf -i
+		$ ./configure --host=$TARGET_HOST --prefix="$HOME/prefix"
+		$ make && make install
         ```
 
 * Build FileZilla from source with Storj feature enable:
 	```
-	$ cd ~/src/filezilla
+	$ cd ~/src
+	$ git clone https://github.com/storj-thirdparty/FileZilla.git filezilla
+	$ cd filezilla
     $ autoreconf -i
 	$ ./configure --host=$TARGET_HOST --prefix="$HOME/prefix" --enable-shared --disable-static --with-pugixml=builtin --enable-storj
 	```
