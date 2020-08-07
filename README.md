@@ -47,6 +47,7 @@
         $ cd $HOME/go/src/storj.io/uplink-c
 		$ autoreconf -i
 		$ ./configure --prefix="$HOME/prefix"
+		$ chmod +x ./uplinkc-builder.sh
 		$ make && make install
         ```
 * Build FileZilla from source with Storj feature enable:
@@ -155,6 +156,7 @@
         $ cd $HOME/go/src/storj.io/uplink-c
 		$ autoreconf -i
 		$ ./configure --prefix="$HOME/prefix"
+		$ chmod +x ./uplinkc-builder.sh
 		$ make && make install
         ```
 * Build FileZilla from source with Storj feature enable:
@@ -314,6 +316,7 @@
         $ cd $HOME/go/src/storj.io/uplink-c
 		$ autoreconf -i
 		$ ./configure --prefix="$HOME/prefix"
+		$ chmod +x ./uplinkc-builder.sh
 		$ make && make install 
         ```
 	
@@ -475,6 +478,7 @@
         $ cd $HOME/go/src/storj.io/uplink-c
 		$ autoreconf -i
 		$ ./configure --host=$TARGET_HOST --prefix="$HOME/prefix"
+		$ chmod +x ./uplinkc-builder.sh
 		$ make && make install
         ```
 
