@@ -330,9 +330,9 @@ int main()
         .user_agent = "FileZilla",
     };
 	
-	////////
-	Uplink_ProjectResult project_result;
-	////////
+	
+	//Uplink_ProjectResult project_result;
+	
 
 	auto fv_openStorjProject = [&]() -> Uplink_ProjectResult {
 		Uplink_AccessResult access_result;
@@ -410,8 +410,8 @@ int main()
 			fzprintf(storjEvent::Done);
 		}
 		else if (command == "list-buckets") {
-			//Uplink_ProjectResult project_result = fv_openStorjProject();
-			project_result = fv_openStorjProject();
+			Uplink_ProjectResult project_result = fv_openStorjProject();
+			//project_result = fv_openStorjProject();
 			fv_listBuckets(project_result.project);
 			
 			fzprintf(storjEvent::Done);
@@ -452,7 +452,7 @@ int main()
 				}
 			}
 
-			//Uplink_ProjectResult project_result = fv_openStorjProject();			
+			Uplink_ProjectResult project_result = fv_openStorjProject();			
 			fv_listObjects(project_result.project, bucket, prefix);
 			
 			fzprintf(storjEvent::Done);			
@@ -474,8 +474,8 @@ int main()
 				file = fz::replaced_substrings(file.substr(1, file.size() - 2), "\"\"", "\"");
 			}
 
-			//Uplink_ProjectResult project_result = fv_openStorjProject();
-			project_result = fv_openStorjProject();
+			Uplink_ProjectResult project_result = fv_openStorjProject();
+			//project_result = fv_openStorjProject();
 			fv_downloadObject(project_result.project, bucket, id, file);
 			
 			fzprintf(storjEvent::Done);			
@@ -510,7 +510,7 @@ int main()
 			fv_uploadObject(project_result.project, bucket, prefix, file, objectName);
 
 			// refresh
-			//fv_listObjects(project_result.project, bucket, prefix);
+			fv_listObjects(project_result.project, bucket, prefix);
 
 			fzprintf(storjEvent::Done);
 		}
@@ -527,12 +527,12 @@ int main()
 				prefix = objectKey.substr(0, pos);
 			}	
 			
-			//Uplink_ProjectResult project_result = fv_openStorjProject();
+			Uplink_ProjectResult project_result = fv_openStorjProject();
 			fv_deleteObject(project_result.project, bucketName, objectKey);
 
 			// refresh
-			//project_result = fv_openStorjProject();
-			//fv_listObjects(project_result.project, bucketName, prefix);
+			project_result = fv_openStorjProject();
+			fv_listObjects(project_result.project, bucketName, prefix);
 			
 			fzprintf(storjEvent::Done);	
 		}
